@@ -1,23 +1,23 @@
 name: Deploy to GitHub Pages
 
+# Publishes dist/ to the `gh-pages` branch. Creating that branch auto-enables
+# GitHub Pages (source: gh-pages) — no Settings changes and no Pages API
+# permissions needed (the configure-pages/deploy-pages route fails on repos
+# where the workflow token can't create the Pages site).
 on:
   push:
     branches: ["claude/nifty-option-screener-93xv0y"]
-    paths-ignore:
-      - "public/data/**" # data refreshes shouldn't trigger a full redeploy
   workflow_dispatch: {}
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,27 +25,15 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      # Enables Pages (build type: GitHub Actions) from the workflow itself,
-      # so no manual Settings → Pages → Source change is required.
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - run: npm ci
       - run: npm run build
         env:
           # Match the Pages sub-path to the actual repo name automatically.
           BASE_PATH: /${{ github.event.repository.name }}/
-      - uses: actions/upload-pages-artifact@v3
+      - run: touch dist/.nojekyll
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true

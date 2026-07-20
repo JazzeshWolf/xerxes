@@ -8,7 +8,12 @@ export interface Dash {
   refresh: () => void;
 }
 
-const DATA_URL = `${import.meta.env.BASE_URL}data/nifty.json`;
+// Primary: raw.githubusercontent — sees each data commit within minutes, no
+// Pages redeploy needed (data commits are [skip ci]). Fallback: the copy
+// bundled into the Pages deploy (may lag until the next code push).
+const RAW_URL =
+  "https://raw.githubusercontent.com/JazzeshWolf/xerxes/claude/nifty-option-screener-93xv0y/public/data/nifty.json";
+const PAGES_URL = `${import.meta.env.BASE_URL}data/nifty.json`;
 
 export function useDashboard(): Dash {
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -19,11 +24,13 @@ export function useDashboard(): Dash {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    fetch(`${DATA_URL}?t=${Date.now()}`, { cache: "no-store" })
-      .then((r) => {
+    const get = (url: string) =>
+      fetch(`${url}?t=${Date.now()}`, { cache: "no-store" }).then((r) => {
         if (!r.ok) throw new Error(`data fetch -> ${r.status}`);
         return r.json();
-      })
+      });
+    get(RAW_URL)
+      .catch(() => get(PAGES_URL))
       .then((j: Snapshot) => {
         if (!alive) return;
         setSnap(j);
