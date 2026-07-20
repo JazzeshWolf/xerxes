@@ -1,0 +1,55 @@
+name: Refresh NIFTY data
+
+# Free "serverless backend": fetches the NIFTY option chain during NSE market
+# hours, computes OI/PCR/max-pain/IV/verdict, and commits public/data/*.json.
+on:
+  schedule:
+    # Every 10 min, ~08:30–16:30 IST (03:00–11:00 UTC), Mon–Fri.
+    # Offset off the top of the hour (:07/:17/…): GitHub delays or drops
+    # scheduled runs that land on :00, so the offset improves reliability.
+    # NSE trades 09:15–15:30 IST; the extra runs around the edges capture the
+    # pre-open snapshot and the end-of-day settlement chain.
+    - cron: "7,17,27,37,47,57 3-10 * * 1-5"
+  workflow_dispatch: {} # manual trigger for testing
+  push:
+    # Rebuild data on code changes (e.g. fetcher tweaks) — ignore data-only
+    # commits to avoid a self-trigger loop.
+    branches: ["claude/nifty-option-screener-93xv0y"]
+    paths-ignore:
+      - "public/data/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build data snapshot
+        env:
+          # Upstox 1-year read-only "Analytics" token — primary source for the
+          # option chain (OI, IV, greeks), spot, VIX and history.
+          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
+        run: node scripts/build-data.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name "xerxes-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if [ -n "$(git status --porcelain public/data)" ]; then
+            git add public/data
+            git commit -m "data: refresh NIFTY snapshot [skip ci]"
+            git push
+          else
+            echo "No data changes."
+          fi
