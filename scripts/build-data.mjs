@@ -82,11 +82,15 @@ function timeToExpiryYears(expiryIso) {
   const cutoff = new Date(`${expiryIso}T10:00:00Z`).getTime();
   return Math.max((cutoff - Date.now()) / YEAR_MS, 0.25 / 365);
 }
-function dteCalendar(expiryIso) {
-  const cutoff = new Date(`${expiryIso}T10:00:00Z`).getTime();
-  return Math.max(0, Math.ceil((cutoff - Date.now()) / 86400000));
-}
 const todayIso = () => new Date().toISOString().slice(0, 10);
+// Calendar days to expiry = difference of the two dates (NOT ceil of the raw
+// time delta — that reads an expiry with a few hours left as "1 day", turning
+// today's expiry into "tomorrow"). Runner is in market hours so UTC date = IST.
+function dteCalendar(expiryIso) {
+  const exp = Date.parse(`${expiryIso}T00:00:00Z`);
+  const today = Date.parse(`${todayIso()}T00:00:00Z`);
+  return Math.max(0, Math.round((exp - today) / 86400000));
+}
 
 /** Union of date-keyed series (later lists win), sorted ascending. */
 function mergeByDate(...lists) {
@@ -312,10 +316,11 @@ function buildIndex(cfg, raw, prev) {
   for (const e of ordered) {
     expiries[e] = computeExpiry(raw.chainsByExpiry[e], spot, e, raw.labels[e] ?? "weekly");
   }
-  // Decision-horizon default: skip an expiry that's basically over (< 1 DTE, e.g.
-  // expiry-day morning) so the verdict + landing view sit on a tenor a seller
-  // can actually trade. Falls back to the nearest if all are same-day.
-  const defaultExpiry = ordered.find((e) => expiries[e].dte >= 1) ?? ordered[0];
+  // Default to the nearest expiry — on expiry day that's today's contract
+  // (dte 0), which is what a seller is watching; the dropdown still offers the
+  // later expiries for a cleaner directional read. The verdict card flags the
+  // extreme 0-DTE gamma risk.
+  const defaultExpiry = ordered[0];
   const dflt = expiries[defaultExpiry];
 
   // IV rank/percentile: accumulate the DEFAULT (near) expiry's ATM IV across
