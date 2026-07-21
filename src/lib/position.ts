@@ -46,6 +46,8 @@ export interface PositionResult {
   curve: { s: number; pnl: number }[]; // for the chart (focused window)
   spot: number;
   expectedMove: number;
+  callWall: number | null; // biggest call OI strike for this expiry (resistance)
+  putWall: number | null; // biggest put OI strike for this expiry (support)
   assessment: Assessment;
 }
 
@@ -104,7 +106,7 @@ export function analyzePosition(legs: Leg[], snap: Snapshot, exp: ExpiryBlock): 
   const empty: PositionResult = {
     legs: resolved, lotSize, valid: false, netCredit: 0, maxProfit: null, maxLoss: null,
     breakevens: [], netDelta: 0, netTheta: 0, pop: null, expectedPnl: null, curve: [],
-    spot, expectedMove: em,
+    spot, expectedMove: em, callWall: exp.metrics.callWall, putWall: exp.metrics.putWall,
     assessment: { score: 0, grade: "Incomplete", bias: "neutral", pros: [], cons: [], suggestions: [] },
   };
   if (!valid) return empty;
@@ -186,6 +188,7 @@ export function analyzePosition(legs: Leg[], snap: Snapshot, exp: ExpiryBlock): 
     legs: resolved, lotSize, valid: true, netCredit: Math.round(netCredit),
     maxProfit, maxLoss, breakevens: crossings.slice(0, 4),
     netDelta, netTheta, pop, expectedPnl, curve, spot, expectedMove: em,
+    callWall: exp.metrics.callWall, putWall: exp.metrics.putWall,
     assessment: { score: 0, grade: "Incomplete", bias: "neutral", pros: [], cons: [], suggestions: [] },
   };
   partial.assessment = assessFit(partial, snap, exp);

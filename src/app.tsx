@@ -18,7 +18,7 @@ import { PositionTab } from "./components/PositionTab";
 import { TabBar, type Tab } from "./components/TabBar";
 import { timeAgo } from "./lib/format";
 
-const TABS: Tab[] = ["verdict", "position", "chain", "holistic", "outlook", "news"];
+const TABS: Tab[] = ["verdict", "chain", "holistic", "outlook", "news", "position"];
 
 const LS_KEY = "xerxes.instrument";
 

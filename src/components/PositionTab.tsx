@@ -50,6 +50,17 @@ export function PositionTab({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
   const addLeg = () => setLegs((ls) => [...ls, { id: uid(), type: "PE", side: "sell", strike: nearest(spot), lots: 1 }]);
   const upd = (id: string, patch: Partial<Leg>) => setLegs((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   const del = (id: string) => setLegs((ls) => ls.filter((l) => l.id !== id));
+  // Slide every leg up/down one strike step — keeps the shape, moves the whole
+  // position across the board so you can see how the payoff shifts.
+  const shift = (dir: 1 | -1) =>
+    setLegs((ls) =>
+      ls.map((l) => {
+        const i = strikes.indexOf(l.strike);
+        if (i === -1) return l;
+        const ni = Math.min(strikes.length - 1, Math.max(0, i + dir));
+        return { ...l, strike: strikes[ni] };
+      }),
+    );
 
   const result = useMemo(() => analyzePosition(legs, snap, exp), [legs, snap, exp]);
 
@@ -113,6 +124,14 @@ export function PositionTab({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
             </div>
           ))}
         </div>
+        {result.legs.length > 0 && (
+          <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-white/[0.06]">
+            <span className="text-[10px] text-white/45 shrink-0">Shift strikes</span>
+            <button onClick={() => shift(-1)} aria-label="shift down a strike" className="w-8 h-7 grid place-items-center rounded-lg border border-white/15 text-white/80 active:bg-white/[0.08]">◀</button>
+            <button onClick={() => shift(1)} aria-label="shift up a strike" className="w-8 h-7 grid place-items-center rounded-lg border border-white/15 text-white/80 active:bg-white/[0.08]">▶</button>
+            <span className="text-[9px] text-white/30 leading-tight">slide the whole position up/down a strike and watch the payoff move</span>
+          </div>
+        )}
         <div className="flex items-center justify-between mt-2">
           <button onClick={addLeg} className="text-[11px] px-2.5 py-1 rounded-full border border-white/15 text-white/70 active:bg-white/[0.08]">+ add leg</button>
           <span className="text-[10px] text-white/40">lot size {snap.lotSize ?? "—"} · lots × premium = credit/leg</span>
@@ -131,9 +150,9 @@ export function PositionTab({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
 }
 
 function PayoffChart({ result }: { result: ReturnType<typeof analyzePosition> }) {
-  const { curve, spot, expectedMove: em, breakevens, maxProfit, maxLoss } = result;
+  const { curve, spot, expectedMove: em, breakevens, maxProfit, maxLoss, callWall, putWall } = result;
   if (!curve.length) return null;
-  const W = 340, H = 150, PADX = 6, PADT = 10, PADB = 16;
+  const W = 340, H = 150, PADX = 6, PADT = 12, PADB = 16;
   const xs = curve.map((p) => p.s);
   const ys = curve.map((p) => p.pnl);
   const sLo = xs[0], sHi = xs[xs.length - 1];
@@ -141,8 +160,10 @@ function PayoffChart({ result }: { result: ReturnType<typeof analyzePosition> })
   const x = (s: number) => PADX + ((s - sLo) / (sHi - sLo)) * (W - 2 * PADX);
   const y = (p: number) => PADT + (1 - (p - pMin) / (pMax - pMin)) * (H - PADT - PADB);
   const y0 = y(0);
+  const inWin = (s: number | null): s is number => s != null && s >= sLo && s <= sHi;
   const line = curve.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.s).toFixed(1)},${y(p.pnl).toFixed(1)}`).join("");
-  // profit (green) / loss (red) fill split at the zero line
+  // Close the curve down to the zero line, then clip above/below to split the
+  // profit (green) and loss (red) shading.
   const areaTop = `${line} L${x(sHi)},${y0} L${x(sLo)},${y0} Z`;
 
   return (
@@ -151,16 +172,33 @@ function PayoffChart({ result }: { result: ReturnType<typeof analyzePosition> })
         <defs>
           <clipPath id="above"><rect x={0} y={0} width={W} height={y0} /></clipPath>
           <clipPath id="below"><rect x={0} y={y0} width={W} height={H - y0} /></clipPath>
+          <linearGradient id="pgrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgb(52 211 153)" stop-opacity="0.55" />
+            <stop offset="100%" stop-color="rgb(52 211 153)" stop-opacity="0.08" />
+          </linearGradient>
+          <linearGradient id="lgrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgb(244 63 94)" stop-opacity="0.08" />
+            <stop offset="100%" stop-color="rgb(244 63 94)" stop-opacity="0.55" />
+          </linearGradient>
         </defs>
         {/* expected-move band */}
-        <rect x={x(spot - em)} y={PADT} width={Math.max(0, x(spot + em) - x(spot - em))} height={H - PADT - PADB} fill="rgb(56 189 248 / 0.07)" />
+        <rect x={x(spot - em)} y={PADT} width={Math.max(0, x(spot + em) - x(spot - em))} height={H - PADT - PADB} fill="rgb(56 189 248 / 0.06)" />
+        {/* profit / loss shading */}
+        <path d={areaTop} fill="url(#pgrad)" clipPath="url(#above)" />
+        <path d={areaTop} fill="url(#lgrad)" clipPath="url(#below)" />
         {/* zero line */}
-        <line x1={PADX} x2={W - PADX} y1={y0} y2={y0} stroke="rgb(255 255 255 / 0.25)" strokeWidth="0.75" strokeDasharray="3 3" />
-        {/* fills */}
-        <path d={areaTop} fill="rgb(52 211 153 / 0.16)" clipPath="url(#above)" />
-        <path d={areaTop} fill="rgb(251 113 133 / 0.16)" clipPath="url(#below)" />
+        <line x1={PADX} x2={W - PADX} y1={y0} y2={y0} stroke="rgb(255 255 255 / 0.3)" strokeWidth="0.75" strokeDasharray="3 3" />
+        {/* OI walls (biggest call/put OI for this expiry) */}
+        {inWin(putWall) && (
+          <line x1={x(putWall)} x2={x(putWall)} y1={PADT} y2={H - PADB} stroke="rgb(167 139 250 / 0.6)" strokeWidth="1" strokeDasharray="1 2" />
+        )}
+        {inWin(callWall) && (
+          <line x1={x(callWall)} x2={x(callWall)} y1={PADT} y2={H - PADB} stroke="rgb(167 139 250 / 0.6)" strokeWidth="1" strokeDasharray="1 2" />
+        )}
+        {inWin(putWall) && <text x={x(putWall)} y={PADT - 3} textAnchor="middle" fontSize="6.5" fill="rgb(196 181 253)" className="tnum">P {fmt(putWall)}</text>}
+        {inWin(callWall) && <text x={x(callWall)} y={PADT - 3} textAnchor="middle" fontSize="6.5" fill="rgb(196 181 253)" className="tnum">C {fmt(callWall)}</text>}
         {/* payoff line */}
-        <path d={line} fill="none" stroke="rgb(226 232 240)" strokeWidth="1.6" />
+        <path d={line} fill="none" stroke="rgb(241 245 249)" strokeWidth="1.8" />
         {/* spot */}
         <line x1={x(spot)} x2={x(spot)} y1={PADT} y2={H - PADB} stroke="rgb(125 211 252)" strokeWidth="1" strokeDasharray="2 2" />
         <text x={x(spot)} y={H - 5} textAnchor="middle" fontSize="7.5" fill="rgb(125 211 252)" className="tnum">{fmt(spot)}</text>
@@ -168,15 +206,21 @@ function PayoffChart({ result }: { result: ReturnType<typeof analyzePosition> })
         {breakevens.map((b) => (
           <g key={b}>
             <line x1={x(b)} x2={x(b)} y1={y0 - 4} y2={y0 + 4} stroke="rgb(251 191 36)" strokeWidth="1.5" />
-            <text x={x(b)} y={PADT + 6} textAnchor="middle" fontSize="7" fill="rgb(251 191 36)" className="tnum">{fmt(b)}</text>
+            <text x={x(b)} y={PADT + 7} textAnchor="middle" fontSize="7" fill="rgb(251 191 36)" className="tnum">{fmt(b)}</text>
           </g>
         ))}
       </svg>
       <div className="flex justify-between text-[9px] text-white/40 mt-1">
-        <span className="text-emerald-300/80">max {rupee(maxProfit)}</span>
+        <span className="text-emerald-300/80">max profit {rupee(maxProfit)}</span>
         <span className="text-amber-300/80">◆ breakeven</span>
-        <span className="text-rose-300/80">max {rupee(maxLoss)}</span>
+        <span className="text-rose-300/80">max loss {rupee(maxLoss)}</span>
       </div>
+      {(callWall != null || putWall != null) && (
+        <div className="flex justify-center gap-4 text-[9px] text-violet-300/70 mt-0.5">
+          <span>▏ put wall {putWall != null ? fmt(putWall) : "—"} (support)</span>
+          <span>▏ call wall {callWall != null ? fmt(callWall) : "—"} (resistance)</span>
+        </div>
+      )}
     </Card>
   );
 }
