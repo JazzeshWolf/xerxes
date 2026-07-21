@@ -43,17 +43,47 @@ export interface PositionResult {
   netTheta: number; // ₹/day (positive = decay works for you)
   pop: number | null; // probability of profit 0..1
   expectedPnl: number | null; // ₹
-  curve: { s: number; pnl: number }[]; // for the chart (focused window)
+  curve: { s: number; pnl: number }[]; // P&L at expiry across the window
+  curveToday: { s: number; pnl: number }[]; // theoretical P&L now (T+0, BS-priced)
+  curveHalf: { s: number; pnl: number }[]; // theoretical P&L halfway to expiry
   spot: number;
-  expectedMove: number;
+  expectedMove: number; // ≈ 1 standard deviation for this expiry
   callWall: number | null; // biggest call OI strike for this expiry (resistance)
   putWall: number | null; // biggest put OI strike for this expiry (support)
   assessment: Assessment;
 }
 
-// --- Black-Scholes theta (per calendar day), r≈0 ----------------------------
+// --- Black-Scholes helpers, r≈0 ---------------------------------------------
 function normPdf(x: number) {
   return Math.exp(-(x * x) / 2) / Math.sqrt(2 * Math.PI);
+}
+function normCdf(x: number) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d = 0.3989422804014327 * Math.exp(-(x * x) / 2);
+  const p = d * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return x >= 0 ? 1 - p : p;
+}
+/** Theoretical option price with `t` years to expiry (r=0). */
+function bsPrice(S: number, K: number, t: number, vol: number, type: "CE" | "PE"): number {
+  const intrinsic = type === "CE" ? Math.max(S - K, 0) : Math.max(K - S, 0);
+  if (!(t > 0) || !(vol > 0)) return intrinsic;
+  const sT = vol * Math.sqrt(t);
+  const d1 = (Math.log(S / K) + (vol * vol) / 2 * t) / sT;
+  const d2 = d1 - sT;
+  return type === "CE" ? S * normCdf(d1) - K * normCdf(d2) : K * normCdf(-d2) - S * normCdf(-d1);
+}
+/** Position P&L (₹) at underlying `S` with `t` years left, BS-priced. Null if
+ *  any leg is missing IV (can't be priced before expiry). */
+function pnlAtTime(S: number, legs: LegResolved[], lotSize: number, t: number): number | null {
+  let pnl = 0;
+  for (const l of legs) {
+    if (l.premium == null) continue;
+    if (l.iv == null) return null;
+    const theo = bsPrice(S, l.strike, t, l.iv, l.type);
+    const perUnit = l.side === "sell" ? l.premium - theo : theo - l.premium;
+    pnl += perUnit * l.lots * lotSize;
+  }
+  return pnl;
 }
 function bsTheta(S: number, K: number, tYears: number, vol: number, type: "CE" | "PE"): number | null {
   if (!(S > 0) || !(K > 0) || !(tYears > 0) || !(vol > 0)) return null;
@@ -105,7 +135,8 @@ export function analyzePosition(legs: Leg[], snap: Snapshot, exp: ExpiryBlock): 
 
   const empty: PositionResult = {
     legs: resolved, lotSize, valid: false, netCredit: 0, maxProfit: null, maxLoss: null,
-    breakevens: [], netDelta: 0, netTheta: 0, pop: null, expectedPnl: null, curve: [],
+    breakevens: [], netDelta: 0, netTheta: 0, pop: null, expectedPnl: null,
+    curve: [], curveToday: [], curveHalf: [],
     spot, expectedMove: em, callWall: exp.metrics.callWall, putWall: exp.metrics.putWall,
     assessment: { score: 0, grade: "Incomplete", bias: "neutral", pros: [], cons: [], suggestions: [] },
   };
@@ -175,19 +206,30 @@ export function analyzePosition(legs: Leg[], snap: Snapshot, exp: ExpiryBlock): 
     }
   }
 
-  // Focused curve for the chart: spot ± ~2.2× expected move.
-  const span = Math.max(em * 2.2, spot * 0.03);
-  const cLo = Math.max(0, spot - span), cHi = spot + span, CN = 120;
+  // Focused curves for the chart: spot ± ~2.6σ, wide enough to show ±2SD and
+  // the OI walls. Three time slices — at expiry (intrinsic), today (BS at full
+  // t), and halfway to expiry — mirror a broker's payoff view.
+  const span = Math.max(em * 2.6, spot * 0.04);
+  const cLo = Math.max(0, spot - span), cHi = spot + span, CN = 140;
   const curve: { s: number; pnl: number }[] = [];
+  const curveToday: { s: number; pnl: number }[] = [];
+  const curveHalf: { s: number; pnl: number }[] = [];
+  const canPrice = priced.every((l) => l.iv != null) && exp.tYears > 0;
   for (let i = 0; i <= CN; i++) {
     const s = cLo + ((cHi - cLo) * i) / CN;
     curve.push({ s, pnl: Math.round(payoffAt(s, priced, lotSize)) });
+    if (canPrice) {
+      const pt = pnlAtTime(s, priced, lotSize, exp.tYears);
+      const ph = pnlAtTime(s, priced, lotSize, exp.tYears / 2);
+      if (pt != null) curveToday.push({ s, pnl: Math.round(pt) });
+      if (ph != null) curveHalf.push({ s, pnl: Math.round(ph) });
+    }
   }
 
   const partial: PositionResult = {
     legs: resolved, lotSize, valid: true, netCredit: Math.round(netCredit),
     maxProfit, maxLoss, breakevens: crossings.slice(0, 4),
-    netDelta, netTheta, pop, expectedPnl, curve, spot, expectedMove: em,
+    netDelta, netTheta, pop, expectedPnl, curve, curveToday, curveHalf, spot, expectedMove: em,
     callWall: exp.metrics.callWall, putWall: exp.metrics.putWall,
     assessment: { score: 0, grade: "Incomplete", bias: "neutral", pros: [], cons: [], suggestions: [] },
   };

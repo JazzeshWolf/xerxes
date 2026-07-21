@@ -140,7 +140,7 @@ export function PositionTab({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
 
       {result.valid && (
         <>
-          <PayoffChart result={result} />
+          <PayoffChart result={result} exp={exp} />
           <StatsCard result={result} />
           <FitCard result={result} />
         </>
@@ -149,76 +149,135 @@ export function PositionTab({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
   );
 }
 
-function PayoffChart({ result }: { result: ReturnType<typeof analyzePosition> }) {
-  const { curve, spot, expectedMove: em, breakevens, maxProfit, maxLoss, callWall, putWall } = result;
+// Compact P/L axis tick (no ₹ symbol — keeps the left gutter narrow).
+const axisK = (n: number) => {
+  const a = Math.abs(n), s = n < 0 ? "-" : "";
+  if (a >= 100000) return `${s}${(a / 100000).toFixed(1)}L`;
+  if (a >= 1000) return `${s}${(a / 1000).toFixed(a >= 10000 ? 0 : 1)}k`;
+  return `${s}${a}`;
+};
+const oiTag = (n: number) => (n >= 1e7 ? `${(n / 1e7).toFixed(1)}Cr` : n >= 1e5 ? `${(n / 1e5).toFixed(0)}L` : `${n}`);
+
+/** Broker-style payoff chart: OI histogram, SD gridlines, and three P&L
+ *  curves (at expiry, today, halfway) over the strike window. */
+function PayoffChart({ result, exp }: { result: ReturnType<typeof analyzePosition>; exp: ExpiryBlock }) {
+  const { curve, curveToday, curveHalf, spot, expectedMove: em, breakevens, maxProfit, maxLoss, callWall, putWall } = result;
   if (!curve.length) return null;
-  const W = 340, H = 150, PADX = 6, PADT = 12, PADB = 16;
-  const xs = curve.map((p) => p.s);
-  const ys = curve.map((p) => p.pnl);
-  const sLo = xs[0], sHi = xs[xs.length - 1];
-  const pMax = Math.max(1, ...ys), pMin = Math.min(-1, ...ys);
-  const x = (s: number) => PADX + ((s - sLo) / (sHi - sLo)) * (W - 2 * PADX);
-  const y = (p: number) => PADT + (1 - (p - pMin) / (pMax - pMin)) * (H - PADT - PADB);
+  const W = 360, H = 224, PADL = 26, PADR = 8, TOP = 18, BOT = 30;
+  const sLo = curve[0].s, sHi = curve[curve.length - 1].s;
+  const allPnl = [...curve, ...curveToday, ...curveHalf].map((p) => p.pnl);
+  const pMax = Math.max(1, ...allPnl), pMin = Math.min(-1, ...allPnl);
+  const x = (s: number) => PADL + ((s - sLo) / (sHi - sLo)) * (W - PADL - PADR);
+  const y = (p: number) => TOP + (1 - (p - pMin) / (pMax - pMin)) * (H - TOP - BOT);
   const y0 = y(0);
   const inWin = (s: number | null): s is number => s != null && s >= sLo && s <= sHi;
-  const line = curve.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.s).toFixed(1)},${y(p.pnl).toFixed(1)}`).join("");
-  // Close the curve down to the zero line, then clip above/below to split the
-  // profit (green) and loss (red) shading.
+  const path = (c: { s: number; pnl: number }[]) => c.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.s).toFixed(1)},${y(p.pnl).toFixed(1)}`).join("");
+  const line = path(curve);
   const areaTop = `${line} L${x(sHi)},${y0} L${x(sLo)},${y0} Z`;
 
+  // OI histogram (open interest per strike within the window).
+  const oiMap = new Map<number, { c: number; p: number }>();
+  for (const o of exp.chain) {
+    if (o.strike < sLo || o.strike > sHi) continue;
+    const e = oiMap.get(o.strike) ?? { c: 0, p: 0 };
+    if (o.type === "CE") e.c = o.oi; else e.p = o.oi;
+    oiMap.set(o.strike, e);
+  }
+  const oiStrikes = [...oiMap.keys()].sort((a, b) => a - b);
+  const maxOi = Math.max(1, ...oiStrikes.map((s) => Math.max(oiMap.get(s)!.c, oiMap.get(s)!.p)));
+  const step = oiStrikes.length > 1 ? oiStrikes[1] - oiStrikes[0] : em;
+  const barW = Math.max(1.1, Math.abs(x(sLo + step) - x(sLo)) * 0.34);
+  const oiTop = TOP + 2;
+  const barH = (oi: number) => (oi / maxOi) * (y0 - oiTop);
+
+  const sdLines = [-2, -1, 1, 2].map((k) => ({ k, s: spot + k * em })).filter((d) => inWin(d.s));
+  // Round strike ticks kept a comfortable margin off both edges.
+  const tickStep = step * Math.max(1, Math.ceil((sHi - sLo) / (step * 6)));
+  const strikeTicks: number[] = [];
+  for (let s = Math.ceil((sLo + step) / tickStep) * tickStep; s <= sHi - step; s += tickStep) strikeTicks.push(s);
+
   return (
-    <Card title="Payoff at expiry">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+    <Card title="Payoff at expiry" right={<span className="text-[9px] text-white/45 tnum">spot {fmt(spot)}</span>}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ overflow: "visible" }}>
         <defs>
           <clipPath id="above"><rect x={0} y={0} width={W} height={y0} /></clipPath>
           <clipPath id="below"><rect x={0} y={y0} width={W} height={H - y0} /></clipPath>
           <linearGradient id="pgrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="rgb(52 211 153)" stop-opacity="0.55" />
-            <stop offset="100%" stop-color="rgb(52 211 153)" stop-opacity="0.08" />
+            <stop offset="0%" stop-color="rgb(52 211 153)" stop-opacity="0.5" />
+            <stop offset="100%" stop-color="rgb(52 211 153)" stop-opacity="0.06" />
           </linearGradient>
           <linearGradient id="lgrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="rgb(244 63 94)" stop-opacity="0.08" />
-            <stop offset="100%" stop-color="rgb(244 63 94)" stop-opacity="0.55" />
+            <stop offset="0%" stop-color="rgb(244 63 94)" stop-opacity="0.06" />
+            <stop offset="100%" stop-color="rgb(244 63 94)" stop-opacity="0.5" />
           </linearGradient>
         </defs>
-        {/* expected-move band */}
-        <rect x={x(spot - em)} y={PADT} width={Math.max(0, x(spot + em) - x(spot - em))} height={H - PADT - PADB} fill="rgb(56 189 248 / 0.06)" />
-        {/* profit / loss shading */}
+
+        {/* OI histogram — grows up from the zero line, scaled to the tallest OI */}
+        {oiStrikes.map((s) => {
+          const e = oiMap.get(s)!, cx = x(s);
+          return (
+            <g key={s}>
+              <rect x={cx - barW - 0.3} y={y0 - barH(e.c)} width={barW} height={barH(e.c)} fill="rgb(52 211 153 / 0.28)" />
+              <rect x={cx + 0.3} y={y0 - barH(e.p)} width={barW} height={barH(e.p)} fill="rgb(244 63 94 / 0.28)" />
+            </g>
+          );
+        })}
+
+        {/* 1SD band */}
+        {inWin(spot - em) && inWin(spot + em) && (
+          <rect x={x(spot - em)} y={TOP} width={x(spot + em) - x(spot - em)} height={H - TOP - BOT} fill="rgb(56 189 248 / 0.05)" />
+        )}
+        {/* profit / loss shading (at expiry) */}
         <path d={areaTop} fill="url(#pgrad)" clipPath="url(#above)" />
         <path d={areaTop} fill="url(#lgrad)" clipPath="url(#below)" />
-        {/* zero line */}
-        <line x1={PADX} x2={W - PADX} y1={y0} y2={y0} stroke="rgb(255 255 255 / 0.3)" strokeWidth="0.75" strokeDasharray="3 3" />
-        {/* OI walls (biggest call/put OI for this expiry) */}
-        {inWin(putWall) && (
-          <line x1={x(putWall)} x2={x(putWall)} y1={PADT} y2={H - PADB} stroke="rgb(167 139 250 / 0.6)" strokeWidth="1" strokeDasharray="1 2" />
-        )}
-        {inWin(callWall) && (
-          <line x1={x(callWall)} x2={x(callWall)} y1={PADT} y2={H - PADB} stroke="rgb(167 139 250 / 0.6)" strokeWidth="1" strokeDasharray="1 2" />
-        )}
-        {inWin(putWall) && <text x={x(putWall)} y={PADT - 3} textAnchor="middle" fontSize="6.5" fill="rgb(196 181 253)" className="tnum">P {fmt(putWall)}</text>}
-        {inWin(callWall) && <text x={x(callWall)} y={PADT - 3} textAnchor="middle" fontSize="6.5" fill="rgb(196 181 253)" className="tnum">C {fmt(callWall)}</text>}
-        {/* payoff line */}
-        <path d={line} fill="none" stroke="rgb(241 245 249)" strokeWidth="1.8" />
-        {/* spot */}
-        <line x1={x(spot)} x2={x(spot)} y1={PADT} y2={H - PADB} stroke="rgb(125 211 252)" strokeWidth="1" strokeDasharray="2 2" />
-        <text x={x(spot)} y={H - 5} textAnchor="middle" fontSize="7.5" fill="rgb(125 211 252)" className="tnum">{fmt(spot)}</text>
+        {/* zero line + P/L axis labels */}
+        <line x1={PADL} x2={W - PADR} y1={y0} y2={y0} stroke="rgb(255 255 255 / 0.3)" strokeWidth="0.75" strokeDasharray="3 3" />
+        {[pMax, 0].map((v, i) => (
+          <text key={i} x={PADL - 3} y={y(v) + 2.5} textAnchor="end" fontSize="6.5" fill="rgb(255 255 255 / 0.4)" className="tnum">{axisK(Math.round(v))}</text>
+        ))}
+        {pMin < -1 && <text x={PADL - 3} y={H - BOT - 6} textAnchor="end" fontSize="6.5" fill="rgb(255 255 255 / 0.4)" className="tnum">{axisK(Math.round(pMin))}</text>}
+        {/* SD gridlines */}
+        {sdLines.map((d) => (
+          <g key={d.k}>
+            <line x1={x(d.s)} x2={x(d.s)} y1={TOP} y2={H - BOT} stroke="rgb(255 255 255 / 0.12)" strokeWidth="0.75" />
+            <text x={x(d.s)} y={TOP - 6} textAnchor="middle" fontSize="7" fill="rgb(255 255 255 / 0.4)">{d.k > 0 ? `+${d.k}` : d.k}SD</text>
+          </g>
+        ))}
+        {/* halfway (blue) + today (orange) + expiry (green) curves */}
+        {curveHalf.length > 0 && <path d={path(curveHalf)} fill="none" stroke="rgb(96 165 250)" strokeWidth="1.3" strokeDasharray="3 2" opacity="0.9" />}
+        {curveToday.length > 0 && <path d={path(curveToday)} fill="none" stroke="rgb(251 146 60)" strokeWidth="1.5" />}
+        <path d={line} fill="none" stroke="rgb(52 211 153)" strokeWidth="1.9" />
+        {/* spot line */}
+        <line x1={x(spot)} x2={x(spot)} y1={TOP} y2={H - BOT} stroke="rgb(125 211 252)" strokeWidth="1.1" />
         {/* breakevens */}
         {breakevens.map((b) => (
           <g key={b}>
             <line x1={x(b)} x2={x(b)} y1={y0 - 4} y2={y0 + 4} stroke="rgb(251 191 36)" strokeWidth="1.5" />
-            <text x={x(b)} y={PADT + 7} textAnchor="middle" fontSize="7" fill="rgb(251 191 36)" className="tnum">{fmt(b)}</text>
+            <text x={x(b)} y={y0 - 6} textAnchor="middle" fontSize="6.5" fill="rgb(251 191 36)" className="tnum">{fmt(b)}</text>
           </g>
         ))}
+        {/* strike axis */}
+        {strikeTicks.map((s, i) => (
+          <text key={i} transform={`rotate(-32 ${x(s)} ${H - BOT + 12})`} x={x(s)} y={H - BOT + 12} textAnchor="end" fontSize="6.5" fill="rgb(255 255 255 / 0.4)" className="tnum">{fmt(s)}</text>
+        ))}
       </svg>
+
       <div className="flex justify-between text-[9px] text-white/40 mt-1">
         <span className="text-emerald-300/80">max profit {rupee(maxProfit)}</span>
         <span className="text-amber-300/80">◆ breakeven</span>
         <span className="text-rose-300/80">max loss {rupee(maxLoss)}</span>
       </div>
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-[8.5px] text-white/45 mt-1">
+        <span className="text-emerald-300/80">— at expiry</span>
+        {curveToday.length > 0 && <span className="text-orange-300/80">— today</span>}
+        {curveHalf.length > 0 && <span className="text-blue-300/80">-- halfway</span>}
+        <span className="text-emerald-300/60">▮ call OI</span>
+        <span className="text-rose-300/60">▮ put OI</span>
+      </div>
       {(callWall != null || putWall != null) && (
-        <div className="flex justify-center gap-4 text-[9px] text-violet-300/70 mt-0.5">
-          <span>▏ put wall {putWall != null ? fmt(putWall) : "—"} (support)</span>
-          <span>▏ call wall {callWall != null ? fmt(callWall) : "—"} (resistance)</span>
+        <div className="flex justify-center gap-4 text-[8.5px] text-violet-300/70 mt-0.5">
+          <span>put wall {putWall != null ? fmt(putWall) : "—"} ({oiTag(oiMap.get(putWall ?? -1)?.p ?? 0)})</span>
+          <span>call wall {callWall != null ? fmt(callWall) : "—"} ({oiTag(oiMap.get(callWall ?? -1)?.c ?? 0)})</span>
         </div>
       )}
     </Card>
