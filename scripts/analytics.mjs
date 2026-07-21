@@ -18,6 +18,23 @@ export function round(x, d = 0) {
 
 export const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
+/**
+ * Tag each ISO expiry "weekly" or "monthly". An expiry is the MONTHLY when it
+ * is the last one in its calendar month (index monthlies expire on the last
+ * weekly of the month). Works for weekly indices (NIFTY/SENSEX) and
+ * monthly-only ones (BANKNIFTY — every expiry ends up "monthly").
+ */
+export function labelExpiries(expiries) {
+  const sorted = [...new Set(expiries)].sort();
+  const out = {};
+  for (let i = 0; i < sorted.length; i++) {
+    const cur = sorted[i];
+    const next = sorted[i + 1];
+    out[cur] = !next || next.slice(0, 7) !== cur.slice(0, 7) ? "monthly" : "weekly";
+  }
+  return out;
+}
+
 // --- Black-Scholes (index options on spot, r≈0 over weekly tenors) ---------
 export function normCdf(x) {
   const t = 1 / (1 + 0.2316419 * Math.abs(x));

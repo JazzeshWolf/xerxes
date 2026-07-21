@@ -11,6 +11,7 @@ import { gunzipSync } from "node:zlib";
 
 const BASE = "https://api.upstox.com/v2";
 const INSTRUMENTS_NSE = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz";
+const INSTRUMENTS_BSE = "https://assets.upstox.com/market-quote/instruments/exchange/BSE.json.gz";
 const INSTRUMENTS_ALL = "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz";
 
 function authHeaders(token) {
@@ -23,8 +24,12 @@ async function getJson(url, opts) {
   return res.json();
 }
 
-/** Fetch + gunzip the instrument master (NSE only, falling back to complete). */
-export async function fetchInstruments() {
+/**
+ * Fetch + gunzip the instrument master for an exchange ("NSE" | "BSE"),
+ * falling back to the combined `complete.json.gz`. BSE is needed for SENSEX
+ * (BSE F&O); NSE covers NIFTY/BANKNIFTY.
+ */
+export async function fetchInstruments(exchange = "NSE") {
   const headers = {
     "User-Agent":
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -32,7 +37,8 @@ export async function fetchInstruments() {
     "Accept-Language": "en-US,en;q=0.9",
     Referer: "https://upstox.com/",
   };
-  for (const url of [INSTRUMENTS_NSE, INSTRUMENTS_ALL]) {
+  const primary = exchange === "BSE" ? INSTRUMENTS_BSE : INSTRUMENTS_NSE;
+  for (const url of [primary, INSTRUMENTS_ALL]) {
     try {
       const res = await fetch(url, { headers });
       if (!res.ok) throw new Error(`${res.status}`);
@@ -170,7 +176,11 @@ export async function quotes(token, instrumentKeys) {
   }
 }
 
-/** Daily close history for an instrument: [{t, v}] oldest-first. */
+/**
+ * Daily history for an instrument. Returns { history:[{t,v}], oiHistory:[{t,v}] }
+ * oldest-first. `oiHistory` is populated for futures (candle field 6); it's
+ * empty for indices, which carry no open interest.
+ */
 export async function dailyCandles(token, instrumentKey, fromIso, toIso) {
   const url = `${BASE}/historical-candle/${encodeURIComponent(instrumentKey)}/day/${toIso}/${fromIso}`;
   try {
@@ -178,15 +188,18 @@ export async function dailyCandles(token, instrumentKey, fromIso, toIso) {
     const candles = j?.data?.candles ?? [];
     // Each candle: [timestamp, open, high, low, close, volume, oi] (newest first).
     const history = [];
+    const oiHistory = [];
     for (const c of candles) {
       const t = String(c[0]).slice(0, 10);
       const close = Number(c[4]);
       if (Number.isFinite(close) && close > 0) history.push({ t, v: close });
+      if (c[6] != null && Number.isFinite(Number(c[6])) && Number(c[6]) > 0) oiHistory.push({ t, v: Number(c[6]) });
     }
     history.reverse();
-    return history;
+    oiHistory.reverse();
+    return { history, oiHistory };
   } catch (e) {
     console.warn(`upstox candles ${instrumentKey}: ${e.message}`);
-    return [];
+    return { history: [], oiHistory: [] };
   }
 }

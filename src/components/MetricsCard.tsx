@@ -1,10 +1,10 @@
-import type { Snapshot } from "../lib/types";
+import type { Snapshot, ExpiryBlock } from "../lib/types";
 import { fmt, fmtOi, fmtPct } from "../lib/format";
 import { Card, Stat } from "./ui";
 
 /** PCR, OI flow, IV state and the expected move band. */
-export function MetricsCard({ snap }: { snap: Snapshot }) {
-  const m = snap.metrics;
+export function MetricsCard({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
+  const m = exp.metrics;
   const spot = snap.spot.price;
   const em = m.expectedMove;
   const flow = m.oiFlow;

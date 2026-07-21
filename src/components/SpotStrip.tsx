@@ -1,8 +1,16 @@
 import type { Snapshot } from "../lib/types";
-import { fmt, fmtPct, fmtExpiry } from "../lib/format";
-import { Card, Stat, Badge } from "./ui";
+import { fmt, fmtPct } from "../lib/format";
+import { Card, Stat, Badge, ExpiryPicker } from "./ui";
 
-export function SpotStrip({ snap }: { snap: Snapshot }) {
+export function SpotStrip({
+  snap,
+  selectedExpiry,
+  onExpiryChange,
+}: {
+  snap: Snapshot;
+  selectedExpiry: string;
+  onExpiryChange: (e: string) => void;
+}) {
   const chg = snap.spot.changePct;
   return (
     <Card>
@@ -30,9 +38,9 @@ export function SpotStrip({ snap }: { snap: Snapshot }) {
         </div>
       </div>
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.06]">
-        <div className="text-[11px] text-white/60">
-          Expiry <span className="font-semibold text-white/85">{fmtExpiry(snap.expiry.date)}</span>
-          <span className="text-white/40"> · {snap.expiry.dte === 0 ? "today" : `${snap.expiry.dte}d left`}</span>
+        <div className="flex items-center gap-2 text-[11px] text-white/60">
+          <span>Expiry</span>
+          <ExpiryPicker snap={snap} value={selectedExpiry} onChange={onExpiryChange} />
         </div>
         <div className="flex gap-1">
           {snap.stale && <Badge tone="warn">stale</Badge>}

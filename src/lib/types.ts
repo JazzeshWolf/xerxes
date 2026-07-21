@@ -2,6 +2,8 @@
 // Shared domain types — mirrors the snapshot written by scripts/build-data.mjs
 // ---------------------------------------------------------------------------
 
+export type IndexKey = "NIFTY" | "BANKNIFTY" | "SENSEX";
+
 export interface Point {
   t: string; // ISO date
   v: number;
@@ -23,6 +25,48 @@ export interface OiLevel {
   oi: number;
 }
 
+export interface Gex {
+  netPct: number;
+  regime: "pinning" | "balanced" | "volatile";
+  pinStrike: number;
+  coverage: number;
+}
+
+export interface Metrics {
+  pcrOi: number | null;
+  pcrVolume: number | null;
+  totalCallOi: number;
+  totalPutOi: number;
+  maxPain: number | null;
+  callWall: number | null;
+  putWall: number | null;
+  supports: OiLevel[];
+  resistances: OiLevel[];
+  oiFlow: { callOiChg: number; putOiChg: number } | null;
+  atmStrike: number | null;
+  atmIv: number | null;
+  ivRank: number | null;
+  ivPercentile: number | null;
+  rv20: number | null;
+  straddle: number | null;
+  expectedMove: number | null;
+  skew: number | null;
+  gex: Gex | null;
+}
+
+export interface SellCandidate {
+  strike: number;
+  type: "CE" | "PE";
+  ltp: number;
+  iv: number;
+  oi: number;
+  delta: number;
+  distancePct: number;
+  cushionSigma: number | null;
+  probTouch: number | null;
+  probProfit: number;
+}
+
 export interface Factor {
   key: string;
   label: string;
@@ -40,61 +84,36 @@ export interface Verdict {
   factors: Factor[];
 }
 
-export interface SellCandidate {
-  strike: number;
-  type: "CE" | "PE";
-  ltp: number;
-  iv: number;
-  oi: number;
-  delta: number;
-  distancePct: number;
-  cushionSigma: number | null;
-  probTouch: number | null;
-  probProfit: number;
-}
-
-export interface Gex {
-  netPct: number;
-  regime: "pinning" | "balanced" | "volatile";
-  pinStrike: number;
-  coverage: number;
+/** One expiry's full analytics — the unit the expiry dropdown switches between. */
+export interface ExpiryBlock {
+  label: "weekly" | "monthly";
+  date: string; // ISO
+  dte: number;
+  tYears: number;
+  metrics: Metrics;
+  candidates: SellCandidate[];
+  chain: ChainRow[];
 }
 
 export interface Snapshot {
   asOf: string;
   stale: boolean;
   source: "upstox" | "nse" | "fixture" | null;
-  index: string;
+  index: IndexKey;
   name: string;
   expiryKind: string;
   lotSize: number | null;
   spot: { price: number; prevClose: number | null; changePct: number | null; history: Point[] };
   vix: { value: number | null; history: Point[] };
   future: { price: number; expiry: string; oi: number | null; basisPts: number | null } | null;
-  expiry: { date: string; dte: number; tYears: number; all: string[] };
-  metrics: {
-    pcrOi: number | null;
-    pcrVolume: number | null;
-    totalCallOi: number;
-    totalPutOi: number;
-    maxPain: number | null;
-    callWall: number | null;
-    putWall: number | null;
-    supports: OiLevel[];
-    resistances: OiLevel[];
-    oiFlow: { callOiChg: number; putOiChg: number } | null;
-    atmStrike: number | null;
-    atmIv: number | null;
-    ivRank: number | null;
-    ivPercentile: number | null;
-    ivHistory: Point[];
-    rv20: number | null;
-    straddle: number | null;
-    expectedMove: number | null;
-    skew: number | null;
-    gex: Gex | null;
-  };
+  defaultExpiry: string;
+  expiries: Record<string, ExpiryBlock>;
+  ivHistory: Point[];
   verdict: Verdict;
-  candidates: SellCandidate[];
-  chain: ChainRow[];
 }
+
+export const INDEX_META: Record<IndexKey, { label: string; file: string; blurb: string }> = {
+  NIFTY: { label: "NIFTY 50", file: "nifty", blurb: "Weekly · Tuesday expiry" },
+  BANKNIFTY: { label: "BANK NIFTY", file: "banknifty", blurb: "Monthly · last Tuesday" },
+  SENSEX: { label: "SENSEX", file: "sensex", blurb: "Weekly · Thursday (BSE)" },
+};

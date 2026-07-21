@@ -1,4 +1,4 @@
-import type { Snapshot } from "../lib/types";
+import type { Snapshot, ExpiryBlock } from "../lib/types";
 import { fmt, fmtOi } from "../lib/format";
 import { Card } from "./ui";
 
@@ -7,8 +7,8 @@ import { Card } from "./ui";
  * around a vertical strike axis, with spot, max-pain and expected-move
  * markers. Hand-rolled SVG, ~ a screenful of strikes around ATM.
  */
-export function OiProfile({ snap }: { snap: Snapshot }) {
-  const { chain, metrics } = snap;
+export function OiProfile({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
+  const { chain, metrics } = exp;
   const spot = snap.spot.price;
   const em = metrics.expectedMove ?? 0;
 

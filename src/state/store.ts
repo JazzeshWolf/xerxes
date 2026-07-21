@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
-import type { Snapshot } from "../lib/types";
+import type { IndexKey, Snapshot } from "../lib/types";
+import { INDEX_META } from "../lib/types";
 
 export interface Dash {
   snap: Snapshot | null;
@@ -8,14 +9,15 @@ export interface Dash {
   refresh: () => void;
 }
 
+const BRANCH = "claude/nifty-option-screener-93xv0y";
 // Primary: raw.githubusercontent — sees each data commit within minutes, no
 // Pages redeploy needed (data commits are [skip ci]). Fallback: the copy
 // bundled into the Pages deploy (may lag until the next code push).
-const RAW_URL =
-  "https://raw.githubusercontent.com/JazzeshWolf/xerxes/claude/nifty-option-screener-93xv0y/public/data/nifty.json";
-const PAGES_URL = `${import.meta.env.BASE_URL}data/nifty.json`;
+const rawUrl = (file: string) =>
+  `https://raw.githubusercontent.com/JazzeshWolf/xerxes/${BRANCH}/public/data/${file}.json`;
+const pagesUrl = (file: string) => `${import.meta.env.BASE_URL}data/${file}.json`;
 
-export function useDashboard(): Dash {
+export function useDashboard(index: IndexKey): Dash {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,14 +25,16 @@ export function useDashboard(): Dash {
 
   useEffect(() => {
     let alive = true;
+    const file = INDEX_META[index].file;
     setLoading(true);
+    setSnap(null);
     const get = (url: string) =>
       fetch(`${url}?t=${Date.now()}`, { cache: "no-store" }).then((r) => {
         if (!r.ok) throw new Error(`data fetch -> ${r.status}`);
         return r.json();
       });
-    get(RAW_URL)
-      .catch(() => get(PAGES_URL))
+    get(rawUrl(file))
+      .catch(() => get(pagesUrl(file)))
       .then((j: Snapshot) => {
         if (!alive) return;
         setSnap(j);
@@ -41,7 +45,7 @@ export function useDashboard(): Dash {
     return () => {
       alive = false;
     };
-  }, [tick]);
+  }, [index, tick]);
 
   // Auto-refresh every 5 minutes while the tab is open.
   useEffect(() => {

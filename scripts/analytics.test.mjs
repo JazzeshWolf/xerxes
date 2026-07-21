@@ -93,6 +93,20 @@ describe("chain aggregates", () => {
   });
 });
 
+describe("labelExpiries", () => {
+  it("tags the last expiry of each month as monthly, others weekly", () => {
+    const l = A.labelExpiries(["2026-07-21", "2026-07-28", "2026-08-04", "2026-08-25"]);
+    expect(l["2026-07-21"]).toBe("weekly");
+    expect(l["2026-07-28"]).toBe("monthly"); // last in July
+    expect(l["2026-08-04"]).toBe("weekly");
+    expect(l["2026-08-25"]).toBe("monthly"); // last in August
+  });
+  it("monthly-only lists (BANKNIFTY) tag every expiry monthly", () => {
+    const l = A.labelExpiries(["2026-07-28", "2026-08-25", "2026-09-29"]);
+    expect(Object.values(l).every((v) => v === "monthly")).toBe(true);
+  });
+});
+
 describe("stats", () => {
   it("ema and pctChange behave", () => {
     const xs = Array.from({ length: 60 }, (_, i) => 100 + i);

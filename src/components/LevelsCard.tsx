@@ -1,10 +1,10 @@
-import type { Snapshot } from "../lib/types";
+import type { Snapshot, ExpiryBlock } from "../lib/types";
 import { fmt, fmtOi } from "../lib/format";
 import { Card, Stat } from "./ui";
 
 /** Key OI-derived levels: walls, max pain, ranked supports/resistances, GEX. */
-export function LevelsCard({ snap }: { snap: Snapshot }) {
-  const m = snap.metrics;
+export function LevelsCard({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
+  const m = exp.metrics;
   const spot = snap.spot.price;
   const gexLabel =
     m.gex?.regime === "pinning" ? "pinning — expiry likely magnets to big strikes" :

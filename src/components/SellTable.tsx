@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import type { Snapshot, SellCandidate } from "../lib/types";
+import type { Snapshot, ExpiryBlock, SellCandidate } from "../lib/types";
 import { fmt, fmtOi } from "../lib/format";
 import { Card, Badge } from "./ui";
 
@@ -7,11 +7,11 @@ import { Card, Badge } from "./ui";
  * Ranked strikes a seller would actually quote: OTM, small delta, real
  * premium. The verdict's preferred side is pre-selected and badged.
  */
-export function SellTable({ snap }: { snap: Snapshot }) {
+export function SellTable({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
   const favored: "PE" | "CE" | null =
     snap.verdict.verdict === "BULLISH" ? "PE" : snap.verdict.verdict === "BEARISH" ? "CE" : null;
   const [side, setSide] = useState<"PE" | "CE">(favored ?? "PE");
-  const rows = snap.candidates.filter((c) => c.type === side).slice(0, 8);
+  const rows = exp.candidates.filter((c) => c.type === side).slice(0, 8);
   const lot = snap.lotSize;
 
   return (
