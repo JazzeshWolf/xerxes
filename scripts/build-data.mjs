@@ -312,7 +312,10 @@ function buildIndex(cfg, raw, prev) {
   for (const e of ordered) {
     expiries[e] = computeExpiry(raw.chainsByExpiry[e], spot, e, raw.labels[e] ?? "weekly");
   }
-  const defaultExpiry = ordered[0];
+  // Decision-horizon default: skip an expiry that's basically over (< 1 DTE, e.g.
+  // expiry-day morning) so the verdict + landing view sit on a tenor a seller
+  // can actually trade. Falls back to the nearest if all are same-day.
+  const defaultExpiry = ordered.find((e) => expiries[e].dte >= 1) ?? ordered[0];
   const dflt = expiries[defaultExpiry];
 
   // IV rank/percentile: accumulate the DEFAULT (near) expiry's ATM IV across
