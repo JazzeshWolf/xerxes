@@ -310,6 +310,11 @@ function buildIndex(cfg, raw, prev) {
   const vixCloses = vixHistory.map((p) => p.v);
   const rv20 = A.realizedVol(closes, 20);
 
+  // Previous close = last daily close BEFORE today (the live quote's ohlc.close
+  // mirrors the current price for indices, so it can't give the day change).
+  const priorPt = [...spotHistory].reverse().find((p) => p.t < today);
+  const prevClose = priorPt?.v ?? raw.prevClose ?? null;
+
   // Per-expiry blocks (nearest first).
   const ordered = raw.orderedExpiries.filter((e) => raw.chainsByExpiry[e]);
   const expiries = {};
@@ -346,7 +351,7 @@ function buildIndex(cfg, raw, prev) {
   const prevFutOi = foi.length > 1 ? foi[foi.length - 2].v : null;
   const curFutOi = raw.future?.oi ?? (foi.length ? foi[foi.length - 1].v : null);
   const futOiChgPct = prevFutOi > 0 && curFutOi != null ? (curFutOi - prevFutOi) / prevFutOi : null;
-  const priceChgPct = raw.prevClose > 0 ? (spot - raw.prevClose) / raw.prevClose : null;
+  const priceChgPct = prevClose > 0 ? (spot - prevClose) / prevClose : null;
   const structure = A.futuresStructure(priceChgPct, futOiChgPct);
 
   // Verdict on the decision-horizon (nearest) expiry.
@@ -370,7 +375,7 @@ function buildIndex(cfg, raw, prev) {
     publicExpiries[e] = pub;
   }
 
-  const changePct = raw.prevClose > 0 ? A.round(((spot - raw.prevClose) / raw.prevClose) * 100, 2) : null;
+  const changePct = prevClose > 0 ? A.round(((spot - prevClose) / prevClose) * 100, 2) : null;
 
   return {
     asOf: new Date().toISOString(),
@@ -380,7 +385,7 @@ function buildIndex(cfg, raw, prev) {
     name: cfg.name,
     expiryKind: cfg.expiryKind,
     lotSize: raw.lotSize ?? prev?.lotSize ?? null,
-    spot: { price: A.round(spot, 2), prevClose: A.round(raw.prevClose, 2), changePct, history: spotHistory },
+    spot: { price: A.round(spot, 2), prevClose: A.round(prevClose, 2), changePct, history: spotHistory },
     vix: { value: A.round(raw.vix, 2), history: vixHistory },
     future: raw.future
       ? { price: A.round(raw.future.price, 2), expiry: raw.future.expiry, oi: raw.future.oi, basisPts: A.round(basisPts, 1) }
