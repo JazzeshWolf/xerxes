@@ -1,7 +1,8 @@
-export type Tab = "verdict" | "chain" | "holistic" | "outlook" | "news";
+export type Tab = "verdict" | "position" | "chain" | "holistic" | "outlook" | "news";
 
 const LABELS: Record<Tab, string> = {
   verdict: "Verdict",
+  position: "Position",
   chain: "Chain",
   holistic: "Holistic",
   outlook: "Outlook",

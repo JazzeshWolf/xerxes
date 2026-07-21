@@ -14,10 +14,11 @@ import { FactorsCard } from "./components/FactorsCard";
 import { HolisticTab } from "./components/HolisticTab";
 import { OutlookTab } from "./components/OutlookTab";
 import { NewsTab } from "./components/NewsTab";
+import { PositionTab } from "./components/PositionTab";
 import { TabBar, type Tab } from "./components/TabBar";
 import { timeAgo } from "./lib/format";
 
-const TABS: Tab[] = ["verdict", "chain", "holistic", "outlook", "news"];
+const TABS: Tab[] = ["verdict", "position", "chain", "holistic", "outlook", "news"];
 
 const LS_KEY = "xerxes.instrument";
 
@@ -124,6 +125,7 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
               </>
             )}
 
+            {tab === "position" && <PositionTab snap={snap} exp={exp} />}
             {tab === "holistic" && <HolisticTab snap={snap} exp={exp} />}
             {tab === "outlook" && <OutlookTab market={market.data} index={instrument} />}
             {tab === "news" && <NewsTab market={market.data} index={instrument} />}
