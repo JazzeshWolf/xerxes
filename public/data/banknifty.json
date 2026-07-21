@@ -1,5 +1,5 @@
 {
-  "asOf": "2026-07-21T20:39:51.140Z",
+  "asOf": "2026-07-21T21:01:11.174Z",
   "stale": false,
   "source": "upstox",
   "index": "BANKNIFTY",
@@ -2201,12 +2201,29 @@
     "basisPts": 129.7
   },
   "defaultExpiry": "2026-07-28",
+  "horizons": {
+    "1W": {
+      "date": "2026-07-28",
+      "dte": 7,
+      "fallback": false
+    },
+    "1M": {
+      "date": "2026-08-25",
+      "dte": 35,
+      "fallback": false
+    },
+    "2M": {
+      "date": "2026-09-29",
+      "dte": 70,
+      "fallback": false
+    }
+  },
   "expiries": {
     "2026-07-28": {
       "label": "monthly",
       "date": "2026-07-28",
       "dte": 7,
-      "tYears": 0.01796,
+      "tYears": 0.01792,
       "metrics": {
         "pcrOi": 0.89,
         "pcrVolume": 0.99,
@@ -2284,7 +2301,7 @@
           "delta": -0.214,
           "distancePct": 1.44,
           "cushionSigma": 0.88,
-          "probTouch": 0.489,
+          "probTouch": 0.488,
           "probProfit": 0.786
         },
         {
@@ -2296,7 +2313,7 @@
           "delta": -0.192,
           "distancePct": 1.62,
           "cushionSigma": 0.99,
-          "probTouch": 0.439,
+          "probTouch": 0.438,
           "probProfit": 0.808
         },
         {
@@ -2320,7 +2337,7 @@
           "delta": -0.156,
           "distancePct": 1.96,
           "cushionSigma": 1.2,
-          "probTouch": 0.358,
+          "probTouch": 0.357,
           "probProfit": 0.844
         },
         {
@@ -2332,7 +2349,7 @@
           "delta": -0.137,
           "distancePct": 2.14,
           "cushionSigma": 1.3,
-          "probTouch": 0.314,
+          "probTouch": 0.313,
           "probProfit": 0.863
         },
         {
@@ -2344,7 +2361,7 @@
           "delta": -0.125,
           "distancePct": 2.31,
           "cushionSigma": 1.41,
-          "probTouch": 0.286,
+          "probTouch": 0.285,
           "probProfit": 0.875
         },
         {
@@ -2368,7 +2385,7 @@
           "delta": -0.098,
           "distancePct": 2.65,
           "cushionSigma": 1.62,
-          "probTouch": 0.225,
+          "probTouch": 0.224,
           "probProfit": 0.902
         },
         {
@@ -2392,7 +2409,7 @@
           "delta": -0.077,
           "distancePct": 3,
           "cushionSigma": 1.83,
-          "probTouch": 0.177,
+          "probTouch": 0.176,
           "probProfit": 0.923
         },
         {
@@ -2404,7 +2421,7 @@
           "delta": -0.069,
           "distancePct": 3.17,
           "cushionSigma": 1.94,
-          "probTouch": 0.157,
+          "probTouch": 0.156,
           "probProfit": 0.931
         },
         {
@@ -2428,7 +2445,7 @@
           "delta": -0.054,
           "distancePct": 3.52,
           "cushionSigma": 2.15,
-          "probTouch": 0.122,
+          "probTouch": 0.121,
           "probProfit": 0.946
         },
         {
@@ -2464,7 +2481,7 @@
           "delta": 0.236,
           "distancePct": 1.67,
           "cushionSigma": 1.02,
-          "probTouch": 0.378,
+          "probTouch": 0.377,
           "probProfit": 0.764
         },
         {
@@ -2476,7 +2493,7 @@
           "delta": 0.209,
           "distancePct": 1.84,
           "cushionSigma": 1.12,
-          "probTouch": 0.328,
+          "probTouch": 0.327,
           "probProfit": 0.792
         },
         {
@@ -2500,7 +2517,7 @@
           "delta": 0.161,
           "distancePct": 2.19,
           "cushionSigma": 1.33,
-          "probTouch": 0.244,
+          "probTouch": 0.243,
           "probProfit": 0.84
         },
         {
@@ -2524,7 +2541,7 @@
           "delta": 0.121,
           "distancePct": 2.53,
           "cushionSigma": 1.54,
-          "probTouch": 0.178,
+          "probTouch": 0.177,
           "probProfit": 0.879
         },
         {
@@ -2536,7 +2553,7 @@
           "delta": 0.104,
           "distancePct": 2.71,
           "cushionSigma": 1.65,
-          "probTouch": 0.153,
+          "probTouch": 0.152,
           "probProfit": 0.896
         },
         {
@@ -5453,13 +5470,85 @@
           "volume": 0,
           "delta": -1
         }
-      ]
+      ],
+      "verdict": {
+        "score": 1.2,
+        "confidence": 0.82,
+        "verdict": "NEUTRAL",
+        "structure": "Iron condor / short strangle (defined-risk)",
+        "factors": [
+          {
+            "key": "trend",
+            "label": "Price vs 20/50-EMA",
+            "s": 0.59,
+            "weight": 0.2,
+            "reading": "20-EMA 57606 · 50-EMA 56834",
+            "present": true
+          },
+          {
+            "key": "momentum",
+            "label": "Momentum (5d/20d)",
+            "s": 0.24,
+            "weight": 0.15,
+            "reading": "5d 0.6% · 20d -0.2%",
+            "present": true
+          },
+          {
+            "key": "oiFlowSig",
+            "label": "OI flow (put vs call writing)",
+            "s": -0.46,
+            "weight": 0.17,
+            "reading": "ΔOI put +5.5L vs call +14.9L",
+            "present": true
+          },
+          {
+            "key": "pcrSig",
+            "label": "PCR positioning",
+            "s": -0.27,
+            "weight": 0.12,
+            "reading": "PCR(OI) 0.89",
+            "present": true
+          },
+          {
+            "key": "maxPainPull",
+            "label": "Max-pain gravity",
+            "s": 0.16,
+            "weight": 0.1,
+            "reading": "max pain 58000 vs spot 57835",
+            "present": true
+          },
+          {
+            "key": "skewSig",
+            "label": "IV skew",
+            "s": -0.64,
+            "weight": 0.08,
+            "reading": "25∆-ish skew 2.6 vol pts",
+            "present": true
+          },
+          {
+            "key": "vixSig",
+            "label": "VIX trend (inverse)",
+            "s": 0.56,
+            "weight": 0.1,
+            "reading": "VIX 5d -8.4%",
+            "present": true
+          },
+          {
+            "key": "basisSig",
+            "label": "Futures basis",
+            "s": 0.75,
+            "weight": 0.08,
+            "reading": "basis 129.7 pts",
+            "present": true
+          }
+        ]
+      }
     },
     "2026-08-25": {
       "label": "monthly",
       "date": "2026-08-25",
       "dte": 35,
-      "tYears": 0.09467,
+      "tYears": 0.09463,
       "metrics": {
         "pcrOi": 1.02,
         "pcrVolume": 0.72,
@@ -5681,7 +5770,7 @@
           "delta": -0.137,
           "distancePct": 4.38,
           "cushionSigma": 1.23,
-          "probTouch": 0.353,
+          "probTouch": 0.352,
           "probProfit": 0.863
         },
         {
@@ -7786,7 +7875,1024 @@
           "volume": 2580,
           "delta": -1
         }
-      ]
+      ],
+      "verdict": {
+        "score": 1.9,
+        "confidence": 0.85,
+        "verdict": "NEUTRAL",
+        "structure": "Iron condor / short strangle (defined-risk)",
+        "factors": [
+          {
+            "key": "trend",
+            "label": "Price vs 20/50-EMA",
+            "s": 0.59,
+            "weight": 0.2,
+            "reading": "20-EMA 57606 · 50-EMA 56834",
+            "present": true
+          },
+          {
+            "key": "momentum",
+            "label": "Momentum (5d/20d)",
+            "s": 0.24,
+            "weight": 0.15,
+            "reading": "5d 0.6% · 20d -0.2%",
+            "present": true
+          },
+          {
+            "key": "oiFlowSig",
+            "label": "OI flow (put vs call writing)",
+            "s": -0.33,
+            "weight": 0.17,
+            "reading": "ΔOI put +2.1L vs call +4.3L",
+            "present": true
+          },
+          {
+            "key": "pcrSig",
+            "label": "PCR positioning",
+            "s": 0.05,
+            "weight": 0.12,
+            "reading": "PCR(OI) 1.02",
+            "present": true
+          },
+          {
+            "key": "maxPainPull",
+            "label": "Max-pain gravity",
+            "s": 0.07,
+            "weight": 0.1,
+            "reading": "max pain 58000 vs spot 57835",
+            "present": true
+          },
+          {
+            "key": "skewSig",
+            "label": "IV skew",
+            "s": -0.46,
+            "weight": 0.08,
+            "reading": "25∆-ish skew 1.8 vol pts",
+            "present": true
+          },
+          {
+            "key": "vixSig",
+            "label": "VIX trend (inverse)",
+            "s": 0.56,
+            "weight": 0.1,
+            "reading": "VIX 5d -8.4%",
+            "present": true
+          },
+          {
+            "key": "basisSig",
+            "label": "Futures basis",
+            "s": 0.75,
+            "weight": 0.08,
+            "reading": "basis 129.7 pts",
+            "present": true
+          }
+        ]
+      }
+    },
+    "2026-09-29": {
+      "label": "monthly",
+      "date": "2026-09-29",
+      "dte": 70,
+      "tYears": 0.19052,
+      "metrics": {
+        "pcrOi": 1.74,
+        "pcrVolume": 1.85,
+        "totalCallOi": 409890,
+        "totalPutOi": 714330,
+        "maxPain": 58500,
+        "callWall": 58500,
+        "putWall": 57000,
+        "supports": [
+          {
+            "strike": 57000,
+            "oi": 127290
+          },
+          {
+            "strike": 54000,
+            "oi": 66600
+          },
+          {
+            "strike": 55500,
+            "oi": 62520
+          }
+        ],
+        "resistances": [
+          {
+            "strike": 58500,
+            "oi": 87900
+          },
+          {
+            "strike": 60000,
+            "oi": 79290
+          },
+          {
+            "strike": 58000,
+            "oi": 63570
+          }
+        ],
+        "oiFlow": {
+          "callOiChg": 29970,
+          "putOiChg": 46200
+        },
+        "atmStrike": 57800,
+        "atmIv": 0.1347,
+        "ivRank": null,
+        "ivPercentile": null,
+        "rv20": null,
+        "straddle": 2816.1,
+        "expectedMove": 2816,
+        "skew": 0.0095,
+        "gex": {
+          "netPct": -23,
+          "regime": "volatile",
+          "pinStrike": 57000,
+          "coverage": 53
+        }
+      },
+      "candidates": [
+        {
+          "strike": 54400,
+          "type": "PE",
+          "ltp": 745.9,
+          "iv": 0.2286,
+          "oi": 30,
+          "delta": -0.213,
+          "distancePct": 5.94,
+          "cushionSigma": 1.22,
+          "probTouch": 0.539,
+          "probProfit": 0.787
+        },
+        {
+          "strike": 56000,
+          "type": "PE",
+          "ltp": 484.6,
+          "iv": 0.1427,
+          "oi": 61050,
+          "delta": -0.223,
+          "distancePct": 3.17,
+          "cushionSigma": 0.65,
+          "probTouch": 0.605,
+          "probProfit": 0.777
+        },
+        {
+          "strike": 55500,
+          "type": "PE",
+          "ltp": 390.35,
+          "iv": 0.145,
+          "oi": 62520,
+          "delta": -0.186,
+          "distancePct": 4.04,
+          "cushionSigma": 0.83,
+          "probTouch": 0.515,
+          "probProfit": 0.814
+        },
+        {
+          "strike": 55000,
+          "type": "PE",
+          "ltp": 327.1,
+          "iv": 0.1498,
+          "oi": 28680,
+          "delta": -0.157,
+          "distancePct": 4.9,
+          "cushionSigma": 1.01,
+          "probTouch": 0.442,
+          "probProfit": 0.843
+        },
+        {
+          "strike": 54000,
+          "type": "PE",
+          "ltp": 217,
+          "iv": 0.1565,
+          "oi": 66600,
+          "delta": -0.109,
+          "distancePct": 6.63,
+          "cushionSigma": 1.36,
+          "probTouch": 0.315,
+          "probProfit": 0.891
+        },
+        {
+          "strike": 53500,
+          "type": "PE",
+          "ltp": 179,
+          "iv": 0.1605,
+          "oi": 450,
+          "delta": -0.091,
+          "distancePct": 7.5,
+          "cushionSigma": 1.54,
+          "probTouch": 0.266,
+          "probProfit": 0.909
+        },
+        {
+          "strike": 53000,
+          "type": "PE",
+          "ltp": 147.55,
+          "iv": 0.1645,
+          "oi": 9780,
+          "delta": -0.076,
+          "distancePct": 8.36,
+          "cushionSigma": 1.72,
+          "probTouch": 0.224,
+          "probProfit": 0.924
+        },
+        {
+          "strike": 52500,
+          "type": "PE",
+          "ltp": 118.1,
+          "iv": 0.1674,
+          "oi": 14610,
+          "delta": -0.062,
+          "distancePct": 9.23,
+          "cushionSigma": 1.89,
+          "probTouch": 0.185,
+          "probProfit": 0.938
+        },
+        {
+          "strike": 52000,
+          "type": "PE",
+          "ltp": 106.15,
+          "iv": 0.1747,
+          "oi": 8100,
+          "delta": -0.054,
+          "distancePct": 10.09,
+          "cushionSigma": 2.07,
+          "probTouch": 0.163,
+          "probProfit": 0.946
+        },
+        {
+          "strike": 51000,
+          "type": "PE",
+          "ltp": 73,
+          "iv": 0.183,
+          "oi": 10440,
+          "delta": -0.038,
+          "distancePct": 11.82,
+          "cushionSigma": 2.43,
+          "probTouch": 0.115,
+          "probProfit": 0.962
+        },
+        {
+          "strike": 50000,
+          "type": "PE",
+          "ltp": 56.35,
+          "iv": 0.1952,
+          "oi": 2580,
+          "delta": -0.028,
+          "distancePct": 13.55,
+          "cushionSigma": 2.78,
+          "probTouch": 0.088,
+          "probProfit": 0.972
+        },
+        {
+          "strike": 49500,
+          "type": "PE",
+          "ltp": 51,
+          "iv": 0.202,
+          "oi": 27300,
+          "delta": -0.025,
+          "distancePct": 14.41,
+          "cushionSigma": 2.96,
+          "probTouch": 0.078,
+          "probProfit": 0.975
+        },
+        {
+          "strike": 48000,
+          "type": "PE",
+          "ltp": 41,
+          "iv": 0.2249,
+          "oi": 21150,
+          "delta": -0.019,
+          "distancePct": 17.01,
+          "cushionSigma": 3.49,
+          "probTouch": 0.058,
+          "probProfit": 0.981
+        },
+        {
+          "strike": 45000,
+          "type": "PE",
+          "ltp": 28,
+          "iv": 0.2718,
+          "oi": 7140,
+          "delta": -0.011,
+          "distancePct": 22.19,
+          "cushionSigma": 4.56,
+          "probTouch": 0.034,
+          "probProfit": 0.989
+        },
+        {
+          "strike": 46500,
+          "type": "PE",
+          "ltp": 27.05,
+          "iv": 0.2406,
+          "oi": 12600,
+          "delta": -0.012,
+          "distancePct": 19.6,
+          "cushionSigma": 4.03,
+          "probTouch": 0.038,
+          "probProfit": 0.988
+        },
+        {
+          "strike": 61000,
+          "type": "CE",
+          "ltp": 475.3,
+          "iv": 0.1283,
+          "oi": 9510,
+          "delta": 0.248,
+          "distancePct": 5.47,
+          "cushionSigma": 1.12,
+          "probTouch": 0.341,
+          "probProfit": 0.752
+        },
+        {
+          "strike": 61500,
+          "type": "CE",
+          "ltp": 365.15,
+          "iv": 0.1278,
+          "oi": 14700,
+          "delta": 0.204,
+          "distancePct": 6.34,
+          "cushionSigma": 1.3,
+          "probTouch": 0.271,
+          "probProfit": 0.796
+        },
+        {
+          "strike": 62000,
+          "type": "CE",
+          "ltp": 279.95,
+          "iv": 0.1274,
+          "oi": 18210,
+          "delta": 0.164,
+          "distancePct": 7.2,
+          "cushionSigma": 1.48,
+          "probTouch": 0.211,
+          "probProfit": 0.836
+        },
+        {
+          "strike": 63000,
+          "type": "CE",
+          "ltp": 159.05,
+          "iv": 0.1278,
+          "oi": 43380,
+          "delta": 0.104,
+          "distancePct": 8.93,
+          "cushionSigma": 1.83,
+          "probTouch": 0.125,
+          "probProfit": 0.896
+        }
+      ],
+      "chain": [
+        {
+          "strike": 43500,
+          "type": "PE",
+          "ltp": 20.85,
+          "iv": 0.2913,
+          "oi": 300,
+          "prevOi": 0,
+          "volume": 450,
+          "delta": -0.008
+        },
+        {
+          "strike": 45000,
+          "type": "PE",
+          "ltp": 28,
+          "iv": 0.2718,
+          "oi": 7140,
+          "prevOi": 5160,
+          "volume": 2310,
+          "delta": -0.011
+        },
+        {
+          "strike": 46500,
+          "type": "PE",
+          "ltp": 27.05,
+          "iv": 0.2406,
+          "oi": 12600,
+          "prevOi": 11940,
+          "volume": 690,
+          "delta": -0.012
+        },
+        {
+          "strike": 48000,
+          "type": "CE",
+          "ltp": 10129.1,
+          "iv": null,
+          "oi": 120,
+          "prevOi": 150,
+          "volume": 0,
+          "delta": 1
+        },
+        {
+          "strike": 48000,
+          "type": "PE",
+          "ltp": 41,
+          "iv": 0.2249,
+          "oi": 21150,
+          "prevOi": 22260,
+          "volume": 4470,
+          "delta": -0.019
+        },
+        {
+          "strike": 49500,
+          "type": "PE",
+          "ltp": 51,
+          "iv": 0.202,
+          "oi": 27300,
+          "prevOi": 26640,
+          "volume": 1560,
+          "delta": -0.025
+        },
+        {
+          "strike": 50000,
+          "type": "CE",
+          "ltp": 8500,
+          "iv": null,
+          "oi": 60,
+          "prevOi": 60,
+          "volume": 30,
+          "delta": 1
+        },
+        {
+          "strike": 50000,
+          "type": "PE",
+          "ltp": 56.35,
+          "iv": 0.1952,
+          "oi": 2580,
+          "prevOi": 2520,
+          "volume": 120,
+          "delta": -0.028
+        },
+        {
+          "strike": 51000,
+          "type": "PE",
+          "ltp": 73,
+          "iv": 0.183,
+          "oi": 10440,
+          "prevOi": 10770,
+          "volume": 3900,
+          "delta": -0.038
+        },
+        {
+          "strike": 52000,
+          "type": "PE",
+          "ltp": 106.15,
+          "iv": 0.1747,
+          "oi": 8100,
+          "prevOi": 6690,
+          "volume": 5970,
+          "delta": -0.054
+        },
+        {
+          "strike": 52500,
+          "type": "PE",
+          "ltp": 118.1,
+          "iv": 0.1674,
+          "oi": 14610,
+          "prevOi": 13620,
+          "volume": 1710,
+          "delta": -0.062
+        },
+        {
+          "strike": 53000,
+          "type": "PE",
+          "ltp": 147.55,
+          "iv": 0.1645,
+          "oi": 9780,
+          "prevOi": 8850,
+          "volume": 3630,
+          "delta": -0.076
+        },
+        {
+          "strike": 53500,
+          "type": "PE",
+          "ltp": 179,
+          "iv": 0.1605,
+          "oi": 450,
+          "prevOi": 210,
+          "volume": 660,
+          "delta": -0.091
+        },
+        {
+          "strike": 54000,
+          "type": "CE",
+          "ltp": 4800,
+          "iv": 0.1484,
+          "oi": 1950,
+          "prevOi": 2010,
+          "volume": 150,
+          "delta": 0.903
+        },
+        {
+          "strike": 54000,
+          "type": "PE",
+          "ltp": 217,
+          "iv": 0.1565,
+          "oi": 66600,
+          "prevOi": 64020,
+          "volume": 15000,
+          "delta": -0.109
+        },
+        {
+          "strike": 54400,
+          "type": "PE",
+          "ltp": 745.9,
+          "iv": 0.2286,
+          "oi": 30,
+          "prevOi": 30,
+          "volume": 0,
+          "delta": -0.213
+        },
+        {
+          "strike": 55000,
+          "type": "PE",
+          "ltp": 327.1,
+          "iv": 0.1498,
+          "oi": 28680,
+          "prevOi": 21630,
+          "volume": 12810,
+          "delta": -0.157
+        },
+        {
+          "strike": 55500,
+          "type": "CE",
+          "ltp": 3477.6,
+          "iv": 0.1402,
+          "oi": 20040,
+          "prevOi": 19950,
+          "volume": 300,
+          "delta": 0.822
+        },
+        {
+          "strike": 55500,
+          "type": "PE",
+          "ltp": 390.35,
+          "iv": 0.145,
+          "oi": 62520,
+          "prevOi": 56040,
+          "volume": 17880,
+          "delta": -0.186
+        },
+        {
+          "strike": 56000,
+          "type": "CE",
+          "ltp": 3134,
+          "iv": 0.1465,
+          "oi": 810,
+          "prevOi": 780,
+          "volume": 330,
+          "delta": 0.772
+        },
+        {
+          "strike": 56000,
+          "type": "PE",
+          "ltp": 484.6,
+          "iv": 0.1427,
+          "oi": 61050,
+          "prevOi": 52680,
+          "volume": 29100,
+          "delta": -0.223
+        },
+        {
+          "strike": 56500,
+          "type": "CE",
+          "ltp": 2766.15,
+          "iv": 0.1461,
+          "oi": 540,
+          "prevOi": 480,
+          "volume": 330,
+          "delta": 0.728
+        },
+        {
+          "strike": 56900,
+          "type": "CE",
+          "ltp": 3040,
+          "iv": 0.2049,
+          "oi": 30,
+          "prevOi": 30,
+          "volume": 0,
+          "delta": 0.647
+        },
+        {
+          "strike": 57000,
+          "type": "CE",
+          "ltp": 2368.15,
+          "iv": 0.1399,
+          "oi": 42960,
+          "prevOi": 42780,
+          "volume": 2880,
+          "delta": 0.687
+        },
+        {
+          "strike": 57000,
+          "type": "PE",
+          "ltp": 726.9,
+          "iv": 0.1376,
+          "oi": 127290,
+          "prevOi": 127410,
+          "volume": 32910,
+          "delta": -0.31
+        },
+        {
+          "strike": 57100,
+          "type": "PE",
+          "ltp": 1169.5,
+          "iv": 0.1811,
+          "oi": 240,
+          "prevOi": 180,
+          "volume": 0,
+          "delta": -0.355
+        },
+        {
+          "strike": 57500,
+          "type": "CE",
+          "ltp": 2035.5,
+          "iv": 0.1385,
+          "oi": 3330,
+          "prevOi": 2310,
+          "volume": 2910,
+          "delta": 0.636
+        },
+        {
+          "strike": 57500,
+          "type": "PE",
+          "ltp": 876,
+          "iv": 0.1344,
+          "oi": 7800,
+          "prevOi": 6510,
+          "volume": 4710,
+          "delta": -0.36
+        },
+        {
+          "strike": 57700,
+          "type": "CE",
+          "ltp": 2645.2,
+          "iv": 0.212,
+          "oi": 60,
+          "prevOi": 60,
+          "volume": 0,
+          "delta": 0.586
+        },
+        {
+          "strike": 57800,
+          "type": "CE",
+          "ltp": 1823,
+          "iv": 0.1351,
+          "oi": 90,
+          "prevOi": 120,
+          "volume": 0,
+          "delta": 0.606
+        },
+        {
+          "strike": 57800,
+          "type": "PE",
+          "ltp": 993.1,
+          "iv": 0.1342,
+          "oi": 1350,
+          "prevOi": 810,
+          "volume": 1410,
+          "delta": -0.394
+        },
+        {
+          "strike": 58000,
+          "type": "CE",
+          "ltp": 1711.55,
+          "iv": 0.1354,
+          "oi": 63570,
+          "prevOi": 47880,
+          "volume": 21810,
+          "delta": 0.583
+        },
+        {
+          "strike": 58000,
+          "type": "PE",
+          "ltp": 1060,
+          "iv": 0.1323,
+          "oi": 94530,
+          "prevOi": 83940,
+          "volume": 36300,
+          "delta": -0.416
+        },
+        {
+          "strike": 58100,
+          "type": "CE",
+          "ltp": 1722.6,
+          "iv": 0.142,
+          "oi": 30,
+          "prevOi": 30,
+          "volume": 120,
+          "delta": 0.569
+        },
+        {
+          "strike": 58200,
+          "type": "CE",
+          "ltp": 1714.05,
+          "iv": 0.1465,
+          "oi": 210,
+          "prevOi": 240,
+          "volume": 0,
+          "delta": 0.557
+        },
+        {
+          "strike": 58200,
+          "type": "PE",
+          "ltp": 1038.15,
+          "iv": 0.1212,
+          "oi": 600,
+          "prevOi": 630,
+          "volume": 0,
+          "delta": -0.436
+        },
+        {
+          "strike": 58400,
+          "type": "CE",
+          "ltp": 1576.9,
+          "iv": 0.1433,
+          "oi": 180,
+          "prevOi": 180,
+          "volume": 0,
+          "delta": 0.536
+        },
+        {
+          "strike": 58400,
+          "type": "PE",
+          "ltp": 1118.2,
+          "iv": 0.1199,
+          "oi": 480,
+          "prevOi": 510,
+          "volume": 0,
+          "delta": -0.461
+        },
+        {
+          "strike": 58500,
+          "type": "CE",
+          "ltp": 1453.25,
+          "iv": 0.1361,
+          "oi": 87900,
+          "prevOi": 88950,
+          "volume": 8490,
+          "delta": 0.526
+        },
+        {
+          "strike": 58500,
+          "type": "PE",
+          "ltp": 1280.05,
+          "iv": 0.1309,
+          "oi": 53790,
+          "prevOi": 53490,
+          "volume": 10740,
+          "delta": -0.474
+        },
+        {
+          "strike": 58600,
+          "type": "CE",
+          "ltp": 1400.6,
+          "iv": 0.1358,
+          "oi": 480,
+          "prevOi": 300,
+          "volume": 510,
+          "delta": 0.514
+        },
+        {
+          "strike": 58700,
+          "type": "CE",
+          "ltp": 1340.3,
+          "iv": 0.1346,
+          "oi": 360,
+          "prevOi": 300,
+          "volume": 360,
+          "delta": 0.503
+        },
+        {
+          "strike": 58700,
+          "type": "PE",
+          "ltp": 1219.55,
+          "iv": 0.1151,
+          "oi": 420,
+          "prevOi": 480,
+          "volume": 0,
+          "delta": -0.501
+        },
+        {
+          "strike": 59000,
+          "type": "CE",
+          "ltp": 1186.7,
+          "iv": 0.1332,
+          "oi": 20520,
+          "prevOi": 18210,
+          "volume": 9270,
+          "delta": 0.468
+        },
+        {
+          "strike": 59000,
+          "type": "PE",
+          "ltp": 1501.9,
+          "iv": 0.1269,
+          "oi": 35940,
+          "prevOi": 32550,
+          "volume": 7650,
+          "delta": -0.535
+        },
+        {
+          "strike": 59500,
+          "type": "PE",
+          "ltp": 1777.75,
+          "iv": 0.1251,
+          "oi": 270,
+          "prevOi": 30,
+          "volume": 300,
+          "delta": -0.597
+        },
+        {
+          "strike": 59600,
+          "type": "CE",
+          "ltp": 1010,
+          "iv": 0.1402,
+          "oi": 390,
+          "prevOi": 420,
+          "volume": 0,
+          "delta": 0.405
+        },
+        {
+          "strike": 60000,
+          "type": "CE",
+          "ltp": 760.55,
+          "iv": 0.1292,
+          "oi": 79290,
+          "prevOi": 80580,
+          "volume": 15540,
+          "delta": 0.351
+        },
+        {
+          "strike": 60000,
+          "type": "PE",
+          "ltp": 2082.3,
+          "iv": 0.1231,
+          "oi": 57720,
+          "prevOi": 57900,
+          "volume": 1650,
+          "delta": -0.657
+        },
+        {
+          "strike": 60500,
+          "type": "CE",
+          "ltp": 557.4,
+          "iv": 0.1235,
+          "oi": 1170,
+          "prevOi": 450,
+          "volume": 1110,
+          "delta": 0.289
+        },
+        {
+          "strike": 61000,
+          "type": "CE",
+          "ltp": 475.3,
+          "iv": 0.1283,
+          "oi": 9510,
+          "prevOi": 4770,
+          "volume": 8100,
+          "delta": 0.248
+        },
+        {
+          "strike": 61500,
+          "type": "CE",
+          "ltp": 365.15,
+          "iv": 0.1278,
+          "oi": 14700,
+          "prevOi": 14250,
+          "volume": 6930,
+          "delta": 0.204
+        },
+        {
+          "strike": 61500,
+          "type": "PE",
+          "ltp": 3362.9,
+          "iv": 0.1435,
+          "oi": 330,
+          "prevOi": 330,
+          "volume": 0,
+          "delta": -0.768
+        },
+        {
+          "strike": 62000,
+          "type": "CE",
+          "ltp": 279.95,
+          "iv": 0.1274,
+          "oi": 18210,
+          "prevOi": 12060,
+          "volume": 16680,
+          "delta": 0.164
+        },
+        {
+          "strike": 63000,
+          "type": "CE",
+          "ltp": 159.05,
+          "iv": 0.1278,
+          "oi": 43380,
+          "prevOi": 42570,
+          "volume": 10200,
+          "delta": 0.104
+        },
+        {
+          "strike": 63000,
+          "type": "PE",
+          "ltp": 4310,
+          "iv": null,
+          "oi": 60,
+          "prevOi": 90,
+          "volume": 0,
+          "delta": -1
+        },
+        {
+          "strike": 65000,
+          "type": "PE",
+          "ltp": 6080,
+          "iv": null,
+          "oi": 60,
+          "prevOi": 90,
+          "volume": 0,
+          "delta": -1
+        },
+        {
+          "strike": 69000,
+          "type": "PE",
+          "ltp": 9000,
+          "iv": null,
+          "oi": 120,
+          "prevOi": 120,
+          "volume": 0,
+          "delta": -1
+        }
+      ],
+      "verdict": {
+        "score": 4.3,
+        "confidence": 0.86,
+        "verdict": "BULLISH",
+        "structure": "Sell put / put spread below support",
+        "factors": [
+          {
+            "key": "trend",
+            "label": "Price vs 20/50-EMA",
+            "s": 0.59,
+            "weight": 0.2,
+            "reading": "20-EMA 57606 · 50-EMA 56834",
+            "present": true
+          },
+          {
+            "key": "momentum",
+            "label": "Momentum (5d/20d)",
+            "s": 0.24,
+            "weight": 0.15,
+            "reading": "5d 0.6% · 20d -0.2%",
+            "present": true
+          },
+          {
+            "key": "oiFlowSig",
+            "label": "OI flow (put vs call writing)",
+            "s": 0.21,
+            "weight": 0.17,
+            "reading": "ΔOI put +46k vs call +30k",
+            "present": true
+          },
+          {
+            "key": "pcrSig",
+            "label": "PCR positioning",
+            "s": 1,
+            "weight": 0.12,
+            "reading": "PCR(OI) 1.74",
+            "present": true
+          },
+          {
+            "key": "maxPainPull",
+            "label": "Max-pain gravity",
+            "s": 0.21,
+            "weight": 0.1,
+            "reading": "max pain 58500 vs spot 57835",
+            "present": true
+          },
+          {
+            "key": "skewSig",
+            "label": "IV skew",
+            "s": -0.24,
+            "weight": 0.08,
+            "reading": "25∆-ish skew 0.9 vol pts",
+            "present": true
+          },
+          {
+            "key": "vixSig",
+            "label": "VIX trend (inverse)",
+            "s": 0.56,
+            "weight": 0.1,
+            "reading": "VIX 5d -8.4%",
+            "present": true
+          },
+          {
+            "key": "basisSig",
+            "label": "Futures basis",
+            "s": 0.75,
+            "weight": 0.08,
+            "reading": "basis 129.7 pts",
+            "present": true
+          }
+        ]
+      }
     }
   },
   "ivHistory": [
