@@ -129,6 +129,18 @@ export interface MarketEvent {
   kind: string;
   weight: number;
   effect: string;
+  done?: boolean; // event already happened
+  realized?: Record<string, number | null>; // per-index % move on the event day
+}
+
+export interface Announcement {
+  title: string;
+  url: string;
+  source: string;
+  trusted: boolean;
+  symbols: string[];
+  publishedAt: string;
+  impact: "up" | "down" | "twoway";
 }
 
 export interface NewsItem {
@@ -153,6 +165,7 @@ export interface MarketData {
   asOf: string;
   events: MarketEvent[];
   news: NewsItem[];
+  announcements?: Announcement[];
   drivers: Record<string, Driver[]>;
 }
 

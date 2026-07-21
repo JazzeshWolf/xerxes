@@ -1,6 +1,7 @@
 import type { ComponentChildren } from "preact";
 import type { Snapshot, ExpiryBlock } from "../lib/types";
 import { buildNarrative } from "../lib/narrative";
+import { PriceLevelsChart, VixChart } from "./Charts";
 import { Card } from "./ui";
 
 /** Plain-English synthesis of the whole snapshot — the "what's going on" read. */
@@ -8,10 +9,12 @@ export function HolisticTab({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
   const n = buildNarrative(snap, exp);
   return (
     <div className="space-y-3">
+      <PriceLevelsChart snap={snap} exp={exp} />
       <Section title="What's going on" items={n.whatsGoingOn} />
       <Section title="How to read it" items={n.howToRead} />
       <Section title="Where it's likely headed" items={n.whereHeaded} />
       <Section title="What would change the view" items={n.whatFlips} bullet />
+      <VixChart snap={snap} />
       <p className="text-[9px] text-white/25 px-1">
         Generated from the live snapshot by a fixed rule set — no forecasting model. Trust the levels and
         the structure, not a single sentence.

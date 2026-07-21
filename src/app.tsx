@@ -96,7 +96,7 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
                 <VerdictCard v={snap.verdict} dte={snap.expiries[snap.defaultExpiry].dte} />
                 <MarketStructureCard structure={snap.structure} exp={snap.expiries[snap.defaultExpiry]} />
                 <SellTable snap={snap} exp={exp} />
-                <FactorsCard v={snap.verdict} />
+                <FactorsCard v={snap.verdict} snap={snap} exp={snap.expiries[snap.defaultExpiry]} />
               </>
             )}
 

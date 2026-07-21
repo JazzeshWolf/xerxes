@@ -449,23 +449,36 @@ async function main() {
   }
   console.log(`Done: ${ok}/${cfgs.length} indices built.`);
 
-  // Shared macro layer (event radar + news + heavyweight drivers) — one file
-  // for all indices. Fails soft to last-good; never blocks the index build.
+  // Shared macro layer (event radar + news + drivers + announcements) — one
+  // file for all indices. Fails soft to last-good; never blocks the index build.
   try {
     const prevMarket = await loadPrev("market.json");
     const token = process.env.UPSTOX_ACCESS_TOKEN;
-    const [news, drivers] = await Promise.all([
+    const [news, announcements, drivers] = await Promise.all([
       market.fetchNews(prevMarket?.news),
+      market.fetchAnnouncements(prevMarket?.announcements),
       token && !process.env.XERXES_FIXTURE ? market.buildDrivers(token, masters.get("NSE") ?? []) : Promise.resolve(prevMarket?.drivers ?? {}),
     ]);
+    // Past events get the measured per-index reaction from the just-written
+    // snapshots' daily close histories.
+    const histories = {};
+    for (const cfg of cfgs) {
+      const snap = await loadPrev(cfg.file);
+      if (snap?.spot?.history) histories[cfg.assetSymbol] = snap.spot.history;
+    }
+    const events = market.attachRealized(market.buildEvents(), histories);
     const marketSnap = {
       asOf: new Date().toISOString(),
-      events: market.buildEvents(),
+      events,
       news: news ?? prevMarket?.news ?? [],
+      announcements: announcements ?? prevMarket?.announcements ?? [],
       drivers: Object.keys(drivers ?? {}).length ? drivers : prevMarket?.drivers ?? {},
     };
     await writeFile(resolve(DATA_DIR, "market.json"), JSON.stringify(marketSnap, null, 2) + "\n");
-    console.log(`Wrote market.json: ${marketSnap.events.length} events, ${marketSnap.news.length} news, drivers=${Object.keys(marketSnap.drivers).join(",")}`);
+    console.log(
+      `Wrote market.json: ${marketSnap.events.length} events (${events.filter((e) => e.done).length} past), ` +
+        `${marketSnap.news.length} news, ${marketSnap.announcements.length} announcements, drivers=${Object.keys(marketSnap.drivers).join(",")}`,
+    );
   } catch (e) {
     console.warn(`market.json build failed: ${e.message}`);
   }

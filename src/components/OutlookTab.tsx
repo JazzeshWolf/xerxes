@@ -1,15 +1,16 @@
-import type { IndexKey, MarketData, Driver } from "../lib/types";
-import { fmt, fmtPct, fmtExpiry } from "../lib/format";
+import type { IndexKey, MarketData, Driver, Announcement } from "../lib/types";
+import { fmt, fmtPct, fmtExpiry, timeAgo } from "../lib/format";
 import { Card, Badge } from "./ui";
 
-/** Weighted heavyweight drivers + upcoming event radar. */
+/** Weighted heavyweight drivers + event radar (recent w/ measured reaction + upcoming) + announcements. */
 export function OutlookTab({ market, index }: { market: MarketData | null; index: IndexKey }) {
   if (!market) return <div className="text-center text-white/40 py-12 text-sm">Loading outlook…</div>;
   const drivers = market.drivers?.[index] ?? [];
   return (
     <div className="space-y-3">
       <DriversCard drivers={drivers} />
-      <EventRadar events={market.events} />
+      <EventRadar events={market.events} index={index} />
+      <AnnouncementsCard items={market.announcements ?? []} />
     </div>
   );
 }
@@ -62,13 +63,45 @@ function DriversCard({ drivers }: { drivers: Driver[] }) {
   );
 }
 
-function EventRadar({ events }: { events: MarketData["events"] }) {
+function EventRadar({ events, index }: { events: MarketData["events"]; index: IndexKey }) {
   if (!events.length) return null;
   const today = new Date().toISOString().slice(0, 10);
+  const upcoming = events.filter((e) => !e.done);
+  const past = events.filter((e) => e.done).reverse(); // most recent first
   return (
     <Card title="Event radar">
+      {past.length > 0 && (
+        <>
+          <div className="text-[9px] uppercase tracking-wider text-white/35 mb-1.5">Recent — how the index reacted</div>
+          <div className="space-y-2 mb-3">
+            {past.map((e) => {
+              const r = e.realized?.[index];
+              return (
+                <div key={e.name + e.date} className="border-t first:border-t-0 border-white/[0.06] pt-2 first:pt-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white/70">{e.name}</span>
+                    <span className="text-[10px] tnum">
+                      <span className="text-white/40">{fmtExpiry(e.date)} · </span>
+                      {r != null ? (
+                        <span className={`font-bold ${r >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {r >= 0 ? "▲" : "▼"} {fmtPct(Math.abs(r), 2, false)} on the day
+                        </span>
+                      ) : (
+                        <span className="text-white/35">reaction n/a</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-white/40 mt-0.5 leading-relaxed">{e.effect}</div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      <div className="text-[9px] uppercase tracking-wider text-white/35 mb-1.5">Upcoming</div>
       <div className="space-y-2">
-        {events.map((e) => {
+        {upcoming.map((e) => {
           const days = Math.max(0, Math.round((Date.parse(e.date + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400000));
           return (
             <div key={e.name + e.date} className="border-t first:border-t-0 border-white/[0.06] pt-2 first:pt-0">
@@ -84,7 +117,36 @@ function EventRadar({ events }: { events: MarketData["events"] }) {
           );
         })}
       </div>
-      <div className="text-[9px] text-white/25 mt-2">Scheduled macro events; some dates are approximate.</div>
+      <div className="text-[9px] text-white/25 mt-2">
+        Reaction = the index's move on the first session after the event. Some dates are approximate.
+      </div>
+    </Card>
+  );
+}
+
+function AnnouncementsCard({ items }: { items: Announcement[] }) {
+  if (!items.length) return null;
+  return (
+    <Card title="Company announcements — heavyweights">
+      <div className="space-y-2">
+        {items.slice(0, 6).map((a) => {
+          const dot = a.impact === "up" ? "bg-emerald-400" : a.impact === "down" ? "bg-rose-400" : "bg-amber-400";
+          return (
+            <a key={a.url} href={a.url} target="_blank" rel="noopener noreferrer" className="block active:opacity-70">
+              <div className="flex gap-2">
+                <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+                <div className="min-w-0">
+                  <div className="text-[11px] text-white/85 leading-snug">{a.title}</div>
+                  <div className="text-[9px] text-white/40 mt-0.5">
+                    {a.symbols.join(" · ")} · {a.source} · {timeAgo(a.publishedAt)}
+                  </div>
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+      <div className="text-[9px] text-white/25 mt-2">Results, board meetings & payouts of the index heavyweights (news-derived).</div>
     </Card>
   );
 }

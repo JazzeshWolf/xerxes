@@ -29,11 +29,38 @@ export function buildEvents() {
   events.push({ name: "Union Budget", date: "2026-02-01", kind: "budget", weight: 3, effect: "Fiscal stance, capex & taxes — a high-volatility session for the whole market." });
 
   const today = new Date().toISOString().slice(0, 10);
+  const past = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
   const horizon = new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10);
+  // Include the recent PAST too (done:true) so the UI can show what already hit
+  // and — via `realized`, attached by the builder from each index's history —
+  // how the index actually reacted on the day.
   return events
-    .filter((e) => e.date >= today && e.date <= horizon)
+    .filter((e) => e.date >= past && e.date <= horizon)
+    .map((e) => ({ ...e, done: e.date < today }))
     .sort((a, b) => (a.date < b.date ? -1 : 1))
-    .slice(0, 8);
+    .slice(0, 12);
+}
+
+/**
+ * Per-index realized reaction for past events: the index's % move on the first
+ * trading day ON/AFTER the event date, from its daily close history.
+ * `histories` = { NIFTY: [{t,v},...], ... }. Mutates and returns `events`.
+ */
+export function attachRealized(events, histories) {
+  for (const e of events) {
+    if (!e.done) continue;
+    e.realized = {};
+    for (const [index, hist] of Object.entries(histories)) {
+      const h = hist ?? [];
+      const i = h.findIndex((p) => p.t >= e.date);
+      if (i > 0 && h[i - 1].v > 0) {
+        e.realized[index] = Math.round(((h[i].v - h[i - 1].v) / h[i - 1].v) * 10000) / 100;
+      } else {
+        e.realized[index] = null;
+      }
+    }
+  }
+  return events;
 }
 
 // --- News (Google News RSS, impact-tagged) ----------------------------------
@@ -109,6 +136,71 @@ export async function fetchNews(prevNews) {
   const out = pick(items.filter((i) => !i.trusted), pick(items.filter((i) => i.trusted), []));
   const prevFresh = (prevNews ?? []).filter((n) => new Date(n.publishedAt).getTime() >= cutoff);
   console.log(`news: ${out.length} items (${out.filter((i) => i.trusted).length} trusted)`);
+  return out.length ? out : prevFresh;
+}
+
+// --- Company announcements (heavyweight results / board meetings) ------------
+const COMPANY_RE = {
+  HDFCBANK: /hdfc bank/i,
+  RELIANCE: /reliance industries|\bril\b|reliance q\d/i,
+  ICICIBANK: /icici bank/i,
+  INFY: /infosys/i,
+  TCS: /\btcs\b|tata consultancy/i,
+  BHARTIARTL: /bharti airtel|airtel/i,
+  LT: /larsen|l&t\b/i,
+  ITC: /\bitc\b/i,
+  AXISBANK: /axis bank/i,
+  SBIN: /\bsbi\b|state bank of india/i,
+  KOTAKBANK: /kotak/i,
+  HINDUNILVR: /hindustan unilever|\bhul\b/i,
+};
+
+/**
+ * Recent + upcoming company events for the index heavyweights: quarterly
+ * results, board meetings, dividends/buybacks — sourced from Google News
+ * (free), tagged with the matched symbol(s) and impact. Fails soft to [].
+ */
+export async function fetchAnnouncements(prev) {
+  const q1 = '("HDFC Bank" OR Reliance OR "ICICI Bank" OR Infosys OR TCS OR Airtel OR Larsen OR ITC OR "Axis Bank" OR SBI OR Kotak) (results OR earnings OR "board meeting" OR dividend OR buyback OR guidance)';
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q1)}&hl=en-IN&gl=IN&ceid=IN:en`;
+  const cutoff = Date.now() - 12 * 86400000;
+  const items = [];
+  const seen = new Set();
+  try {
+    const xml = await getText(url, { headers: { "User-Agent": "Mozilla/5.0", Accept: "application/rss+xml,application/xml" } });
+    for (const block of xml.split("<item>").slice(1)) {
+      const get = (tag) => { const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`)); return m ? m[1] : ""; };
+      let title = decodeEntities(stripTags(get("title")));
+      const link = decodeEntities(stripTags(get("link")));
+      const pub = get("pubDate");
+      const desc = decodeEntities(stripTags(get("description")));
+      const srcM = block.match(/<source[^>]*>([\s\S]*?)<\/source>/);
+      let source = srcM ? decodeEntities(stripTags(srcM[1])) : "";
+      if (!source && / - [^-]{2,40}$/.test(title)) { const i = title.lastIndexOf(" - "); source = title.slice(i + 3); title = title.slice(0, i); }
+      else if (source && title.endsWith(" - " + source)) title = title.slice(0, -(source.length + 3));
+      if (!title || !link) continue;
+      const pubMs = pub ? new Date(pub).getTime() : Date.now();
+      if (Number.isFinite(pubMs) && pubMs < cutoff) continue;
+      const text = `${title} ${desc}`;
+      const symbols = Object.entries(COMPANY_RE).filter(([, re]) => re.test(text)).map(([s]) => s);
+      if (!symbols.length) continue;
+      if (!/(result|earnings|board meeting|dividend|buyback|guidance|profit|revenue|q[1-4])/i.test(text)) continue;
+      const key = title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 50);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({
+        title, url: link, source: source || "News", trusted: isTrusted(source), symbols,
+        publishedAt: new Date(Number.isFinite(pubMs) ? pubMs : Date.now()).toISOString(),
+        impact: tagImpact(text),
+      });
+    }
+  } catch (e) {
+    console.warn(`announcements: ${e.message}`);
+  }
+  items.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
+  const out = [...items.filter((i) => i.trusted), ...items.filter((i) => !i.trusted)].slice(0, 10);
+  const prevFresh = (prev ?? []).filter((n) => new Date(n.publishedAt).getTime() >= cutoff);
+  console.log(`announcements: ${out.length} items`);
   return out.length ? out : prevFresh;
 }
 
