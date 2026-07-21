@@ -107,6 +107,44 @@ describe("labelExpiries", () => {
   });
 });
 
+describe("futuresStructure", () => {
+  it("price up + OI up = long buildup (bullish, strong)", () => {
+    const s = A.futuresStructure(0.008, 0.03);
+    expect(s.label).toBe("Long buildup");
+    expect(s.bias).toBe("bullish");
+    expect(s.strength).toBe("strong");
+    expect(s.howToTrade).toMatch(/put/i);
+  });
+  it("price down + OI up = short buildup (bearish, strong)", () => {
+    const s = A.futuresStructure(-0.008, 0.03);
+    expect(s.label).toBe("Short buildup");
+    expect(s.bias).toBe("bearish");
+    expect(s.howToTrade).toMatch(/call/i);
+  });
+  it("price up + OI down = short covering (bullish, weak)", () => {
+    const s = A.futuresStructure(0.008, -0.03);
+    expect(s.label).toBe("Short covering");
+    expect(s.bias).toBe("bullish");
+    expect(s.strength).toBe("weak");
+  });
+  it("price down + OI down = long unwinding (bearish, weak)", () => {
+    const s = A.futuresStructure(-0.008, -0.03);
+    expect(s.label).toBe("Long unwinding");
+    expect(s.bias).toBe("bearish");
+    expect(s.strength).toBe("weak");
+  });
+  it("tiny moves are Indecisive (neutral)", () => {
+    expect(A.futuresStructure(0.0002, 0.03).label).toBe("Indecisive");
+    expect(A.futuresStructure(0.008, 0.001).label).toBe("Indecisive");
+    expect(A.futuresStructure(0.008, 0.001).bias).toBe("neutral");
+  });
+  it("null / non-finite inputs return null", () => {
+    expect(A.futuresStructure(null, 0.03)).toBeNull();
+    expect(A.futuresStructure(0.01, null)).toBeNull();
+    expect(A.futuresStructure(NaN, 0.03)).toBeNull();
+  });
+});
+
 describe("stats", () => {
   it("ema and pctChange behave", () => {
     const xs = Array.from({ length: 60 }, (_, i) => 100 + i);

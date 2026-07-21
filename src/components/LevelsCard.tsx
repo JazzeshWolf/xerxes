@@ -2,14 +2,10 @@ import type { Snapshot, ExpiryBlock } from "../lib/types";
 import { fmt, fmtOi } from "../lib/format";
 import { Card, Stat } from "./ui";
 
-/** Key OI-derived levels: walls, max pain, ranked supports/resistances, GEX. */
+/** Key OI-derived levels: walls, max pain, ranked supports/resistances. */
 export function LevelsCard({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
   const m = exp.metrics;
   const spot = snap.spot.price;
-  const gexLabel =
-    m.gex?.regime === "pinning" ? "pinning — expiry likely magnets to big strikes" :
-    m.gex?.regime === "volatile" ? "short gamma — moves can run" :
-    m.gex ? "balanced" : null;
   return (
     <Card title="Key levels (OI)">
       <div className="grid grid-cols-3 gap-2">
@@ -38,13 +34,6 @@ export function LevelsCard({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) 
           ))}
         </div>
       </div>
-
-      {gexLabel && (
-        <div className="mt-2 pt-2 border-t border-white/[0.06] text-[10px] text-white/50">
-          GEX: <span className="text-white/80">{gexLabel}</span>
-          {m.gex?.pinStrike != null && <span className="tnum"> · pin {fmt(m.gex.pinStrike)}</span>}
-        </div>
-      )}
     </Card>
   );
 }

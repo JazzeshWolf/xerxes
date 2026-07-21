@@ -338,6 +338,17 @@ function buildIndex(cfg, raw, prev) {
 
   const basisPts = raw.future?.price != null ? raw.future.price - spot : null;
 
+  // Market structure: front-future OI day-change × price direction. OI history
+  // comes from the futures daily candles (candle[6]); absent → structure=null
+  // (fail honest). Index and front future move together intraday, so the index
+  // % change is a fair price-direction proxy.
+  const foi = raw.future?.oiHistory ?? [];
+  const prevFutOi = foi.length > 1 ? foi[foi.length - 2].v : null;
+  const curFutOi = raw.future?.oi ?? (foi.length ? foi[foi.length - 1].v : null);
+  const futOiChgPct = prevFutOi > 0 && curFutOi != null ? (curFutOi - prevFutOi) / prevFutOi : null;
+  const priceChgPct = raw.prevClose > 0 ? (spot - raw.prevClose) / raw.prevClose : null;
+  const structure = A.futuresStructure(priceChgPct, futOiChgPct);
+
   // Verdict on the decision-horizon (nearest) expiry.
   const verdict = A.directionScore({
     closes,
@@ -378,6 +389,7 @@ function buildIndex(cfg, raw, prev) {
     expiries: publicExpiries,
     ivHistory,
     verdict,
+    structure,
   };
 }
 

@@ -212,6 +212,79 @@ export function computeGex(chain, F, t) {
   return { netPct, regime, pinStrike, coverage: rows.length };
 }
 
+// --- Market structure (price × OI) -----------------------------------------
+/**
+ * Classic F&O read: combine the day's PRICE change with the day's OPEN-INTEREST
+ * change (on the front future) to name what participants are doing. `priceChgPct`
+ * and `oiChgPct` are fractions (0.004 = +0.4%). Moves inside the dead-bands →
+ * "Indecisive". Returns null when either input is missing (never fabricated).
+ *
+ *   price ↑ OI ↑ = Long buildup     (fresh longs)        — bullish, strong
+ *   price ↓ OI ↑ = Short buildup     (fresh shorts)       — bearish, strong
+ *   price ↑ OI ↓ = Short covering    (shorts exiting)     — bullish, weak
+ *   price ↓ OI ↓ = Long unwinding    (longs exiting)      — bearish, weak
+ */
+export function futuresStructure(priceChgPct, oiChgPct, { priceEps = 0.001, oiEps = 0.005 } = {}) {
+  if (priceChgPct == null || oiChgPct == null || !Number.isFinite(priceChgPct) || !Number.isFinite(oiChgPct)) {
+    return null;
+  }
+  const pUp = priceChgPct > priceEps, pDn = priceChgPct < -priceEps;
+  const oUp = oiChgPct > oiEps, oDn = oiChgPct < -oiEps;
+  const base = { priceChgPct: round(priceChgPct, 4), oiChgPct: round(oiChgPct, 4) };
+  if ((!pUp && !pDn) || (!oUp && !oDn)) {
+    return {
+      ...base,
+      label: "Indecisive",
+      bias: "neutral",
+      strength: "weak",
+      why:
+        !pUp && !pDn
+          ? "Price barely moved — no clear directional commitment from the day's flow."
+          : "Open interest barely changed — positions are being held, not added or cut.",
+      howToTrade: "No structural edge — range-sell (condor/strangle) or stand aside for a signal.",
+    };
+  }
+  if (pUp && oUp) {
+    return {
+      ...base,
+      label: "Long buildup",
+      bias: "bullish",
+      strength: "strong",
+      why: "Price rising with fresh open interest — new longs are entering; the up-move has conviction and fuel.",
+      howToTrade: "Trend has backing — favour selling puts below support; risky to sell calls into strength.",
+    };
+  }
+  if (pDn && oUp) {
+    return {
+      ...base,
+      label: "Short buildup",
+      bias: "bearish",
+      strength: "strong",
+      why: "Price falling with rising open interest — fresh shorts are being added; the down-move has conviction.",
+      howToTrade: "Favour selling calls into rallies / above resistance; don't sell puts under a building short base.",
+    };
+  }
+  if (pUp && oDn) {
+    return {
+      ...base,
+      label: "Short covering",
+      bias: "bullish",
+      strength: "weak",
+      why: "Price rising while open interest falls — shorts are covering, not fresh buying; rallies can fade once covering is done.",
+      howToTrade: "Bounce may be technical — don't chase; short calls above resistance can still work but keep them tight.",
+    };
+  }
+  // pDn && oDn
+  return {
+    ...base,
+    label: "Long unwinding",
+    bias: "bearish",
+    strength: "weak",
+    why: "Price falling while open interest falls — longs are exiting, not aggressive shorting; selling pressure may ease.",
+    howToTrade: "Weak-handed decline — wait for stabilisation; premature to sell calls aggressively.",
+  };
+}
+
 // --- small stats ------------------------------------------------------------
 export function ema(values, n) {
   if (values.length < n) return null;

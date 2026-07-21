@@ -5,6 +5,7 @@ import { INDEX_META } from "./lib/types";
 import { InstrumentPicker } from "./components/InstrumentPicker";
 import { SpotStrip } from "./components/SpotStrip";
 import { VerdictCard } from "./components/VerdictCard";
+import { MarketStructureCard } from "./components/MarketStructureCard";
 import { OiProfile } from "./components/OiProfile";
 import { LevelsCard } from "./components/LevelsCard";
 import { MetricsCard } from "./components/MetricsCard";
@@ -81,6 +82,7 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
           <>
             <SpotStrip snap={snap} selectedExpiry={exp.date} onExpiryChange={setSelectedExpiry} />
             <VerdictCard v={snap.verdict} dte={snap.expiries[snap.defaultExpiry].dte} />
+            <MarketStructureCard structure={snap.structure} exp={snap.expiries[snap.defaultExpiry]} />
             {!onDefaultHorizon && (
               <div className="text-[10px] text-amber-300/70 px-1 -mt-1">
                 Verdict reflects the nearest expiry ({snap.expiries[snap.defaultExpiry].label}); you're viewing {exp.label} data below.

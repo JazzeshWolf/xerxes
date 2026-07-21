@@ -84,6 +84,16 @@ export interface Verdict {
   factors: Factor[];
 }
 
+export interface Structure {
+  label: "Long buildup" | "Short buildup" | "Short covering" | "Long unwinding" | "Indecisive";
+  bias: "bullish" | "bearish" | "neutral";
+  strength: "strong" | "weak";
+  why: string;
+  howToTrade: string;
+  priceChgPct: number; // fraction
+  oiChgPct: number; // fraction
+}
+
 /** One expiry's full analytics — the unit the expiry dropdown switches between. */
 export interface ExpiryBlock {
   label: "weekly" | "monthly";
@@ -110,6 +120,7 @@ export interface Snapshot {
   expiries: Record<string, ExpiryBlock>;
   ivHistory: Point[];
   verdict: Verdict;
+  structure: Structure | null;
 }
 
 export const INDEX_META: Record<IndexKey, { label: string; file: string; blurb: string }> = {
