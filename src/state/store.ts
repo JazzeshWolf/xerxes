@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import type { IndexKey, Snapshot } from "../lib/types";
+import type { IndexKey, Snapshot, MarketData } from "../lib/types";
 import { INDEX_META } from "../lib/types";
 
 export interface Dash {
@@ -54,4 +54,25 @@ export function useDashboard(index: IndexKey): Dash {
   }, []);
 
   return { snap, loading, error, refresh: () => setTick((x) => x + 1) };
+}
+
+/** Shared macro layer (events + news + drivers) — fetched once, lazily. */
+export function useMarket(): MarketData | null {
+  const [market, setMarket] = useState<MarketData | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const get = (url: string) =>
+      fetch(`${url}?t=${Date.now()}`, { cache: "no-store" }).then((r) => {
+        if (!r.ok) throw new Error(`market -> ${r.status}`);
+        return r.json();
+      });
+    get(rawUrl("market"))
+      .catch(() => get(pagesUrl("market")))
+      .then((j: MarketData) => alive && setMarket(j))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return market;
 }

@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import * as upstox from "./upstox.mjs";
 import * as nse from "./nse.mjs";
 import * as A from "./analytics.mjs";
+import * as market from "./market.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = resolve(__dirname, "../public/data");
@@ -447,6 +448,27 @@ async function main() {
     }
   }
   console.log(`Done: ${ok}/${cfgs.length} indices built.`);
+
+  // Shared macro layer (event radar + news + heavyweight drivers) — one file
+  // for all indices. Fails soft to last-good; never blocks the index build.
+  try {
+    const prevMarket = await loadPrev("market.json");
+    const token = process.env.UPSTOX_ACCESS_TOKEN;
+    const [news, drivers] = await Promise.all([
+      market.fetchNews(prevMarket?.news),
+      token && !process.env.XERXES_FIXTURE ? market.buildDrivers(token, masters.get("NSE") ?? []) : Promise.resolve(prevMarket?.drivers ?? {}),
+    ]);
+    const marketSnap = {
+      asOf: new Date().toISOString(),
+      events: market.buildEvents(),
+      news: news ?? prevMarket?.news ?? [],
+      drivers: Object.keys(drivers ?? {}).length ? drivers : prevMarket?.drivers ?? {},
+    };
+    await writeFile(resolve(DATA_DIR, "market.json"), JSON.stringify(marketSnap, null, 2) + "\n");
+    console.log(`Wrote market.json: ${marketSnap.events.length} events, ${marketSnap.news.length} news, drivers=${Object.keys(marketSnap.drivers).join(",")}`);
+  } catch (e) {
+    console.warn(`market.json build failed: ${e.message}`);
+  }
 }
 
 main().catch((e) => {

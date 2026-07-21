@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { useDashboard } from "./state/store";
+import { useDashboard, useMarket } from "./state/store";
 import type { IndexKey } from "./lib/types";
 import { INDEX_META } from "./lib/types";
 import { InstrumentPicker } from "./components/InstrumentPicker";
@@ -12,10 +12,12 @@ import { MetricsCard } from "./components/MetricsCard";
 import { SellTable } from "./components/SellTable";
 import { FactorsCard } from "./components/FactorsCard";
 import { HolisticTab } from "./components/HolisticTab";
+import { OutlookTab } from "./components/OutlookTab";
+import { NewsTab } from "./components/NewsTab";
 import { TabBar, type Tab } from "./components/TabBar";
 import { timeAgo } from "./lib/format";
 
-const TABS: Tab[] = ["verdict", "chain", "holistic"];
+const TABS: Tab[] = ["verdict", "chain", "holistic", "outlook", "news"];
 
 const LS_KEY = "xerxes.instrument";
 
@@ -36,6 +38,7 @@ export function App() {
 
 function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: () => void }) {
   const dash = useDashboard(instrument);
+  const market = useMarket();
   const snap = dash.snap;
   const [selectedExpiry, setSelectedExpiry] = useState<string>("");
   const [tab, setTab] = useState<Tab>("verdict");
@@ -111,6 +114,8 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
             )}
 
             {tab === "holistic" && <HolisticTab snap={snap} exp={exp} />}
+            {tab === "outlook" && <OutlookTab market={market} index={instrument} />}
+            {tab === "news" && <NewsTab market={market} />}
           </>
         )}
       </main>

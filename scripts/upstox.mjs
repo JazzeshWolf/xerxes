@@ -86,6 +86,26 @@ const norm = (r) => {
 };
 
 /**
+ * Resolve NSE cash-equity instrument keys for a list of trading symbols
+ * (e.g. RELIANCE, HDFCBANK) from the instrument master. Returns
+ * { SYMBOL: instrument_key }.
+ */
+export function pickEquityKeys(instruments, symbols) {
+  const want = new Set(symbols.map((s) => s.toUpperCase()));
+  const out = {};
+  for (const r of instruments) {
+    const seg = String(r.segment ?? "").toUpperCase();
+    if (seg !== "NSE_EQ") continue;
+    const ts = String(r.trading_symbol ?? r.tradingsymbol ?? "").toUpperCase();
+    const type = String(r.instrument_type ?? r.instrumentType ?? "").toUpperCase();
+    if (want.has(ts) && !out[ts] && (type === "EQ" || type === "" )) {
+      out[ts] = r.instrument_key ?? r.instrumentKey;
+    }
+  }
+  return out;
+}
+
+/**
  * Contract discovery for an index (e.g. NIFTY): upcoming option expiries,
  * front-month future, lot size. `foSegment` is "NSE_FO" (or "BSE_FO" for
  * SENSEX later).
@@ -166,6 +186,7 @@ export async function quotes(token, instrumentKeys) {
       out[k] = {
         lastPrice: Number(v.last_price) || null,
         prevClose: Number(v?.ohlc?.close) || null,
+        netChange: Number.isFinite(Number(v.net_change)) ? Number(v.net_change) : null,
         oi: Number(v.oi) || null,
       };
     }

@@ -123,6 +123,39 @@ export interface Snapshot {
   structure: Structure | null;
 }
 
+export interface MarketEvent {
+  name: string;
+  date: string;
+  kind: string;
+  weight: number;
+  effect: string;
+}
+
+export interface NewsItem {
+  title: string;
+  url: string;
+  source: string;
+  trusted: boolean;
+  indirect: boolean;
+  publishedAt: string;
+  snippet: string;
+  impact: "up" | "down" | "twoway";
+}
+
+export interface Driver {
+  symbol: string;
+  weight: number;
+  pct: number;
+  contribution: number; // weight × pct/100
+}
+
+export interface MarketData {
+  asOf: string;
+  events: MarketEvent[];
+  news: NewsItem[];
+  drivers: Record<string, Driver[]>;
+}
+
 export const INDEX_META: Record<IndexKey, { label: string; file: string; blurb: string }> = {
   NIFTY: { label: "NIFTY 50", file: "nifty", blurb: "Weekly · Tuesday expiry" },
   BANKNIFTY: { label: "BANK NIFTY", file: "banknifty", blurb: "Monthly · last Tuesday" },
