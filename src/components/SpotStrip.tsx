@@ -1,5 +1,6 @@
 import type { Snapshot } from "../lib/types";
 import { fmt, fmtPct } from "../lib/format";
+import { resolveHorizons } from "../lib/horizons";
 import { Card, Stat, Badge, ExpiryPicker } from "./ui";
 
 export function SpotStrip({
@@ -48,6 +49,43 @@ export function SpotStrip({
           {snap.source === "fixture" && <Badge tone="warn">demo data</Badge>}
         </div>
       </div>
+      <HorizonChips snap={snap} selectedExpiry={selectedExpiry} onExpiryChange={onExpiryChange} />
     </Card>
+  );
+}
+
+/** 1W / 1M / 2M quick-select chips — presets over the same expiry selection. */
+function HorizonChips({
+  snap,
+  selectedExpiry,
+  onExpiryChange,
+}: {
+  snap: Snapshot;
+  selectedExpiry: string;
+  onExpiryChange: (e: string) => void;
+}) {
+  const horizons = resolveHorizons(snap);
+  const entries = Object.entries(horizons);
+  if (entries.length < 2) return null;
+  const anyFallback = entries.some(([, h]) => h.fallback);
+  return (
+    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+      <span className="text-[10px] text-white/40">Horizon</span>
+      {entries.map(([key, h]) => {
+        const active = h.date === selectedExpiry;
+        return (
+          <button
+            key={key}
+            onClick={() => onExpiryChange(h.date)}
+            className={`text-[10px] px-2 py-0.5 rounded-full border tnum ${
+              active ? "border-white/45 text-white bg-white/[0.08]" : "border-white/12 text-white/55"
+            }`}
+          >
+            {key}{h.fallback ? "*" : ""} <span className="text-white/35">· {h.dte}d</span>
+          </button>
+        );
+      })}
+      {anyFallback && <span className="text-[9px] text-white/30">* nearest available</span>}
+    </div>
   );
 }

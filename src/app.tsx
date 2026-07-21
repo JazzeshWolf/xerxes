@@ -105,10 +105,10 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
 
             {tab === "verdict" && (
               <>
-                <VerdictCard v={snap.verdict} dte={snap.expiries[snap.defaultExpiry].dte} />
-                <MarketStructureCard structure={snap.structure} exp={snap.expiries[snap.defaultExpiry]} />
+                <VerdictCard v={exp.verdict ?? snap.verdict} dte={exp.dte} />
+                <MarketStructureCard structure={snap.structure} exp={exp} />
                 <SellTable snap={snap} exp={exp} />
-                <FactorsCard v={snap.verdict} snap={snap} exp={snap.expiries[snap.defaultExpiry]} />
+                <FactorsCard v={exp.verdict ?? snap.verdict} snap={snap} exp={exp} />
               </>
             )}
 

@@ -103,6 +103,14 @@ export interface ExpiryBlock {
   metrics: Metrics;
   candidates: SellCandidate[];
   chain: ChainRow[];
+  verdict?: Verdict; // direction read on THIS expiry (older files may lack it)
+}
+
+/** 1W / 1M / 2M → the expiry whose DTE best matches, `fallback` = poor match. */
+export interface Horizon {
+  date: string;
+  dte: number;
+  fallback: boolean;
 }
 
 export interface Snapshot {
@@ -117,6 +125,7 @@ export interface Snapshot {
   vix: { value: number | null; history: Point[] };
   future: { price: number; expiry: string; oi: number | null; basisPts: number | null } | null;
   defaultExpiry: string;
+  horizons?: Record<string, Horizon>; // "1W" | "1M" | "2M" (older files may lack it)
   expiries: Record<string, ExpiryBlock>;
   ivHistory: Point[];
   verdict: Verdict;

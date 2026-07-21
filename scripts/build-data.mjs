@@ -41,7 +41,7 @@ const INDEXES = {
     nseSymbol: "NIFTY",
     yahoo: "^NSEI",
     expiryKind: "weekly (Tue)",
-    expirySelect: { weeklies: 2, monthlies: 1 },
+    expirySelect: { weeklies: 2, monthlies: 3 },
     file: "nifty.json",
   },
   BANKNIFTY: {
@@ -53,7 +53,7 @@ const INDEXES = {
     nseSymbol: "BANKNIFTY",
     yahoo: "^NSEBANK",
     expiryKind: "monthly (last Tue)",
-    expirySelect: { weeklies: 0, monthlies: 2 },
+    expirySelect: { weeklies: 0, monthlies: 3 },
     file: "banknifty.json",
   },
   SENSEX: {
@@ -65,7 +65,7 @@ const INDEXES = {
     nseSymbol: null, // BSE — no NSE public-API fallback
     yahoo: "^BSESN",
     expiryKind: "weekly (Thu)",
-    expirySelect: { weeklies: 2, monthlies: 1 },
+    expirySelect: { weeklies: 2, monthlies: 3 },
     file: "sensex.json",
   },
 };
@@ -76,7 +76,7 @@ const TARGETS = ONLY ? [ONLY] : Object.keys(INDEXES);
 
 const VIX_KEY = "NSE_INDEX|India VIX";
 const YEAR_MS = 365 * 86400000;
-const MAX_EXPIRIES = 4;
+const MAX_EXPIRIES = 5;
 
 // Expiry cutoff: 15:30 IST = 10:00 UTC on the expiry date.
 function timeToExpiryYears(expiryIso) {
@@ -355,18 +355,46 @@ function buildIndex(cfg, raw, prev) {
   const priceChgPct = prevClose > 0 ? (spot - prevClose) / prevClose : null;
   const structure = A.futuresStructure(priceChgPct, futOiChgPct);
 
-  // Verdict on the decision-horizon (nearest) expiry.
-  const verdict = A.directionScore({
-    closes,
-    vixHistory: vixCloses,
-    pcrOi: dflt._pcr,
-    maxPainStrike: dflt._maxPain,
-    spot,
-    expectedMove: dflt._em,
-    flow: dflt._flow,
-    skew: dflt._skew,
-    basisPts,
-  });
+  // Direction verdict PER expiry. The trend / VIX / futures-basis inputs are
+  // shared (properties of the underlying), while PCR, max pain, expected move,
+  // OI flow and IV skew are the selected expiry's own — so the read shifts with
+  // the horizon via positioning. The user picks the horizon; each expiry keeps
+  // its own verdict.
+  const verdictFor = (b) =>
+    A.directionScore({
+      closes,
+      vixHistory: vixCloses,
+      pcrOi: b._pcr,
+      maxPainStrike: b._maxPain,
+      spot,
+      expectedMove: b._em,
+      flow: b._flow,
+      skew: b._skew,
+      basisPts,
+    });
+  for (const b of Object.values(expiries)) b.verdict = verdictFor(b);
+  const verdict = expiries[defaultExpiry].verdict; // top-level = nearest (back-compat)
+
+  // Horizon map: 1W / 1M / 2M → the fetched expiry whose DTE is closest to the
+  // target. `fallback` flags a poor match (e.g. BANKNIFTY has no weekly, so 1W
+  // lands on the nearest monthly) so the UI can label it honestly.
+  const HORIZONS = [
+    { key: "1W", target: 7 },
+    { key: "1M", target: 30 },
+    { key: "2M", target: 60 },
+  ];
+  const horizons = {};
+  for (const { key, target } of HORIZONS) {
+    let best = null;
+    for (const e of ordered) {
+      const d = Math.abs(expiries[e].dte - target);
+      if (!best || d < best.d) best = { date: e, dte: expiries[e].dte, d };
+    }
+    // Keep all three horizons and flag a poor DTE match as a fallback (e.g.
+    // BANKNIFTY has no weekly, so 1W lands on the nearest monthly). Per the
+    // chosen behaviour we still surface the chip, honestly labelled.
+    if (best) horizons[key] = { date: best.date, dte: best.dte, fallback: best.d > target * 0.6 };
+  }
 
   // Strip the private `_*` helper fields before serialising.
   const publicExpiries = {};
@@ -392,6 +420,7 @@ function buildIndex(cfg, raw, prev) {
       ? { price: A.round(raw.future.price, 2), expiry: raw.future.expiry, oi: raw.future.oi, basisPts: A.round(basisPts, 1) }
       : null,
     defaultExpiry,
+    horizons,
     expiries: publicExpiries,
     ivHistory,
     verdict,
