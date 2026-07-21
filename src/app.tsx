@@ -11,7 +11,11 @@ import { LevelsCard } from "./components/LevelsCard";
 import { MetricsCard } from "./components/MetricsCard";
 import { SellTable } from "./components/SellTable";
 import { FactorsCard } from "./components/FactorsCard";
+import { HolisticTab } from "./components/HolisticTab";
+import { TabBar, type Tab } from "./components/TabBar";
 import { timeAgo } from "./lib/format";
+
+const TABS: Tab[] = ["verdict", "chain", "holistic"];
 
 const LS_KEY = "xerxes.instrument";
 
@@ -34,6 +38,7 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
   const dash = useDashboard(instrument);
   const snap = dash.snap;
   const [selectedExpiry, setSelectedExpiry] = useState<string>("");
+  const [tab, setTab] = useState<Tab>("verdict");
 
   // Reset the expiry selection to the default whenever a new snapshot loads.
   useEffect(() => {
@@ -81,18 +86,31 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
         {snap && exp && (
           <>
             <SpotStrip snap={snap} selectedExpiry={exp.date} onExpiryChange={setSelectedExpiry} />
-            <VerdictCard v={snap.verdict} dte={snap.expiries[snap.defaultExpiry].dte} />
-            <MarketStructureCard structure={snap.structure} exp={snap.expiries[snap.defaultExpiry]} />
-            {!onDefaultHorizon && (
-              <div className="text-[10px] text-amber-300/70 px-1 -mt-1">
-                Verdict reflects the nearest expiry ({snap.expiries[snap.defaultExpiry].label}); you're viewing {exp.label} data below.
-              </div>
+            <TabBar tabs={TABS} tab={tab} onChange={setTab} />
+
+            {tab === "verdict" && (
+              <>
+                <VerdictCard v={snap.verdict} dte={snap.expiries[snap.defaultExpiry].dte} />
+                <MarketStructureCard structure={snap.structure} exp={snap.expiries[snap.defaultExpiry]} />
+                <SellTable snap={snap} exp={exp} />
+                <FactorsCard v={snap.verdict} />
+              </>
             )}
-            <SellTable snap={snap} exp={exp} />
-            <OiProfile snap={snap} exp={exp} />
-            <LevelsCard snap={snap} exp={exp} />
-            <MetricsCard snap={snap} exp={exp} />
-            <FactorsCard v={snap.verdict} />
+
+            {tab === "chain" && (
+              <>
+                {!onDefaultHorizon && (
+                  <div className="text-[10px] text-amber-300/70 px-1">
+                    Viewing {exp.label} expiry ({exp.date}); the verdict is on the nearest expiry.
+                  </div>
+                )}
+                <OiProfile snap={snap} exp={exp} />
+                <LevelsCard snap={snap} exp={exp} />
+                <MetricsCard snap={snap} exp={exp} />
+              </>
+            )}
+
+            {tab === "holistic" && <HolisticTab snap={snap} exp={exp} />}
           </>
         )}
       </main>
