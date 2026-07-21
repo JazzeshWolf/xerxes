@@ -43,6 +43,11 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
   const [selectedExpiry, setSelectedExpiry] = useState<string>("");
   const [tab, setTab] = useState<Tab>("verdict");
 
+  const refreshAll = () => {
+    dash.refresh();
+    market.refresh();
+  };
+
   // Reset the expiry selection to the default whenever a new snapshot loads.
   useEffect(() => {
     if (snap) setSelectedExpiry(snap.defaultExpiry);
@@ -60,15 +65,21 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
           <span className="text-base font-semibold">{INDEX_META[instrument].label}</span>
           <span className="text-white/30 text-xs">▾</span>
         </button>
-        <button
-          onClick={dash.refresh}
-          className="text-xs text-white/50 flex items-center gap-1 active:text-white"
-          disabled={dash.loading}
-        >
-          <span className={dash.loading ? "animate-spin" : ""}>⟳</span>
-          {dash.loading ? "…" : timeAgo(snap?.asOf ?? null)}
-          <span className="text-[8px] text-white/20 ml-1">v{__BUILD_ID__}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-white/30 tnum" title="Data age — snapshots rebuild server-side every ~10 min in market hours">
+            {snap?.asOf ? timeAgo(snap.asOf) : ""}
+            <span className="text-white/15 ml-1">v{__BUILD_ID__}</span>
+          </span>
+          <button
+            onClick={refreshAll}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-full border border-white/15 text-white/70 active:bg-white/[0.08] disabled:opacity-50"
+            disabled={dash.loading}
+            aria-label="Refresh data"
+          >
+            <span className={dash.loading ? "animate-spin" : ""}>⟳</span>
+            {dash.loading ? "…" : "Refresh"}
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 px-3 space-y-3 pb-4">
@@ -114,8 +125,8 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
             )}
 
             {tab === "holistic" && <HolisticTab snap={snap} exp={exp} />}
-            {tab === "outlook" && <OutlookTab market={market} index={instrument} />}
-            {tab === "news" && <NewsTab market={market} />}
+            {tab === "outlook" && <OutlookTab market={market.data} index={instrument} />}
+            {tab === "news" && <NewsTab market={market.data} index={instrument} />}
           </>
         )}
       </main>

@@ -129,6 +129,7 @@ export interface MarketEvent {
   kind: string;
   weight: number;
   effect: string;
+  approx?: boolean; // date not yet officially confirmed
   done?: boolean; // event already happened
   realized?: Record<string, number | null>; // per-index % move on the event day
 }

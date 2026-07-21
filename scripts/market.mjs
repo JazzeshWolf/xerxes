@@ -15,18 +15,23 @@ async function getText(url, opts) {
   return res.text();
 }
 
-// --- Event radar (hardcoded 2026 calendar; dates approximate where noted) ----
+// --- Event radar (2026 calendar; official dates where published) -------------
+// `approx` flags a date that isn't yet officially confirmed. Confirmed:
+//   RBI MPC FY26-27 announcements (Apr 8, Jun 5, Aug 5, Oct 7, Dec 4);
+//   US CPI Aug 12 & Sep 11 (BLS); FOMC 2026 dated; India CPI on the 12th /
+//   next working day (MoSPI rule). Later US CPI months are estimated.
 export function buildEvents() {
-  const RBI = ["2026-02-06", "2026-04-08", "2026-06-05", "2026-08-05", "2026-10-01", "2026-12-04"];
-  const FOMC = ["2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09"];
-  const US_CPI = ["2026-07-10", "2026-08-12", "2026-09-11", "2026-10-13", "2026-11-12", "2026-12-10"];
-  const IN_CPI = ["2026-07-14", "2026-08-12", "2026-09-14", "2026-10-13", "2026-11-12", "2026-12-14"];
+  // [date, approx]
+  const RBI = [["2026-02-06", false], ["2026-04-08", false], ["2026-06-05", false], ["2026-08-05", false], ["2026-10-07", false], ["2026-12-04", false]];
+  const FOMC = [["2026-01-28", false], ["2026-03-18", false], ["2026-04-29", false], ["2026-06-17", false], ["2026-07-29", false], ["2026-09-16", false], ["2026-10-28", false], ["2026-12-09", false]];
+  const US_CPI = [["2026-07-14", false], ["2026-08-12", false], ["2026-09-11", false], ["2026-10-13", true], ["2026-11-13", true], ["2026-12-10", true]];
+  const IN_CPI = [["2026-07-14", false], ["2026-08-12", false], ["2026-09-14", false], ["2026-10-12", false], ["2026-11-12", false], ["2026-12-14", false]];
   const events = [];
-  for (const d of RBI) events.push({ name: "RBI MPC", date: d, kind: "rbi", weight: 3, effect: "Rate/stance decision — a cut or dovish tone lifts rate-sensitives (banks, autos); a hawkish hold pressures them." });
-  for (const d of FOMC) events.push({ name: "US Fed (FOMC)", date: d, kind: "fomc", weight: 3, effect: "Sets global risk appetite & the dollar — dovish → FII inflows to India; hawkish → outflows, INR pressure." });
-  for (const d of US_CPI) events.push({ name: "US CPI", date: d, kind: "us_cpi", weight: 2, effect: "Hot CPI → higher-for-longer rates, risk-off for EM equities; cool CPI → supportive. (Date approx.)" });
-  for (const d of IN_CPI) events.push({ name: "India CPI", date: d, kind: "in_cpi", weight: 2, effect: "Feeds the RBI's next move — cooler inflation opens room to cut. (Date approx.)" });
-  events.push({ name: "Union Budget", date: "2026-02-01", kind: "budget", weight: 3, effect: "Fiscal stance, capex & taxes — a high-volatility session for the whole market." });
+  for (const [d, approx] of RBI) events.push({ name: "RBI MPC", date: d, kind: "rbi", weight: 3, approx, effect: "Rate/stance decision — a cut or dovish tone lifts rate-sensitives (banks, autos); a hawkish hold pressures them." });
+  for (const [d, approx] of FOMC) events.push({ name: "US Fed (FOMC)", date: d, kind: "fomc", weight: 3, approx, effect: "Sets global risk appetite & the dollar — dovish → FII inflows to India; hawkish → outflows, INR pressure." });
+  for (const [d, approx] of US_CPI) events.push({ name: "US CPI", date: d, kind: "us_cpi", weight: 2, approx, effect: "Hot CPI → higher-for-longer rates, risk-off for EM equities; cool CPI → supportive." });
+  for (const [d, approx] of IN_CPI) events.push({ name: "India CPI", date: d, kind: "in_cpi", weight: 2, approx, effect: "Feeds the RBI's next move — cooler inflation opens room to cut." });
+  events.push({ name: "Union Budget", date: "2026-02-01", kind: "budget", weight: 3, approx: false, effect: "Fiscal stance, capex & taxes — a high-volatility session for the whole market." });
 
   const today = new Date().toISOString().slice(0, 10);
   const past = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);

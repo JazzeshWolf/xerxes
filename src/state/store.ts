@@ -9,6 +9,11 @@ export interface Dash {
   refresh: () => void;
 }
 
+export interface Market {
+  data: MarketData | null;
+  refresh: () => void;
+}
+
 const BRANCH = "claude/nifty-option-screener-93xv0y";
 // Primary: raw.githubusercontent — sees each data commit within minutes, no
 // Pages redeploy needed (data commits are [skip ci]). Fallback: the copy
@@ -56,9 +61,10 @@ export function useDashboard(index: IndexKey): Dash {
   return { snap, loading, error, refresh: () => setTick((x) => x + 1) };
 }
 
-/** Shared macro layer (events + news + drivers) — fetched once, lazily. */
-export function useMarket(): MarketData | null {
-  const [market, setMarket] = useState<MarketData | null>(null);
+/** Shared macro layer (events + news + drivers). Refetches on refresh(). */
+export function useMarket(): Market {
+  const [data, setData] = useState<MarketData | null>(null);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
     const get = (url: string) =>
@@ -68,11 +74,11 @@ export function useMarket(): MarketData | null {
       });
     get(rawUrl("market"))
       .catch(() => get(pagesUrl("market")))
-      .then((j: MarketData) => alive && setMarket(j))
+      .then((j: MarketData) => alive && setData(j))
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, []);
-  return market;
+  }, [tick]);
+  return { data, refresh: () => setTick((x) => x + 1) };
 }
