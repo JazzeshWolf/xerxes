@@ -5,6 +5,7 @@ import { INDEX_META } from "./lib/types";
 import { InstrumentPicker } from "./components/InstrumentPicker";
 import { SpotStrip } from "./components/SpotStrip";
 import { VerdictCard } from "./components/VerdictCard";
+import { HorizonBiasCard } from "./components/HorizonBiasCard";
 import { MarketStructureCard } from "./components/MarketStructureCard";
 import { OiProfile } from "./components/OiProfile";
 import { LevelsCard } from "./components/LevelsCard";
@@ -105,6 +106,7 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
 
             {tab === "verdict" && (
               <>
+                <HorizonBiasCard snap={snap} selected={exp.date} onSelect={setSelectedExpiry} />
                 <VerdictCard v={exp.verdict ?? snap.verdict} dte={exp.dte} />
                 <MarketStructureCard structure={snap.structure} exp={exp} />
                 <SellTable snap={snap} exp={exp} />
