@@ -3,6 +3,8 @@ import { useDashboard, useMarket } from "./state/store";
 import type { IndexKey } from "./lib/types";
 import { INDEX_META } from "./lib/types";
 import { InstrumentPicker } from "./components/InstrumentPicker";
+import { StockScreenerView } from "./components/StockScreenerView";
+import { StockDashboard } from "./components/StockDashboard";
 import { SpotStrip } from "./components/SpotStrip";
 import { VerdictCard } from "./components/VerdictCard";
 import { HorizonBiasCard } from "./components/HorizonBiasCard";
@@ -29,12 +31,28 @@ export function App() {
     return s && INDEX_META[s] ? s : null;
   });
 
+  const [stocksOpen, setStocksOpen] = useState(false);
+  const [stock, setStock] = useState<{ file: string; name: string } | null>(null);
+
   const pick = (i: IndexKey) => {
     localStorage.setItem(LS_KEY, i);
+    setStocksOpen(false);
+    setStock(null);
     setInstrument(i);
   };
+  const openStocks = () => {
+    localStorage.removeItem(LS_KEY);
+    setInstrument(null);
+    setStock(null);
+    setStocksOpen(true);
+  };
 
-  if (!instrument) return <InstrumentPicker onPick={pick} />;
+  // Stocks section (kept entirely separate from the index route).
+  if (stock) return <StockDashboard file={stock.file} name={stock.name} onBack={() => setStock(null)} />;
+  if (stocksOpen)
+    return <StockScreenerView onOpen={(file, name) => setStock({ file, name })} onBack={() => setStocksOpen(false)} />;
+
+  if (!instrument) return <InstrumentPicker onPick={pick} onPickStocks={openStocks} />;
   return <Dashboard instrument={instrument} onSwitch={() => setInstrument(null)} />;
 }
 

@@ -117,7 +117,7 @@ export interface Snapshot {
   asOf: string;
   stale: boolean;
   source: "upstox" | "nse" | "fixture" | null;
-  index: IndexKey;
+  index: string; // IndexKey for indices; the NSE symbol for single stocks
   name: string;
   expiryKind: string;
   lotSize: number | null;
@@ -177,6 +177,52 @@ export interface MarketData {
   news: NewsItem[];
   announcements?: Announcement[];
   drivers: Record<string, Driver[]>;
+}
+
+// --- Stock screener (Phase C) ----------------------------------------------
+export type LiquidityBucket = "High" | "Medium-High" | "Medium" | "Medium-Low" | "Low" | "None";
+
+export interface StockRow {
+  symbol: string;
+  name: string;
+  file: string; // filename slug for public/data/stocks/<file>.json
+  spot: number;
+  changePct: number | null;
+  liquidity: { bucket: LiquidityBucket; score: number };
+  structure: { label: string; bias: string } | null;
+  verdict: { verdict: string; score: number };
+  topCandidate: { type: "CE" | "PE"; strike: number; probProfit: number } | null;
+}
+
+export interface StockScreener {
+  asOf: string;
+  count: number;
+  vix: number | null;
+  stocks: StockRow[];
+}
+
+export interface StockCandidate {
+  symbol: string;
+  name: string;
+  file: string;
+  expiry: string;
+  dte: number;
+  type: "CE" | "PE";
+  strike: number;
+  ltp: number;
+  delta: number | null;
+  iv: number | null;
+  distancePct: number | null;
+  cushionSigma: number | null;
+  probProfit: number;
+  probTouch: number | null;
+  creditPerLot: number | null;
+  liquidity: string | null;
+}
+
+export interface StockCandidates {
+  asOf: string;
+  candidates: StockCandidate[];
 }
 
 export const INDEX_META: Record<IndexKey, { label: string; file: string; blurb: string }> = {

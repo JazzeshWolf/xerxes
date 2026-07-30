@@ -1,0 +1,52 @@
+name: Refresh stock screener
+
+# Single-stock F&O screener (Phase C). Independent of data.yml — it fetches the
+# option chain + quotes + daily closes for every stock in stocks-universe.mjs
+# and writes public/data/stocks/**. Heavier than the index job (~1 chain call
+# per stock), so it runs hourly during market hours + once post-close rather
+# than every 10 min. Manual runs via workflow_dispatch.
+on:
+  schedule:
+    # Hourly at :15, 04:15–10:15 UTC (≈09:45–15:45 IST) Mon–Fri — covers the
+    # session plus the post-close settlement snapshot. Off :00 for reliability.
+    - cron: "15 4-10 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-stocks
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build stock screener
+        env:
+          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
+        run: node scripts/build-stocks.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name "xerxes-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if [ -n "$(git status --porcelain public/data/stocks)" ]; then
+            git add public/data/stocks
+            git commit -m "data: refresh stock screener [skip ci]"
+            # Rebase on any concurrent data.yml commit before pushing.
+            for i in 1 2 3 4; do
+              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+              if git push; then echo "pushed"; break; fi
+              sleep $((2 ** i))
+            done
+          else
+            echo "No stock data changes."
+          fi

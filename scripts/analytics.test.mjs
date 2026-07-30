@@ -220,3 +220,26 @@ describe("sell candidates", () => {
     if (firstCe !== -1 && lastPe !== -1) expect(lastPe).toBeLessThan(firstCe);
   });
 });
+
+describe("liquidity", () => {
+  it("scores a live chain positively and an empty chain as 0", () => {
+    const chain = fixtureChain();
+    expect(A.liquidityScore(chain, 50, 5e9)).toBeGreaterThan(0);
+    expect(A.liquidityScore([], 50, 5e9)).toBe(0);
+    expect(A.liquidityScore(null, 50)).toBe(0);
+  });
+  it("a richer chain scores higher than a thin one", () => {
+    const thin = [{ strike: 100, type: "CE", ltp: 2, iv: 0.3, oi: 100, prevOi: 100, volume: 10 }];
+    const rich = [{ strike: 100, type: "CE", ltp: 20, iv: 0.3, oi: 1e6, prevOi: 1e6, volume: 5e5 }];
+    expect(A.liquidityScore(rich, 50, 1e10)).toBeGreaterThan(A.liquidityScore(thin, 50, 1e6));
+  });
+  it("buckets percentile ranks, and 0-score is always None", () => {
+    expect(A.liquidityBucket(0.9, 5)).toBe("High");
+    expect(A.liquidityBucket(0.7, 5)).toBe("Medium-High");
+    expect(A.liquidityBucket(0.5, 5)).toBe("Medium");
+    expect(A.liquidityBucket(0.3, 5)).toBe("Medium-Low");
+    expect(A.liquidityBucket(0.05, 5)).toBe("Low");
+    expect(A.liquidityBucket(0.99, 0)).toBe("None");
+    expect(A.liquidityBucket(null, 5)).toBe("None");
+  });
+});

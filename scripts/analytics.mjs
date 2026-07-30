@@ -487,3 +487,38 @@ export function sellCandidates(chain, spot, t, expectedMove, { maxDelta = 0.25, 
   const evKeep = (r) => r.ltp * r.probProfit;
   return out.sort((a, b) => (a.type === b.type ? evKeep(b) - evKeep(a) : a.type === "PE" ? -1 : 1));
 }
+
+// --- Liquidity (for the stock screener) ------------------------------------
+/**
+ * Raw option-liquidity magnitude for one underlying: a log-blend of total
+ * open-interest notional (Σ oi·ltp·lot), total option turnover (Σ vol·ltp·lot)
+ * and the underlying's cash turnover. The three span orders of magnitude, so we
+ * sum their log10s. Returns 0 when there is no live chain (→ bucket "None").
+ * The absolute number is only meaningful relative to the rest of the universe —
+ * `liquidityBucket` turns a cross-universe percentile rank into a label.
+ */
+export function liquidityScore(chain, lotSize = 1, underlyingTurnover = 0) {
+  if (!Array.isArray(chain) || !chain.length) return 0;
+  const lot = lotSize > 0 ? lotSize : 1;
+  let oiNotional = 0, optTurnover = 0;
+  for (const o of chain) {
+    const px = o.ltp ?? 0;
+    if (o.oi > 0 && px > 0) oiNotional += o.oi * px * lot;
+    if ((o.volume ?? 0) > 0 && px > 0) optTurnover += o.volume * px * lot;
+  }
+  const logs = [oiNotional, optTurnover, underlyingTurnover].map((v) => (v > 0 ? Math.log10(v) : 0));
+  return round(logs.reduce((a, b) => a + b, 0), 3);
+}
+
+/**
+ * Map a cross-universe percentile `rank` (0..1) to a 6-level liquidity label.
+ * A non-positive raw `score` (no live chain) is always "None", regardless of rank.
+ */
+export function liquidityBucket(rank, score = 1) {
+  if (!(score > 0) || rank == null || !Number.isFinite(rank)) return "None";
+  if (rank >= 0.85) return "High";
+  if (rank >= 0.65) return "Medium-High";
+  if (rank >= 0.45) return "Medium";
+  if (rank >= 0.25) return "Medium-Low";
+  return "Low";
+}

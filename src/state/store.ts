@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import type { IndexKey, Snapshot, MarketData } from "../lib/types";
+import type { IndexKey, Snapshot, MarketData, StockScreener, StockCandidates } from "../lib/types";
 import { INDEX_META } from "../lib/types";
 
 export interface Dash {
@@ -81,4 +81,63 @@ export function useMarket(): Market {
     };
   }, [tick]);
   return { data, refresh: () => setTick((x) => x + 1) };
+}
+
+const getJson = (url: string) =>
+  fetch(`${url}?t=${Date.now()}`, { cache: "no-store" }).then((r) => {
+    if (!r.ok) throw new Error(`fetch -> ${r.status}`);
+    return r.json();
+  });
+
+/** Stock screener list + top premium-selling candidates. */
+export function useStockScreener() {
+  const [screener, setScreener] = useState<StockScreener | null>(null);
+  const [candidates, setCandidates] = useState<StockCandidates | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    const load = (file: string) => getJson(rawUrl(`stocks/${file}`)).catch(() => getJson(pagesUrl(`stocks/${file}`)));
+    Promise.all([load("index"), load("candidates").catch(() => null)])
+      .then(([idx, cand]) => {
+        if (!alive) return;
+        setScreener(idx);
+        setCandidates(cand);
+        setError(null);
+      })
+      .catch((e) => alive && setError(String(e.message ?? e)))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [tick]);
+  return { screener, candidates, loading, error, refresh: () => setTick((x) => x + 1) };
+}
+
+/** One stock's full snapshot (same shape the index dashboard renders). */
+export function useStock(file: string): Dash {
+  const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setSnap(null);
+    getJson(rawUrl(`stocks/${file}`))
+      .catch(() => getJson(pagesUrl(`stocks/${file}`)))
+      .then((j: Snapshot) => {
+        if (!alive) return;
+        setSnap(j);
+        setError(null);
+      })
+      .catch((e) => alive && setError(String(e.message ?? e)))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [file, tick]);
+  return { snap, loading, error, refresh: () => setTick((x) => x + 1) };
 }
