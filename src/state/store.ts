@@ -22,6 +22,13 @@ const rawUrl = (file: string) =>
   `https://raw.githubusercontent.com/JazzeshWolf/xerxes/${BRANCH}/public/data/${file}.json`;
 const pagesUrl = (file: string) => `${import.meta.env.BASE_URL}data/${file}.json`;
 
+// Stock data lives on a dedicated, force-pushed branch (no history growth), with
+// the JSON at the branch root. Primary source is that branch via raw; the Pages
+// copy is only a local-dev fallback (production always resolves raw first).
+const STOCKS_BRANCH = "stocks-data";
+const rawStockUrl = (file: string) =>
+  `https://raw.githubusercontent.com/JazzeshWolf/xerxes/${STOCKS_BRANCH}/${file}.json`;
+
 export function useDashboard(index: IndexKey): Dash {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,7 +106,7 @@ export function useStockScreener() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    const load = (file: string) => getJson(rawUrl(`stocks/${file}`)).catch(() => getJson(pagesUrl(`stocks/${file}`)));
+    const load = (file: string) => getJson(rawStockUrl(file)).catch(() => getJson(pagesUrl(`stocks/${file}`)));
     Promise.all([load("index"), load("candidates").catch(() => null)])
       .then(([idx, cand]) => {
         if (!alive) return;
@@ -126,7 +133,7 @@ export function useStock(file: string): Dash {
     let alive = true;
     setLoading(true);
     setSnap(null);
-    getJson(rawUrl(`stocks/${file}`))
+    getJson(rawStockUrl(file))
       .catch(() => getJson(pagesUrl(`stocks/${file}`)))
       .then((j: Snapshot) => {
         if (!alive) return;

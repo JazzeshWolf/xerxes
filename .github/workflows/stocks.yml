@@ -34,19 +34,26 @@ jobs:
           UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
         run: node scripts/build-stocks.mjs
 
-      - name: Commit if changed
+      # Publish stock JSON to a dedicated, force-pushed data branch so the code
+      # branch never accumulates ~150 rewritten files per run. force_orphan
+      # replaces the branch with a single commit each time → no history growth.
+      # The frontend reads stock data from this branch via raw.githubusercontent.
+      - name: Guard — did the build produce data?
+        id: check
         run: |
-          git config user.name "xerxes-bot"
-          git config user.email "actions@users.noreply.github.com"
-          if [ -n "$(git status --porcelain public/data/stocks)" ]; then
-            git add public/data/stocks
-            git commit -m "data: refresh stock screener [skip ci]"
-            # Rebase on any concurrent data.yml commit before pushing.
-            for i in 1 2 3 4; do
-              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
-              if git push; then echo "pushed"; break; fi
-              sleep $((2 ** i))
-            done
+          if [ -f public/data/stocks/index.json ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
           else
-            echo "No stock data changes."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "No stock data built — leaving stocks-data untouched."
           fi
+
+      - name: Publish to stocks-data branch
+        if: steps.check.outputs.ok == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public/data/stocks
+          publish_branch: stocks-data
+          force_orphan: true
+          commit_message: "stocks data (force-pushed, no history)"
