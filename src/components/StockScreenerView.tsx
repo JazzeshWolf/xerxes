@@ -147,7 +147,7 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
           >
             <div className="space-y-0.5">
               {rows.map((r) => (
-                <StockRowItem key={r.symbol} r={r} onOpen={onOpen} />
+                <StockRowItem key={r.symbol} r={r} field={field} onOpen={onOpen} />
               ))}
               {!rows.length && <div className="text-[11px] text-white/40 py-3 text-center">No match.</div>}
             </div>
@@ -158,31 +158,46 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
   );
 }
 
-function StockRowItem({ r, onOpen }: { r: StockRow; onOpen: (file: string, name: string) => void }) {
+function StockRowItem({ r, field, onOpen }: { r: StockRow; field: SortField; onOpen: (file: string, name: string) => void }) {
+  const chgNeg = r.changePct != null && r.changePct < 0;
+  // The field being sorted is made prominent; the rest recede, so the ordering
+  // reads correctly (e.g. sorting by conviction pops the verdict score, not the
+  // liquidity badge).
+  const liqActive = field === "liquidity";
+  const verdictActive = field === "verdict" || field === "conviction";
+  const changeActive = field === "change";
+  const priceActive = field === "price";
   return (
     <button
       onClick={() => onOpen(r.file, r.name)}
       className="w-full flex items-center gap-2 py-1.5 px-1 rounded-lg active:bg-white/[0.05] text-left"
     >
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[13px] font-semibold text-white/90 truncate">{r.symbol}</span>
-          <span className={`text-[11px] tnum ${r.changePct != null && r.changePct < 0 ? "text-rose-400" : "text-emerald-400"}`}>
+          <span className={`tnum ${chgNeg ? "text-rose-400" : "text-emerald-400"} ${changeActive ? "text-[13px] font-bold" : "text-[11px]"}`}>
             {fmtPct(r.changePct, 1)}
           </span>
+          {priceActive && <span className="text-[12px] font-bold tnum text-white/85">₹{fmt(r.spot)}</span>}
         </div>
         <div className="text-[10px] text-white/40 truncate">{r.name}</div>
       </div>
-      <span className={`shrink-0 text-[9px] uppercase tracking-wide border rounded px-1 py-0.5 ${LIQ_TONE[r.liquidity.bucket]}`}>
+      <span
+        className={`shrink-0 text-[9px] uppercase tracking-wide border rounded px-1 py-0.5 ${LIQ_TONE[r.liquidity.bucket]} ${
+          liqActive ? "ring-1 ring-white/40" : "opacity-55"
+        }`}
+      >
         {r.liquidity.bucket}
       </span>
-      <div className="shrink-0 w-[92px] text-right">
-        {r.structure && r.structure.label !== "Indecisive" ? (
-          <Badge tone={biasTone(r.structure.bias)}>{r.structure.label}</Badge>
-        ) : (
-          <span className="text-[9px] text-white/30">indecisive</span>
-        )}
-        <div className={`text-[9px] mt-0.5 ${verdictTone(r.verdict.verdict)}`}>
+      <div className="shrink-0 w-[96px] text-right">
+        <div className={verdictActive ? "opacity-55" : ""}>
+          {r.structure && r.structure.label !== "Indecisive" ? (
+            <Badge tone={biasTone(r.structure.bias)}>{r.structure.label}</Badge>
+          ) : (
+            <span className="text-[9px] text-white/30">indecisive</span>
+          )}
+        </div>
+        <div className={`mt-0.5 tnum ${verdictTone(r.verdict.verdict)} ${verdictActive ? "text-[12px] font-bold" : "text-[9px]"}`}>
           {r.verdict.verdict} {r.verdict.score > 0 ? "+" : ""}{r.verdict.score}
         </div>
       </div>
