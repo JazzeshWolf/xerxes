@@ -10,7 +10,12 @@ on:
     # Hourly at :15, 04:15–10:15 UTC (≈09:45–15:45 IST) Mon–Fri — covers the
     # session plus the post-close settlement snapshot. Off :00 for reliability.
     - cron: "15 4-10 * * 1-5"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: "Rebuild only this NSE symbol (on-demand refresh). Empty = full universe."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -29,9 +34,26 @@ jobs:
         with:
           node-version: "22"
 
+      # Single-symbol on-demand refresh: seed the existing published set so the
+      # force_orphan republish below keeps the other ~156 files. Full/scheduled
+      # runs (empty symbol) skip this and rebuild the whole universe cleanly.
+      - name: Seed from stocks-data (single-symbol only)
+        if: github.event.inputs.symbol != ''
+        run: |
+          mkdir -p public/data/stocks
+          if git clone --depth 1 --branch stocks-data \
+              "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" _seed 2>/dev/null; then
+            cp _seed/*.json public/data/stocks/ 2>/dev/null || true
+            rm -rf _seed
+            echo "Seeded $(ls public/data/stocks | wc -l) files from stocks-data."
+          else
+            echo "No existing stocks-data branch to seed — will publish just this symbol."
+          fi
+
       - name: Build stock screener
         env:
           UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
+          SYMBOL: ${{ github.event.inputs.symbol }}
         run: node scripts/build-stocks.mjs
 
       # Publish stock JSON to a dedicated, force-pushed data branch so the code

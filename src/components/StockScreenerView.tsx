@@ -1,7 +1,7 @@
 import { useMemo, useState } from "preact/hooks";
 import { useStockScreener } from "../state/store";
 import type { StockRow, LiquidityBucket, StockCandidate } from "../lib/types";
-import { fmt, fmtPct } from "../lib/format";
+import { fmt, fmtPct, timeAgo } from "../lib/format";
 import { Card, Badge } from "./ui";
 
 const LIQ_TONE: Record<LiquidityBucket, string> = {
@@ -20,7 +20,7 @@ type Sort = "liquidity" | "conviction" | "name";
 /** Stocks landing: search, the liquidity + market-structure list, and the
  *  cross-universe top premium-selling candidates. Tapping a row opens the stock. */
 export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, name: string) => void; onBack: () => void }) {
-  const { screener, candidates, loading, error } = useStockScreener();
+  const { screener, candidates, loading, error, refresh } = useStockScreener();
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<Sort>("liquidity");
 
@@ -44,9 +44,20 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
           <span className="text-white/40 text-sm">←</span>
           <span className="text-base font-semibold">Stocks</span>
         </button>
-        <span className="text-[9px] text-white/30 tnum">
-          {screener ? `${screener.count} F&O names` : ""}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-white/30 tnum">
+            {screener ? `${screener.count} names · ${timeAgo(screener.asOf)}` : ""}
+          </span>
+          <button
+            onClick={refresh}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-full border border-white/15 text-white/70 active:bg-white/[0.08] disabled:opacity-50"
+            disabled={loading}
+            aria-label="Refresh screener"
+          >
+            <span className={loading ? "animate-spin" : ""}>⟳</span>
+            {loading ? "…" : "Refresh"}
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 px-3 space-y-3 pb-6">

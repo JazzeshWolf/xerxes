@@ -43,16 +43,22 @@ export function StockDashboard({ file, name, onBack }: { file: string; name: str
         <div className="flex items-center gap-2">
           <span className="text-[9px] text-white/30 tnum">{snap?.asOf ? timeAgo(snap.asOf) : ""}</span>
           <button
-            onClick={dash.refresh}
+            onClick={dash.hardRefresh}
             className="flex items-center gap-1 text-xs px-2 py-1 rounded-full border border-white/15 text-white/70 active:bg-white/[0.08] disabled:opacity-50"
-            disabled={dash.loading}
+            disabled={dash.loading || dash.refreshing}
             aria-label="Refresh data"
           >
-            <span className={dash.loading ? "animate-spin" : ""}>⟳</span>
-            {dash.loading ? "…" : "Refresh"}
+            <span className={dash.loading || dash.refreshing ? "animate-spin" : ""}>⟳</span>
+            {dash.refreshing ? "Refreshing…" : dash.loading ? "…" : "Refresh"}
           </button>
         </div>
       </header>
+      {dash.refreshing && (
+        <div className="px-4 -mt-1 pb-1 text-[10px] text-sky-300/70">Rebuilding this stock's data — ~30–60s…</div>
+      )}
+      {dash.refreshError && !dash.refreshing && (
+        <div className="px-4 -mt-1 pb-1 text-[10px] text-amber-300/70">{dash.refreshError}</div>
+      )}
 
       <main className="flex-1 px-3 space-y-3 pb-4">
         {dash.error && !snap && (

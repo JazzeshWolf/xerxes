@@ -30,6 +30,9 @@ jobs:
         env:
           # Match the Pages sub-path to the actual repo name automatically.
           BASE_PATH: /${{ github.event.repository.name }}/
+          # Optional on-demand stock-refresh proxy URL (repo variable). Empty =
+          # stock Refresh re-pulls the last published snapshot (no live rebuild).
+          VITE_STOCK_REFRESH_URL: ${{ vars.STOCK_REFRESH_URL }}
       - run: touch dist/.nojekyll
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4

@@ -36,6 +36,11 @@ const MONTHLIES = 2; // nearest N monthly expiries per stock (1M / 2M horizons)
 const CONCURRENCY = 5; // chains in flight at once — respect Upstox limits
 const CHAIN_WINDOW = 0.3; // keep strikes within ±30% of spot (trims size)
 
+// On-demand single-stock refresh: SYMBOL=INDIGO rebuilds only that stock and
+// merges it into the already-published set (the workflow seeds public/data/stocks
+// from the stocks-data branch first, so force_orphan keeps the other files).
+const ONLY_SYMBOL = (process.env.SYMBOL || "").toUpperCase();
+
 // --- shared date/compute helpers (mirrors build-data.mjs; kept separate on
 //     purpose so the index pipeline is never touched) ------------------------
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -270,6 +275,64 @@ function buildStock(name, raw, vix) {
 
 const fileSlug = (symbol) => symbol.replace(/[^A-Za-z0-9]/g, "_");
 
+/** Shared India VIX (market-wide) — one quote + one history call. */
+async function fetchVix(token) {
+  const today = todayIso();
+  const from = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
+  const [vixQ, vixC] = await Promise.all([
+    upstox.quotes(token, [VIX_KEY]),
+    upstox.dailyCandles(token, VIX_KEY, from, today),
+  ]);
+  return { value: A.round(vixQ[VIX_KEY]?.lastPrice ?? null, 2), closes: (vixC.history ?? []).map((p) => p.v) };
+}
+
+/**
+ * Rebuild ONE stock and merge it into the already-published set. Rewrites its
+ * per-stock file and patches its row in index.json (spot/structure/verdict/top
+ * candidate). Liquidity is a cross-universe percentile — it can't be recomputed
+ * from one name, and it's stable intraday, so the existing bucket is kept. The
+ * screener's own `asOf` (last full run) is left as-is; the fresh per-stock file
+ * carries its own timestamp for the detail view. candidates.json is left to the
+ * next full cron.
+ */
+async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys, vix) {
+  const name = nameBySym[symbol] ?? symbol;
+  const raw = await fetchStock(token, symbol, instruments, equityKeys[symbol]);
+  if (!raw) {
+    console.error(`single: ${symbol} could not be built (no chain?) — leaving published data as-is.`);
+    process.exit(0);
+  }
+  const { snap } = buildStock(name, raw, vix);
+  const slug = fileSlug(symbol);
+  await writeFile(resolve(STOCKS_DIR, `${slug}.json`), JSON.stringify(snap));
+
+  const idxPath = resolve(STOCKS_DIR, "index.json");
+  let idx;
+  try {
+    idx = JSON.parse(await readFile(idxPath, "utf8"));
+  } catch {
+    idx = { asOf: new Date().toISOString(), count: 0, vix: vix.value, stocks: [] };
+  }
+  const existing = idx.stocks.find((r) => r.symbol === symbol);
+  const top = (snap.expiries[snap.defaultExpiry].candidates ?? [])[0] ?? null;
+  const row = {
+    symbol,
+    name,
+    file: slug,
+    spot: snap.spot.price,
+    changePct: snap.spot.changePct,
+    liquidity: existing?.liquidity ?? { bucket: "None", score: 0 },
+    structure: snap.structure ? { label: snap.structure.label, bias: snap.structure.bias } : null,
+    verdict: { verdict: snap.verdict.verdict, score: snap.verdict.score },
+    topCandidate: top ? { type: top.type, strike: top.strike, probProfit: top.probProfit } : null,
+  };
+  idx.stocks = [...idx.stocks.filter((r) => r.symbol !== symbol), row].sort((a, b) => b.liquidity.score - a.liquidity.score);
+  idx.count = idx.stocks.length;
+  idx.vix = vix.value;
+  await writeFile(idxPath, JSON.stringify(idx));
+  console.log(`stocks(single): refreshed ${symbol} spot=${snap.spot.price} verdict=${snap.verdict.verdict} ${snap.verdict.score}`);
+}
+
 async function main() {
   const token = process.env.UPSTOX_ACCESS_TOKEN;
   if (!token) {
@@ -286,15 +349,13 @@ async function main() {
   const symbols = STOCKS.map(([s]) => s);
   const nameBySym = Object.fromEntries(STOCKS);
   const equityKeys = upstox.pickEquityKeys(instruments, symbols);
+  const vix = await fetchVix(token);
 
-  // Shared India VIX (market-wide) — one quote + one history call.
-  const today = todayIso();
-  const from = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
-  const [vixQ, vixC] = await Promise.all([
-    upstox.quotes(token, [VIX_KEY]),
-    upstox.dailyCandles(token, VIX_KEY, from, today),
-  ]);
-  const vix = { value: A.round(vixQ[VIX_KEY]?.lastPrice ?? null, 2), closes: (vixC.history ?? []).map((p) => p.v) };
+  // On-demand single-stock refresh path.
+  if (ONLY_SYMBOL) {
+    await buildOneSymbol(token, ONLY_SYMBOL, instruments, nameBySym, equityKeys, vix);
+    return;
+  }
 
   const built = await pool(STOCKS, CONCURRENCY, async ([symbol, name]) => {
     const raw = await fetchStock(token, symbol, instruments, equityKeys[symbol]);

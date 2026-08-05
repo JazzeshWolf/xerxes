@@ -96,6 +96,18 @@ const getJson = (url: string) =>
     return r.json();
   });
 
+// Optional on-demand refresh proxy (a Cloudflare Worker). When set, tapping a
+// stock's Refresh fires a one-symbol rebuild in GitHub Actions and polls for the
+// fresh snapshot. When unset, refresh just re-pulls the last published data.
+const STOCK_REFRESH_URL = (import.meta.env.VITE_STOCK_REFRESH_URL ?? "").replace(/\/$/, "");
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export interface StockDash extends Dash {
+  hardRefresh: () => void; // trigger a live rebuild (falls back to re-pull)
+  refreshing: boolean; // a live rebuild is in flight
+  refreshError: string | null;
+}
+
 /** Stock screener list + top premium-selling candidates. */
 export function useStockScreener() {
   const [screener, setScreener] = useState<StockScreener | null>(null);
@@ -124,11 +136,13 @@ export function useStockScreener() {
 }
 
 /** One stock's full snapshot (same shape the index dashboard renders). */
-export function useStock(file: string): Dash {
+export function useStock(file: string): StockDash {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -146,5 +160,42 @@ export function useStock(file: string): Dash {
       alive = false;
     };
   }, [file, tick]);
-  return { snap, loading, error, refresh: () => setTick((x) => x + 1) };
+
+  // Live rebuild: ask the proxy to rebuild this one symbol in GitHub Actions,
+  // then poll the (fresh, uncached) proxy read until the snapshot's asOf advances.
+  const hardRefresh = async () => {
+    const symbol = snap?.index;
+    if (!STOCK_REFRESH_URL || !symbol) {
+      setTick((x) => x + 1); // no proxy configured → just re-pull the published copy
+      return;
+    }
+    setRefreshing(true);
+    setRefreshError(null);
+    const prevAsOf = snap?.asOf ?? "";
+    try {
+      const r = await fetch(`${STOCK_REFRESH_URL}/refresh?symbol=${encodeURIComponent(symbol)}`, { method: "POST" });
+      if (!r.ok) throw new Error(`couldn't start refresh (${r.status})`);
+      const deadline = Date.now() + 120000;
+      while (Date.now() < deadline) {
+        await sleep(4000);
+        try {
+          const fresh: Snapshot = await getJson(`${STOCK_REFRESH_URL}/data?file=${encodeURIComponent(file)}`);
+          if (fresh?.asOf && fresh.asOf > prevAsOf) {
+            setSnap(fresh);
+            setRefreshing(false);
+            return;
+          }
+        } catch {
+          /* keep polling */
+        }
+      }
+      setRefreshError("Still building — give it a moment and tap Refresh again.");
+    } catch (e) {
+      setRefreshError(String((e as Error).message ?? e));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  return { snap, loading, error, refresh: () => setTick((x) => x + 1), hardRefresh, refreshing, refreshError };
 }
