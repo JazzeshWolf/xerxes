@@ -29,8 +29,10 @@ export default {
 
     const json = (obj, status = 200) =>
       new Response(JSON.stringify(obj), { status, headers: { ...cors, "content-type": "application/json" } });
-    // Allow the characters that appear in NSE symbols / file slugs (A-Z 0-9 & _ -).
-    const clean = (s) => (s || "").toUpperCase().replace(/[^A-Z0-9&_-]/g, "").slice(0, 24);
+    // Allow the characters in NSE symbols / file slugs (A-Z a-z 0-9 & _ -). Case
+    // is preserved: stock slugs are upper-case but the shared files are lower-case
+    // (`index.json`, `candidates.json`).
+    const clean = (s) => (s || "").replace(/[^A-Za-z0-9&_-]/g, "").slice(0, 24);
     const gh = (path, init = {}) =>
       fetch(`https://api.github.com${path}`, {
         ...init,
@@ -43,16 +45,16 @@ export default {
       });
 
     try {
-      // Trigger a one-symbol rebuild.
+      // Trigger a rebuild: one symbol (?symbol=INDIGO) or the whole universe
+      // (no symbol → the screener's "rebuild all").
       if (url.pathname === "/refresh" && request.method === "POST") {
         const symbol = clean(url.searchParams.get("symbol"));
-        if (!symbol) return json({ error: "symbol required" }, 400);
         const r = await gh(`/repos/${env.REPO}/actions/workflows/stocks.yml/dispatches`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ ref: env.CODE_BRANCH, inputs: { symbol } }),
         });
-        if (r.status === 204) return json({ ok: true, symbol });
+        if (r.status === 204) return json({ ok: true, symbol: symbol || "(all)" });
         return json({ error: "dispatch failed", status: r.status, detail: await r.text() }, 502);
       }
 

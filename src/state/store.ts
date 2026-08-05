@@ -115,6 +115,8 @@ export function useStockScreener() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -132,7 +134,49 @@ export function useStockScreener() {
       alive = false;
     };
   }, [tick]);
-  return { screener, candidates, loading, error, refresh: () => setTick((x) => x + 1) };
+
+  // Live rebuild of the whole universe (the candidates list). If a proxy is
+  // configured, trigger a full stocks run and poll until index.json's asOf
+  // advances; otherwise just re-pull the last published copy.
+  const hardRefresh = async () => {
+    if (!STOCK_REFRESH_URL) {
+      setTick((x) => x + 1);
+      return;
+    }
+    setRefreshing(true);
+    setRefreshError(null);
+    const prevAsOf = screener?.asOf ?? "";
+    try {
+      const r = await fetch(`${STOCK_REFRESH_URL}/refresh`, { method: "POST" }); // no symbol → full run
+      if (!r.ok) throw new Error(`couldn't start rebuild (${r.status})`);
+      const deadline = Date.now() + 180000; // a full 150-stock run is slower than one name
+      while (Date.now() < deadline) {
+        await sleep(5000);
+        try {
+          const idx: StockScreener = await getJson(`${STOCK_REFRESH_URL}/data?file=index`);
+          if (idx?.asOf && idx.asOf > prevAsOf) {
+            setScreener(idx);
+            try {
+              setCandidates(await getJson(`${STOCK_REFRESH_URL}/data?file=candidates`));
+            } catch {
+              /* candidates optional */
+            }
+            setRefreshing(false);
+            return;
+          }
+        } catch {
+          /* keep polling */
+        }
+      }
+      setRefreshError("Still rebuilding the universe — check back in a moment.");
+    } catch (e) {
+      setRefreshError(String((e as Error).message ?? e));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  return { screener, candidates, loading, error, refresh: () => setTick((x) => x + 1), hardRefresh, refreshing, refreshError };
 }
 
 /** One stock's full snapshot (same shape the index dashboard renders). */

@@ -20,7 +20,7 @@ type Sort = "liquidity" | "conviction" | "name";
 /** Stocks landing: search, the liquidity + market-structure list, and the
  *  cross-universe top premium-selling candidates. Tapping a row opens the stock. */
 export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, name: string) => void; onBack: () => void }) {
-  const { screener, candidates, loading, error, refresh } = useStockScreener();
+  const { screener, candidates, loading, error, hardRefresh, refreshing, refreshError } = useStockScreener();
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<Sort>("liquidity");
 
@@ -49,16 +49,20 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
             {screener ? `${screener.count} names · ${timeAgo(screener.asOf)}` : ""}
           </span>
           <button
-            onClick={refresh}
+            onClick={hardRefresh}
             className="flex items-center gap-1 text-xs px-2 py-1 rounded-full border border-white/15 text-white/70 active:bg-white/[0.08] disabled:opacity-50"
-            disabled={loading}
+            disabled={loading || refreshing}
             aria-label="Refresh screener"
           >
-            <span className={loading ? "animate-spin" : ""}>⟳</span>
-            {loading ? "…" : "Refresh"}
+            <span className={loading || refreshing ? "animate-spin" : ""}>⟳</span>
+            {refreshing ? "Rebuilding…" : loading ? "…" : "Refresh"}
           </button>
         </div>
       </header>
+      {refreshing && (
+        <div className="px-4 pb-1 text-[10px] text-sky-300/70">Rebuilding the whole universe — this takes ~1–2 min…</div>
+      )}
+      {refreshError && !refreshing && <div className="px-4 pb-1 text-[10px] text-amber-300/70">{refreshError}</div>}
 
       <main className="flex-1 px-3 space-y-3 pb-6">
         <input
