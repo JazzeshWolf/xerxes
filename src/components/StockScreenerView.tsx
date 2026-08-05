@@ -15,14 +15,37 @@ const LIQ_TONE: Record<LiquidityBucket, string> = {
 const biasTone = (bias?: string) => (bias === "bullish" ? "up" : bias === "bearish" ? "down" : "neutral");
 const verdictTone = (v: string) => (v === "BULLISH" ? "text-emerald-400" : v === "BEARISH" ? "text-rose-400" : "text-sky-300");
 
-type Sort = "liquidity" | "conviction" | "name";
+type SortField = "liquidity" | "change" | "verdict" | "conviction" | "price" | "name";
+const SORT_FIELDS: SortField[] = ["liquidity", "change", "verdict", "conviction", "price", "name"];
+const SORT_LABELS: Record<SortField, string> = {
+  liquidity: "Liquidity",
+  change: "Day %",
+  verdict: "Direction",
+  conviction: "Conviction",
+  price: "Price",
+  name: "Name",
+};
+const sortVal = (r: StockRow, f: SortField): number =>
+  f === "liquidity" ? r.liquidity.score
+    : f === "change" ? r.changePct ?? 0
+    : f === "verdict" ? r.verdict.score
+    : f === "conviction" ? Math.abs(r.verdict.score)
+    : f === "price" ? r.spot
+    : 0;
 
 /** Stocks landing: search, the liquidity + market-structure list, and the
  *  cross-universe top premium-selling candidates. Tapping a row opens the stock. */
 export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, name: string) => void; onBack: () => void }) {
   const { screener, candidates, loading, error, hardRefresh, refreshing, refreshError } = useStockScreener();
   const [q, setQ] = useState("");
-  const [sort, setSort] = useState<Sort>("liquidity");
+  const [field, setField] = useState<SortField>("liquidity");
+  const [dir, setDir] = useState<"desc" | "asc">("desc");
+  // Switching field resets to its most-useful default direction (A→Z for names,
+  // highest-first for everything else); the toggle then flips it either way.
+  const onField = (f: SortField) => {
+    setField(f);
+    setDir(f === "name" ? "asc" : "desc");
+  };
 
   const rows = useMemo(() => {
     const list = screener?.stocks ?? [];
@@ -31,11 +54,18 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
       ? list.filter((r) => r.symbol.includes(needle) || r.name.toUpperCase().includes(needle))
       : list;
     const sorted = [...filtered];
-    if (sort === "name") sorted.sort((a, b) => a.symbol.localeCompare(b.symbol));
-    else if (sort === "conviction") sorted.sort((a, b) => Math.abs(b.verdict.score) - Math.abs(a.verdict.score));
-    else sorted.sort((a, b) => b.liquidity.score - a.liquidity.score);
+    sorted.sort((a, b) => {
+      if (field === "name") {
+        const c = a.symbol.localeCompare(b.symbol);
+        return dir === "asc" ? c : -c;
+      }
+      const d = sortVal(a, field) - sortVal(b, field);
+      return dir === "desc" ? -d : d;
+    });
     return sorted;
-  }, [screener, q, sort]);
+  }, [screener, q, field, dir]);
+
+  const dirLabel = field === "name" ? (dir === "asc" ? "A → Z" : "Z → A") : dir === "desc" ? "High → Low" : "Low → High";
 
   return (
     <div className="flex flex-col min-h-[100dvh]">
@@ -94,16 +124,24 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
           <Card
             title="Liquidity & structure"
             right={
-              <div className="flex gap-1">
-                {(["liquidity", "conviction", "name"] as Sort[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSort(s)}
-                    className={`text-[9px] px-1.5 py-0.5 rounded-full border ${sort === s ? "border-white/40 text-white/90" : "border-white/12 text-white/45"}`}
-                  >
-                    {s === "conviction" ? "conviction" : s}
-                  </button>
-                ))}
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-white/35">sort</span>
+                <select
+                  value={field}
+                  onChange={(e) => onField((e.target as HTMLSelectElement).value as SortField)}
+                  className="text-[10px] bg-white/[0.06] border border-white/15 rounded px-1 py-0.5 text-white/85"
+                >
+                  {SORT_FIELDS.map((f) => (
+                    <option key={f} value={f}>{SORT_LABELS[f]}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setDir((d) => (d === "desc" ? "asc" : "desc"))}
+                  className="text-[9px] px-1.5 py-0.5 rounded-full border border-white/20 text-white/70 whitespace-nowrap tnum"
+                  aria-label="Toggle sort direction"
+                >
+                  {dirLabel}
+                </button>
               </div>
             }
           >
