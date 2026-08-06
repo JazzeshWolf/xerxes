@@ -52,3 +52,33 @@ never in the file.
 - Free tier is 100k requests/day — far beyond what manual refreshes need.
 - The PAT is scoped to this one repo (Actions RW + Contents R). Rotate it on your
   own cadence; note it alongside the Upstox-token rotation reminder.
+
+## Reliable market-hours refresh (bypass GitHub's flaky scheduler)
+
+GitHub `schedule:` triggers are best-effort — in practice GitHub drops most of
+them and delays the rest 20–40 min, so the stock data can sit hours stale during
+market hours even though the workflow itself is fine. The robust fix is to fire
+the rebuild from an **external** cron. Unlike `schedule`, a `workflow_dispatch`
+sent via the API runs **immediately**, so an outside pinger gives dependable
+freshness. (Leave the in-repo `schedule:` as a backup — it still fires sometimes.)
+
+Easiest option — **cron-job.org** (free), calling GitHub directly with the same
+fine-grained PAT you made above (needs *Actions: Read and write*):
+
+- **URL:** `https://api.github.com/repos/JazzeshWolf/xerxes/actions/workflows/stocks.yml/dispatches`
+- **Method:** `POST`
+- **Request headers:**
+  - `Authorization: Bearer github_pat_…`
+  - `Accept: application/vnd.github+json`
+  - `Content-Type: application/json`
+  - `User-Agent: xerxes-cron`   (GitHub rejects requests with no UA)
+- **Body:** `{"ref":"claude/nifty-option-screener-93xv0y","inputs":{"symbol":""}}`
+  (empty symbol = full-universe rebuild)
+- **Schedule (set the account timezone to IST):** every ~20 min, ~09:20–15:40,
+  Mon–Fri. That's the whole session plus a post-close snapshot.
+
+Each ping triggers a fresh full run (~30–60 s) and the screener updates. The
+`concurrency: refresh-stocks` group means overlapping pings just queue, never
+collide. To also keep the **indices** fresh, add a second cron-job.org job with
+the same headers but URL `.../workflows/data.yml/dispatches` and body
+`{"ref":"claude/nifty-option-screener-93xv0y"}`, every ~10 min in market hours.
