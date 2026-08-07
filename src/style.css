@@ -1,14 +1,156 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Theming
+ *
+ * The whole UI is painted in alpha-white utilities (`text-white/50`,
+ * `bg-white/[0.04]`, `border-white/15`) layered over a dark page. Tailwind v4
+ * compiles those to `color-mix(in oklab, var(--color-white) …%, transparent)`,
+ * so re-pointing `--color-white` at an ink token flips every one of them at
+ * once — light mode is the same design with the ink inverted, not a second
+ * stylesheet.
+ *
+ * The accent ramps get the same treatment: the 300/400/500 shades are tuned
+ * for a dark backdrop and wash out on white, so each theme supplies its own.
+ * The dark values restate Tailwind's own defaults verbatim, which is what
+ * keeps dark mode pixel-identical to before light mode existed.
+ *
+ * `--x-c-*` are the SVG chart marks, read through lib/palette.ts — browsers
+ * don't resolve var() in SVG presentation attributes, so those go via `style`.
+ * ───────────────────────────────────────────────────────────────────────── */
+
 :root {
+  /* Dark — the original palette; these values are the app's default look. */
+  --x-page: #0a0e14;
+  --x-ink: #ffffff;
+  --x-body: #e6edf3;
+  /* Backdrop for the glow behind chart labels sitting on top of plot marks. */
+  --x-glow: 10 14 20;
+  /* Text placed on a solid accent fill (the SPOT badge). */
+  --x-on-accent: #06121c;
+  /* SVG chart marks. Kept as the original sRGB literals rather than pointed at
+   * the ramp below: Tailwind's palette is oklch, which renders a step more
+   * saturated than these hexes, so aliasing them would have quietly restyled
+   * every chart in dark mode. Light mode is free to pick its own. */
+  --x-c-bull: #34d399;
+  --x-c-bear: #fb7185;
+  --x-c-bear-deep: #f43f5e;
+  --x-c-warn: #fbbf24;
+  --x-c-info: #7dd3fc;
+  --x-c-info-wash: #38bdf8;
+  --x-c-proj: #60a5fa;
+  --x-c-today: #fb923c;
+  --x-c-oi-call: #f43f5e;
+  --x-c-oi-put: #10b981;
+  /* Mid-point of the bearish→bullish dial arc. */
+  --x-mid: #94a3b8;
+  /* Chart furniture — tick labels, the zero rule, SD gridlines. */
+  --x-axis: rgb(255 255 255 / 0.4);
+  --x-axis-line: rgb(255 255 255 / 0.3);
+  --x-grid-line: rgb(255 255 255 / 0.12);
+  /* Payoff profit/loss shading. The same alpha reads much heavier over white
+   * than over near-black, so light mode dials the strong end back. */
+  --x-pl-strong: 0.5;
+  --x-pl-weak: 0.06;
+
+  --x-emerald-300: oklch(84.5% 0.143 164.978);
+  --x-emerald-400: oklch(76.5% 0.177 163.223);
+  --x-emerald-500: oklch(69.6% 0.17 162.48);
+  --x-rose-300: oklch(81% 0.117 11.638);
+  --x-rose-400: oklch(71.2% 0.194 13.428);
+  --x-rose-500: oklch(64.5% 0.246 16.439);
+  --x-amber-300: oklch(87.9% 0.169 91.605);
+  --x-amber-400: oklch(82.8% 0.189 84.429);
+  --x-sky-300: oklch(82.8% 0.111 230.318);
+  --x-sky-400: oklch(74.6% 0.16 232.661);
+  --x-teal-300: oklch(85.5% 0.138 181.071);
+  --x-teal-400: oklch(77.7% 0.152 181.912);
+  --x-orange-300: oklch(83.7% 0.128 66.29);
+  --x-orange-400: oklch(75% 0.183 55.934);
+  --x-violet-300: oklch(81.1% 0.111 293.571);
+  --x-blue-300: oklch(80.9% 0.105 251.813);
+  --x-blue-400: oklch(70.7% 0.165 254.624);
+
   color-scheme: dark;
+}
+
+/* Light — ink inverted, accents pulled two steps deeper so they hold up on a
+ * near-white page (the 300/400 shades are ~1.5:1 on white as-is).
+ *
+ * There is deliberately no `prefers-color-scheme` block: `system` mode is
+ * resolved in JS (see lib/theme.ts) and stamped onto <html> by a blocking
+ * script in index.html before first paint, so `data-theme` is always the one
+ * source of truth for which palette is live. */
+:root[data-theme="light"] {
+  --x-page: #f6f8fb;
+  --x-ink: #0b1220;
+  --x-body: #101828;
+  --x-glow: 246 248 251;
+  --x-on-accent: #ffffff;
+  --x-c-bull: var(--x-emerald-400);
+  --x-c-bear: var(--x-rose-400);
+  --x-c-bear-deep: var(--x-rose-500);
+  --x-c-warn: var(--x-amber-400);
+  --x-c-info: var(--x-sky-300);
+  --x-c-info-wash: var(--x-sky-400);
+  --x-c-proj: var(--x-blue-400);
+  --x-c-today: var(--x-orange-400);
+  --x-c-oi-call: var(--x-rose-500);
+  --x-c-oi-put: var(--x-emerald-500);
+  --x-mid: oklch(44.6% 0.043 257.281);
+  --x-axis: rgb(11 18 32 / 0.5);
+  --x-axis-line: rgb(11 18 32 / 0.35);
+  --x-grid-line: rgb(11 18 32 / 0.14);
+  --x-pl-strong: 0.3;
+  --x-pl-weak: 0.05;
+
+  --x-emerald-300: oklch(50.8% 0.118 165.612);
+  --x-emerald-400: oklch(59.6% 0.145 163.225);
+  --x-emerald-500: oklch(59.6% 0.145 163.225);
+  --x-rose-300: oklch(51.4% 0.222 16.935);
+  --x-rose-400: oklch(58.6% 0.253 17.585);
+  --x-rose-500: oklch(58.6% 0.253 17.585);
+  --x-amber-300: oklch(55.5% 0.163 48.998);
+  --x-amber-400: oklch(66.6% 0.179 58.318);
+  --x-sky-300: oklch(50% 0.134 242.749);
+  --x-sky-400: oklch(58.8% 0.158 241.966);
+  --x-teal-300: oklch(51.1% 0.096 186.391);
+  --x-teal-400: oklch(60% 0.118 184.704);
+  --x-orange-300: oklch(55.3% 0.195 38.402);
+  --x-orange-400: oklch(64.6% 0.222 41.116);
+  --x-violet-300: oklch(49.1% 0.27 292.581);
+  --x-blue-300: oklch(48.8% 0.243 264.376);
+  --x-blue-400: oklch(54.6% 0.245 262.881);
+
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-white: var(--x-ink);
+  --color-emerald-300: var(--x-emerald-300);
+  --color-emerald-400: var(--x-emerald-400);
+  --color-emerald-500: var(--x-emerald-500);
+  --color-rose-300: var(--x-rose-300);
+  --color-rose-400: var(--x-rose-400);
+  --color-rose-500: var(--x-rose-500);
+  --color-amber-300: var(--x-amber-300);
+  --color-amber-400: var(--x-amber-400);
+  --color-sky-300: var(--x-sky-300);
+  --color-sky-400: var(--x-sky-400);
+  --color-teal-300: var(--x-teal-300);
+  --color-teal-400: var(--x-teal-400);
+  --color-orange-300: var(--x-orange-300);
+  --color-orange-400: var(--x-orange-400);
+  --color-violet-300: var(--x-violet-300);
+  --color-blue-300: var(--x-blue-300);
+  --color-blue-400: var(--x-blue-400);
 }
 
 html,
 body {
   margin: 0;
-  background: #0a0e14;
-  color: #e6edf3;
+  background: var(--x-page);
+  color: var(--x-body);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }

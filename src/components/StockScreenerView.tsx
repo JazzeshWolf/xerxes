@@ -3,6 +3,7 @@ import { useStockScreener } from "../state/store";
 import type { StockRow, LiquidityBucket, StockCandidate } from "../lib/types";
 import { fmt, fmtPct, timeAgo } from "../lib/format";
 import { Card, Badge } from "./ui";
+import { ThemeToggle } from "./ThemeToggle";
 
 const LIQ_TONE: Record<LiquidityBucket, string> = {
   High: "text-emerald-300 border-emerald-400/40 bg-emerald-400/10",
@@ -87,6 +88,7 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
             <span className={loading || refreshing ? "animate-spin" : ""}>⟳</span>
             {refreshing ? "Rebuilding…" : loading ? "…" : "Refresh"}
           </button>
+          <ThemeToggle />
         </div>
       </header>
       {refreshing && (

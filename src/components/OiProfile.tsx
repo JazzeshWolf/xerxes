@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import type { Snapshot, ExpiryBlock, ChainRow } from "../lib/types";
 import { fmt, fmtOi } from "../lib/format";
+import { C, mix } from "../lib/palette";
 import { Card } from "./ui";
 
 // Broker-style option chain: CALLS | strike·IV | PUTS, compact rows with a
@@ -146,7 +147,7 @@ function SideCell({ side, kind, total, maxV, wall, itm }: { side: Side; kind: "c
   const v = total ? side.oi : Math.abs(side.chg);
   const pct = Math.max(v > 0 ? 4 : 0, (v / maxV) * 100);
   const unwind = !total && side.chg < 0;
-  const color = kind === "ce" ? "244 63 94" : "16 185 129"; // rose / emerald
+  const color = kind === "ce" ? C.oiCall : C.oiPut;
   const alpha = wall ? 0.85 : 0.25 + 0.45 * (v / maxV);
   const isCe = kind === "ce";
   return (
@@ -158,22 +159,22 @@ function SideCell({ side, kind, total, maxV, wall, itm }: { side: Side; kind: "c
           style={{
             [isCe ? "right" : "left"]: "2px",
             width: `${pct * 0.62}%`,
-            background: unwind ? "transparent" : `rgb(${color} / ${alpha})`,
-            border: unwind || wall ? `1px solid rgb(${color} / ${wall ? 1 : 0.6})` : "none",
+            background: unwind ? "transparent" : mix(color, alpha),
+            border: unwind || wall ? `1px solid ${wall ? color : mix(color, 0.6)}` : "none",
           }}
         />
       )}
       {/* LTP near the strike column */}
       <span
         className={`absolute top-1/2 -translate-y-1/2 tnum text-[10px] text-white/80 ${isCe ? "right-[4px]" : "left-[4px]"}`}
-        style={{ textShadow: "0 0 4px rgb(10 14 20 / 0.9)" }}
+        style={{ textShadow: C.glow }}
       >
         {side.ltp != null ? fmt(side.ltp, side.ltp < 100 ? 1 : 0) : "—"}
       </span>
       {/* OI value at the outer edge */}
       <span
         className={`absolute top-1/2 -translate-y-1/2 tnum text-[9px] ${wall ? "font-bold" : ""} ${isCe ? "left-0 text-rose-300/90" : "right-0 text-emerald-300/90"}`}
-        style={{ textShadow: "0 0 4px rgb(10 14 20 / 0.95)" }}
+        style={{ textShadow: C.glowStrong }}
       >
         {v > 0 ? (total ? fmtOi(v) : fmtOi(side.chg, true)) : ""}
       </span>
@@ -185,7 +186,7 @@ function SpotDivider({ spot }: { spot: number }) {
   return (
     <div className="relative my-[3px]">
       <div className="border-t-2 border-dashed border-sky-400/80" />
-      <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 top-0 px-1.5 py-[1px] rounded bg-sky-400 text-[8.5px] font-bold text-[#06121c] tnum">
+      <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 top-0 px-1.5 py-[1px] rounded bg-sky-400 text-[8.5px] font-bold text-[color:var(--x-on-accent)] tnum">
         SPOT {fmt(spot)}
       </span>
     </div>

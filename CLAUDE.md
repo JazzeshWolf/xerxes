@@ -76,6 +76,35 @@ the last post-close snapshot is final until the next open. Don't debug that.
 
 ## Frontend notes
 
+### Theming (dark / light / system)
+
+`src/lib/theme.ts` owns the mode (`system | light | dark`, persisted at
+`xerxes.theme`); `ThemeToggle` cycles it and sits in all four top-level headers.
+The resolved value is stamped as `data-theme` on `<html>` — also by a blocking
+script in `index.html`, so there's no dark flash before the bundle loads. There
+is **no `prefers-color-scheme` CSS block**: `system` is resolved in JS so
+`data-theme` stays the single source of truth.
+
+How one attribute repaints everything: the UI is written almost entirely in
+alpha-white utilities (`text-white/50`, `bg-white/[0.04]`), and Tailwind v4
+compiles those to `color-mix(… var(--color-white) …)`. `style.css` re-points
+`--color-white` at an ink token via `@theme inline`, so light mode is the same
+design with the ink inverted rather than a second stylesheet. The accent ramps
+are remapped the same way (300/400 shades wash out on white → light uses the
+600/700 steps).
+
+Two traps if you touch this:
+- **Dark mode must stay pixel-identical.** The dark ramp restates Tailwind's
+  *oklch* defaults verbatim. Substituting the sRGB hexes (`#34d399` etc.) looks
+  equivalent but renders a step less saturated and silently restyles the app.
+- **SVG charts can't use `var()` in presentation attributes.** They go through
+  `style={{ fill: … }}` reading `src/lib/palette.ts`, which points at the
+  `--x-c-*` chart tokens. Those hold the *sRGB literals* the charts always used
+  — deliberately not aliased to the oklch ramp, for the reason above.
+
+Verified by screenshot-diffing dark against the pre-theme build: identical
+outside the header band where the toggle was added.
+
 - **Indices**: tabs Verdict / Chain / Holistic / Outlook / News / Position.
 - **Stocks**: `StockScreenerView` (search + liquidity/structure list + top
   premium-selling candidates) → `StockDashboard` (reuses the index tab components;

@@ -1,12 +1,16 @@
 import type { IndexKey } from "../lib/types";
 import { INDEX_META } from "../lib/types";
+import { ThemeToggle } from "./ThemeToggle";
 
 const ORDER: IndexKey[] = ["NIFTY", "BANKNIFTY", "SENSEX"];
 
 /** Landing chooser — pick which market to analyse. Persisted by the caller. */
 export function InstrumentPicker({ onPick, onPickStocks }: { onPick: (i: IndexKey) => void; onPickStocks: () => void }) {
   return (
-    <div className="flex flex-col min-h-[100dvh] px-5 justify-center">
+    <div className="relative flex flex-col min-h-[100dvh] px-5 justify-center">
+      <div className="absolute top-4 right-5">
+        <ThemeToggle />
+      </div>
       <div className="text-center mb-6">
         <h1 className="text-2xl font-bold tracking-tight">⚔️ Xerxes</h1>
         <p className="text-[11px] text-white/45 mt-1">Index option screener — pick a market</p>
