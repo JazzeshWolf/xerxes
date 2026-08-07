@@ -1,7 +1,13 @@
 import { useMemo, useState } from "preact/hooks";
 import { useStockScreener } from "../state/store";
-import type { StockRow, LiquidityBucket, StockCandidate } from "../lib/types";
-import { fmt, fmtPct, timeAgo } from "../lib/format";
+import type {
+  StockRow,
+  LiquidityBucket,
+  StockCandidate,
+  CandidateExpiry,
+  ConvictionBand,
+} from "../lib/types";
+import { fmt, fmtPct, fmtExpiry, timeAgo } from "../lib/format";
 import { Card, Badge } from "./ui";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -16,13 +22,23 @@ const LIQ_TONE: Record<LiquidityBucket, string> = {
 const biasTone = (bias?: string) => (bias === "bullish" ? "up" : bias === "bearish" ? "down" : "neutral");
 const verdictTone = (v: string) => (v === "BULLISH" ? "text-emerald-400" : v === "BEARISH" ? "text-rose-400" : "text-sky-300");
 
-type SortField = "liquidity" | "change" | "verdict" | "conviction" | "price" | "name";
-const SORT_FIELDS: SortField[] = ["liquidity", "change", "verdict", "conviction", "price", "name"];
+const BAND_TONE: Record<ConvictionBand, string> = {
+  HIGH: "text-emerald-300 border-emerald-400/40 bg-emerald-400/10",
+  MEDIUM: "text-sky-300 border-sky-400/35 bg-sky-400/10",
+  LOW: "text-white/45 border-white/15 bg-white/[0.04]",
+};
+
+// "conviction" used to mean |direction score| — the strength of the directional
+// read. It now means the sell-conviction the builder computes; "signal" keeps the
+// old meaning so nothing was lost from the list.
+type SortField = "conviction" | "liquidity" | "change" | "verdict" | "signal" | "price" | "name";
+const SORT_FIELDS: SortField[] = ["conviction", "liquidity", "change", "verdict", "signal", "price", "name"];
 const SORT_LABELS: Record<SortField, string> = {
+  conviction: "Sell conviction",
   liquidity: "Liquidity",
   change: "Day %",
   verdict: "Direction",
-  conviction: "Conviction",
+  signal: "Signal strength",
   price: "Price",
   name: "Name",
 };
@@ -30,7 +46,8 @@ const sortVal = (r: StockRow, f: SortField): number =>
   f === "liquidity" ? r.liquidity.score
     : f === "change" ? r.changePct ?? 0
     : f === "verdict" ? r.verdict.score
-    : f === "conviction" ? Math.abs(r.verdict.score)
+    : f === "signal" ? Math.abs(r.verdict.score)
+    : f === "conviction" ? r.conviction ?? -1
     : f === "price" ? r.spot
     : 0;
 
@@ -39,8 +56,25 @@ const sortVal = (r: StockRow, f: SortField): number =>
 export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, name: string) => void; onBack: () => void }) {
   const { screener, candidates, loading, error, hardRefresh, refreshing, refreshError } = useStockScreener();
   const [q, setQ] = useState("");
-  const [field, setField] = useState<SortField>("liquidity");
+  const [field, setField] = useState<SortField>("conviction");
   const [dir, setDir] = useState<"desc" | "asc">("desc");
+  const [slot, setSlot] = useState<"current" | "next">("current");
+
+  // Older published candidates.json has only the flat list — wrap it so the UI
+  // has one shape to render either way.
+  const expiryBlocks: CandidateExpiry[] = useMemo(() => {
+    if (candidates?.expiries?.length) return candidates.expiries;
+    if (candidates?.candidates?.length) {
+      const list = candidates.candidates;
+      return [{
+        slot: "current", label: "Current expiry",
+        date: list[0]?.expiry ?? null, dte: list[0]?.dte ?? null,
+        liquidNames: 0, candidateCount: list.length, thin: false, candidates: list,
+      }];
+    }
+    return [];
+  }, [candidates]);
+  const active = expiryBlocks.find((b) => b.slot === slot) ?? expiryBlocks[0] ?? null;
   // Switching field resets to its most-useful default direction (A→Z for names,
   // highest-first for everything else); the toggle then flips it either way.
   const onField = (f: SortField) => {
@@ -112,12 +146,54 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
           </div>
         )}
 
-        {candidates?.candidates?.length ? (
-          <Card title="Top premium-selling candidates" right={<span className="text-[9px] text-white/40">liquid names</span>}>
+        {active ? (
+          <Card
+            title="Top premium-selling candidates"
+            right={<span className="text-[9px] text-white/40">ranked by conviction</span>}
+          >
+            {expiryBlocks.length > 1 && (
+              <div className="flex gap-1 mb-2">
+                {expiryBlocks.map((b) => (
+                  <button
+                    key={b.slot}
+                    onClick={() => setSlot(b.slot)}
+                    className={`flex-1 rounded-lg border px-2 py-1.5 text-left ${
+                      b.slot === active.slot
+                        ? "border-white/25 bg-white/[0.08]"
+                        : "border-white/10 bg-white/[0.02] opacity-60"
+                    }`}
+                  >
+                    <div className="text-[10px] font-semibold text-white/85">{b.label}</div>
+                    <div className="text-[9px] text-white/40 tnum">
+                      {fmtExpiry(b.date)} · {b.dte ?? "—"}d · {b.candidates.length} ideas
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {active.thin && (
+              <div className="mb-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/80">
+                Thin expiry — only {active.candidates.length} strike
+                {active.candidates.length === 1 ? "" : "s"} across {active.liquidNames} name
+                {active.liquidNames === 1 ? "" : "s"} cleared the liquidity floor for this expiry.
+                Far-month NSE single-stock options are genuinely illiquid; expect wide spreads and
+                check the book before working an order.
+              </div>
+            )}
+
+            <div className="text-[9px] text-white/30 mb-1.5">
+              score · name · side · strike · P(keep) · edge · credit/lot — tap a row for the breakdown
+            </div>
             <div className="space-y-1">
-              {candidates.candidates.slice(0, 10).map((c) => (
+              {active.candidates.slice(0, 12).map((c) => (
                 <CandidateRow key={`${c.symbol}-${c.type}-${c.strike}`} c={c} onOpen={onOpen} />
               ))}
+              {!active.candidates.length && (
+                <div className="text-[11px] text-white/40 py-3 text-center">
+                  No candidate cleared the liquidity floor for this expiry.
+                </div>
+              )}
             </div>
           </Card>
         ) : null}
@@ -166,14 +242,25 @@ function StockRowItem({ r, field, onOpen }: { r: StockRow; field: SortField; onO
   // reads correctly (e.g. sorting by conviction pops the verdict score, not the
   // liquidity badge).
   const liqActive = field === "liquidity";
-  const verdictActive = field === "verdict" || field === "conviction";
+  const verdictActive = field === "verdict" || field === "signal";
   const changeActive = field === "change";
   const priceActive = field === "price";
+  const convActive = field === "conviction";
+  const band = r.topCandidate?.band ?? null;
   return (
     <button
       onClick={() => onOpen(r.file, r.name)}
       className="w-full flex items-center gap-2 py-1.5 px-1 rounded-lg active:bg-white/[0.05] text-left"
     >
+      {r.conviction != null && (
+        <span
+          className={`shrink-0 w-8 text-center tnum border rounded px-1 py-0.5 ${
+            band ? BAND_TONE[band] : "text-white/45 border-white/15"
+          } ${convActive ? "text-[11px] font-bold ring-1 ring-white/40" : "text-[9px] opacity-55"}`}
+        >
+          {r.conviction}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[13px] font-semibold text-white/90 truncate">{r.symbol}</span>
@@ -181,6 +268,7 @@ function StockRowItem({ r, field, onOpen }: { r: StockRow; field: SortField; onO
             {fmtPct(r.changePct, 1)}
           </span>
           {priceActive && <span className="text-[12px] font-bold tnum text-white/85">₹{fmt(r.spot)}</span>}
+          {convActive && r.vrp != null && <span className="text-[10px] tnum text-white/50">IV/RV {r.vrp}×</span>}
         </div>
         <div className="text-[10px] text-white/40 truncate">{r.name}</div>
       </div>
@@ -208,20 +296,102 @@ function StockRowItem({ r, field, onOpen }: { r: StockRow; field: SortField; onO
 }
 
 function CandidateRow({ c, onOpen }: { c: StockCandidate; onOpen: (file: string, name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const band = c.band ?? null;
+  // Real-world P(expire OTM) when the builder computed one; otherwise the old
+  // risk-neutral 1−|delta|, so pre-upgrade files still render something honest.
+  const pKeep = c.pProfit ?? c.probProfit;
+  const cushion = c.cushionSigmaF ?? c.cushionSigma;
+  const factors = (c.factors ?? []).filter((f) => f.present);
+
   return (
-    <button
-      onClick={() => onOpen(c.file, c.name)}
-      className="w-full flex items-center gap-2 py-1 text-[11px] active:bg-white/[0.05] rounded-lg px-1 text-left"
-    >
-      <span className="w-20 shrink-0 font-semibold text-white/90 truncate">{c.symbol}</span>
-      <span className={`w-16 shrink-0 tnum ${c.type === "PE" ? "text-emerald-300/90" : "text-rose-300/90"}`}>
-        {c.type === "PE" ? "Sell PE" : "Sell CE"}
-      </span>
-      <span className="w-14 shrink-0 tnum text-white/80">{fmt(c.strike)}</span>
-      <span className="flex-1 tnum text-white/50 text-right">
-        {Math.round(c.probProfit * 100)}% OTM · {c.cushionSigma != null ? `${c.cushionSigma.toFixed(1)}σ` : "—"}
-      </span>
-      <span className="w-16 shrink-0 tnum text-white/70 text-right">₹{fmt(c.creditPerLot)}</span>
-    </button>
+    <div className={open ? "rounded-lg bg-white/[0.03] border border-white/[0.07]" : ""}>
+      <div className="flex items-center gap-1.5 py-1 px-1 text-[11px]">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex-1 flex items-center gap-1.5 text-left min-w-0 active:opacity-70"
+          aria-label={`Why ${c.symbol} ${c.type} ${c.strike}`}
+        >
+          {band && (
+            <span className={`shrink-0 w-8 text-center text-[10px] font-bold tnum border rounded px-0.5 py-0.5 ${BAND_TONE[band]}`}>
+              {c.conviction}
+            </span>
+          )}
+          <span className="w-[62px] shrink-0 font-semibold text-white/90 truncate">{c.symbol}</span>
+          <span className={`shrink-0 tnum ${c.type === "PE" ? "text-emerald-300/90" : "text-rose-300/90"}`}>
+            {c.type}
+          </span>
+          <span className="w-11 shrink-0 tnum text-white/80">{fmt(c.strike)}</span>
+          <span className="flex-1 min-w-0 tnum text-white/45 text-right truncate">
+            {Math.round(pKeep * 100)}%
+            {c.edgePct != null ? ` · ${fmtPct(c.edgePct * 100, 1)}` : cushion != null ? ` · ${cushion.toFixed(1)}σ` : ""}
+            {c.deliveryRisk ? " ⚠" : ""}
+          </span>
+        </button>
+        <button
+          onClick={() => onOpen(c.file, c.name)}
+          className="w-[56px] shrink-0 tnum text-white/70 text-right truncate active:opacity-70"
+          aria-label={`Open ${c.symbol}`}
+        >
+          ₹{fmt(c.creditPerLot)}
+        </button>
+      </div>
+
+      {open && (
+        <div className="px-2.5 pb-2 space-y-1.5">
+          <div className="text-[9px] text-white/35 leading-relaxed">
+            {c.name} · {fmtExpiry(c.expiry)} ({c.dte}d) · IV {c.iv != null ? `${(c.iv * 100).toFixed(1)}%` : "—"}
+            {c.vrp != null ? ` · IV/RV ${c.vrp}×` : ""}
+            {c.ivRank != null ? ` · IVR ${c.ivRank}` : ""}
+            {c.fair != null ? ` · fair ₹${c.fair} vs ₹${c.ltp}` : ""}
+          </div>
+
+          {factors.length > 0 && (
+            <div className="space-y-1">
+              {factors.map((f) => (
+                <div key={f.key}>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-white/70">{f.label}</span>
+                    <span className="text-white/40 tnum truncate ml-2">{f.reading}</span>
+                  </div>
+                  <div className="relative h-1.5 mt-0.5 rounded-full bg-white/[0.06]">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-sky-400/70"
+                      style={{ width: `${Math.round((f.s ?? 0) * 100)}%` }}
+                    />
+                    {/* weight tick: how much this factor is worth in the blend */}
+                    <div className="absolute -bottom-px h-2 w-px bg-white/25" style={{ left: `${Math.round(f.weight * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {c.notes?.length ? (
+            <div className="text-[9px] text-amber-200/70 leading-relaxed">⚠ {c.notes.join(" · ")}</div>
+          ) : null}
+
+          {c.deliveryRisk && (
+            <div className="text-[9px] text-amber-200/70 leading-relaxed">
+              Physical settlement: an ITM short is assigned into delivery and margin steps up to
+              ~40% of contract value in the days before expiry.
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-0.5">
+            <span className="text-[9px] text-white/30 tnum">
+              OI-adj · risk-neutral {Math.round(c.probProfit * 100)}% vs forecast {Math.round(pKeep * 100)}%
+              {c.probTouchF != null ? ` · touch ${Math.round(c.probTouchF * 100)}%` : ""}
+            </span>
+            <button
+              onClick={() => onOpen(c.file, c.name)}
+              className="text-[9px] px-2 py-0.5 rounded-full border border-white/20 text-white/70 active:bg-white/[0.08]"
+            >
+              Open {c.symbol} →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

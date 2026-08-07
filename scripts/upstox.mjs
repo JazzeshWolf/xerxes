@@ -198,9 +198,14 @@ export async function quotes(token, instrumentKeys) {
 }
 
 /**
- * Daily history for an instrument. Returns { history:[{t,v}], oiHistory:[{t,v}] }
- * oldest-first. `oiHistory` is populated for futures (candle field 6); it's
- * empty for indices, which carry no open interest.
+ * Daily history for an instrument. Returns
+ * { history:[{t,v}], oiHistory:[{t,v}], ohlc:[{t,o,h,l,c,v}] } oldest-first.
+ *
+ * `oiHistory` is populated for futures (candle field 6); it's empty for indices,
+ * which carry no open interest. `ohlc` carries the full bar the API already
+ * sends — the stock screener needs open/high/low for gap-aware (Yang-Zhang)
+ * realized vol, and it costs nothing extra to keep. `history` stays
+ * close-only so the index pipeline is untouched.
  */
 export async function dailyCandles(token, instrumentKey, fromIso, toIso) {
   const url = `${BASE}/historical-candle/${encodeURIComponent(instrumentKey)}/day/${toIso}/${fromIso}`;
@@ -210,17 +215,22 @@ export async function dailyCandles(token, instrumentKey, fromIso, toIso) {
     // Each candle: [timestamp, open, high, low, close, volume, oi] (newest first).
     const history = [];
     const oiHistory = [];
+    const ohlc = [];
     for (const c of candles) {
       const t = String(c[0]).slice(0, 10);
-      const close = Number(c[4]);
+      const [o, h, l, close] = [Number(c[1]), Number(c[2]), Number(c[3]), Number(c[4])];
       if (Number.isFinite(close) && close > 0) history.push({ t, v: close });
+      if ([o, h, l, close].every((x) => Number.isFinite(x) && x > 0) && h >= l) {
+        ohlc.push({ t, o, h, l, c: close, v: Number(c[5]) || 0 });
+      }
       if (c[6] != null && Number.isFinite(Number(c[6])) && Number(c[6]) > 0) oiHistory.push({ t, v: Number(c[6]) });
     }
     history.reverse();
     oiHistory.reverse();
-    return { history, oiHistory };
+    ohlc.reverse();
+    return { history, oiHistory, ohlc };
   } catch (e) {
     console.warn(`upstox candles ${instrumentKey}: ${e.message}`);
-    return { history: [], oiHistory: [] };
+    return { history: [], oiHistory: [], ohlc: [] };
   }
 }

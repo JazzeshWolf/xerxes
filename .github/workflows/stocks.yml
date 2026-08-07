@@ -34,11 +34,14 @@ jobs:
         with:
           node-version: "22"
 
-      # Single-symbol on-demand refresh: seed the existing published set so the
-      # force_orphan republish below keeps the other ~156 files. Full/scheduled
-      # runs (empty symbol) skip this and rebuild the whole universe cleanly.
-      - name: Seed from stocks-data (single-symbol only)
-        if: github.event.inputs.symbol != ''
+      # Seed the previously published set on EVERY run. Two reasons:
+      #  - single-symbol refresh: force_orphan below would otherwise drop the
+      #    other ~156 files;
+      #  - full runs: each stock's per-day ATM-IV history lives in its own JSON,
+      #    and the build appends to it. Because stocks-data is republished as an
+      #    orphan commit each run, seeding is the only thing carrying that
+      #    history forward — without it IV rank could never accrue.
+      - name: Seed from stocks-data
         run: |
           mkdir -p public/data/stocks
           if git clone --depth 1 --branch stocks-data \

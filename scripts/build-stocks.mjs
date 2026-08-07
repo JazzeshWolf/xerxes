@@ -32,9 +32,22 @@ const STOCKS_DIR = resolve(DATA_DIR, "stocks");
 
 const VIX_KEY = "NSE_INDEX|India VIX";
 const YEAR_MS = 365 * 86400000;
-const MONTHLIES = 2; // nearest N monthly expiries per stock (1M / 2M horizons)
+const MONTHLIES = 2; // nearest N monthly expiries per stock (current + next)
 const CONCURRENCY = 5; // chains in flight at once — respect Upstox limits
 const CHAIN_WINDOW = 0.3; // keep strikes within ±30% of spot (trims size)
+const CANDLE_LOOKBACK_DAYS = 260; // ~180 trading bars — enough for YZ(120) + gap stats
+const IV_HISTORY_DAYS = 252; // trailing ATM-IV points kept per stock (→ IV rank)
+const IV_RANK_MIN_POINTS = 20; // below this, ivRank stays null and its weight redistributes
+const EXPIRY_SLOTS = ["current", "next"]; // ordered[0], ordered[1]
+
+// A far-month strike is not tradeable just because the name's near month is, so
+// each expiry is ranked against its OWN cohort and gated on its own numbers.
+const TRADEABLE_BUCKETS = ["Medium", "Medium-High", "High"];
+const MIN_STRIKE_OI = 250; // hard floor: below this the strike is a quote, not a market
+const THIN_EXPIRY_CANDIDATES = 8; // fewer than this in a slot → warn the user loudly
+// One name's strike ladder is a handful of near-identical trades, and without a
+// cap a single high-VRP stock crowds out the whole cross-universe list.
+const MAX_PER_SYMBOL = 2;
 
 // On-demand single-stock refresh: SYMBOL=INDIGO rebuilds only that stock and
 // merges it into the already-published set (the workflow seeds public/data/stocks
@@ -65,8 +78,13 @@ const slimChain = (chain) =>
     delta: o.delta != null ? A.round(o.delta, 3) : null,
   }));
 
-/** Per-expiry analytics block (same fields as the index build). */
-function computeExpiry(chain, spot, expiryIso, label) {
+/**
+ * Per-expiry analytics block. Everything here is a same-instant read of the
+ * chain; the forward-looking scoring (`scoreCandidates`) is a second pass,
+ * because it needs the term structure and the direction verdict, neither of
+ * which exists until every expiry has been through this function.
+ */
+function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
   const t = timeToExpiryYears(expiryIso);
   const dte = dteCalendar(expiryIso);
   const pcr = A.pcr(chain);
@@ -79,6 +97,13 @@ function computeExpiry(chain, spot, expiryIso, label) {
   const expectedMove = straddle ?? (atmIv != null ? spot * atmIv * Math.sqrt(t) : null);
   const skew = A.ivSkew(chain, spot);
   const gex = A.computeGex(chain, spot, t);
+
+  // Horizon-matched realized-vol forecast — the yardstick the option's price is
+  // judged against. Gap-aware (Yang-Zhang) because overnight risk is what
+  // actually costs a short-premium position on an Indian single stock.
+  const fc = A.forecastVol(ctx.ohlc ?? [], dte);
+  const sigmaForecast = fc?.sigma ?? null;
+
   const candidates = A.sellCandidates(chain, spot, t, expectedMove, {
     maxDelta: 0.25,
     minPremium: Math.max(1, spot * 0.0004),
@@ -101,9 +126,21 @@ function computeExpiry(chain, spot, expiryIso, label) {
       oiFlow: flow,
       atmStrike: atmK,
       atmIv: A.round(atmIv, 4),
+      // Filled by the scoring pass once the ATM-IV history is known.
       ivRank: null,
       ivPercentile: null,
-      rv20: null,
+      rv20: fc?.rv20 ?? null,
+      rv60: fc?.rv60 ?? null,
+      rv120: fc?.rv120 ?? null,
+      sigmaForecast,
+      // > 1 means the market is charging more than this name has been doing.
+      // Individual-equity variance risk is not reliably priced (Driessen,
+      // Maenhout & Vilkov 2009), so this has to be measured per name.
+      vrp: atmIv > 0 && sigmaForecast > 0 ? A.round(atmIv / sigmaForecast, 2) : null,
+      gapShare: fc?.gapShare ?? null,
+      cpIvSpread: A.cpIvSpread(chain, spot),
+      smirk: A.putSmirk(chain, spot),
+      termSlope: null, // needs the neighbouring expiry — filled in buildStock
       straddle: A.round(straddle, 1),
       expectedMove: A.round(expectedMove, 0),
       skew: A.round(skew, 4),
@@ -116,7 +153,74 @@ function computeExpiry(chain, spot, expiryIso, label) {
     _skew: skew,
     _em: expectedMove,
     _flow: flow,
+    _t: t,
+    _sigmaForecast: sigmaForecast,
+    _rawChain: chain,
   };
+}
+
+/**
+ * Second pass: attach a forward-looking conviction score to every candidate in
+ * one expiry block, and drop strikes that are quotes rather than markets.
+ *
+ * Ranked by conviction rather than by raw premium. The old rank
+ * (`ltp × (1−|delta|) × cushion`) was three restatements of the option's own
+ * price: raw rupees favour expensive stocks, `1−|delta|` is the risk-neutral
+ * P(OTM) which is fair by construction, and dividing distance by the straddle
+ * made high-IV names look safe *because* their IV was high.
+ */
+function scoreCandidates(block, { spot, lotSize, verdict, gap, term, ivRank }) {
+  const t = block._t;
+  const sf = block._sigmaForecast;
+  const mu = A.driftFromVerdict(verdict);
+  const smirk = block.metrics.smirk;
+  const byStrike = new Map();
+  for (const o of block._rawChain ?? []) byStrike.set(`${o.type}:${o.strike}`, o);
+
+  const scored = [];
+  for (const c of block.candidates) {
+    const row = byStrike.get(`${c.type}:${c.strike}`);
+    if ((row?.oi ?? c.oi ?? 0) < MIN_STRIKE_OI) continue;
+    const conv = A.sellConviction({
+      type: c.type,
+      strike: c.strike,
+      ltp: c.ltp,
+      iv: c.iv,
+      oi: row?.oi ?? c.oi,
+      volume: row?.volume ?? 0,
+      lotSize,
+      spot,
+      t,
+      sigmaForecast: sf,
+      mu,
+      verdict,
+      ivRank,
+      gap,
+      term,
+      smirk,
+    });
+    if (!conv) continue;
+    scored.push({
+      ...c,
+      conviction: conv.conviction,
+      band: conv.band,
+      edge: conv.edge,
+      edgePct: conv.edgePct,
+      fair: conv.fair,
+      // Real-world P(expire OTM) under the forecast vol + drift. Deliberately
+      // kept alongside `probProfit` (the risk-neutral 1−|delta|) so the two can
+      // be compared — where they disagree is where the edge is.
+      pProfit: conv.pProfit,
+      cushionSigmaF: conv.cushionSigmaF,
+      probTouchF: conv.probTouchF,
+      deliveryRisk: conv.deliveryRisk,
+      factors: conv.factors,
+      notes: conv.notes,
+    });
+  }
+  scored.sort((a, b) => b.conviction - a.conviction);
+  block.candidates = scored;
+  return scored;
 }
 
 const HORIZONS = [{ key: "1W", target: 7 }, { key: "1M", target: 30 }, { key: "2M", target: 60 }];
@@ -163,7 +267,7 @@ async function fetchStock(token, symbol, instruments, equityKey) {
   // Stock options are monthly-only; take the nearest MONTHLIES expiries.
   const ordered = picked.optionExpiries.slice(0, MONTHLIES);
   const underlyingKey = equityKey ?? picked.future?.underlyingKey ?? null;
-  const from = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
+  const from = new Date(Date.now() - CANDLE_LOOKBACK_DAYS * 86400000).toISOString().slice(0, 10);
 
   const quoteKeys = [
     ...(underlyingKey ? [underlyingKey] : []),
@@ -194,6 +298,8 @@ async function fetchStock(token, symbol, instruments, equityKey) {
     symbol,
     spot,
     closes: (closesC.history ?? []).map((p) => p.v),
+    // Full bars (same API call) — needed for gap-aware realized vol.
+    ohlc: closesC.ohlc ?? [],
     chainsByExpiry,
     orderedExpiries: gotExpiries,
     lotSize: picked.lotSize,
@@ -202,16 +308,57 @@ async function fetchStock(token, symbol, instruments, equityKey) {
   };
 }
 
-function buildStock(name, raw, vix) {
+/**
+ * Append today's ATM IV to the stock's own IV history (one point per calendar
+ * day, last write wins) and keep a trailing year. The workflow seeds
+ * public/data/stocks from the published `stocks-data` branch before every run,
+ * which is what carries this forward across a force-pushed orphan branch.
+ */
+function appendIvPoint(prev, t, iv) {
+  const clean = (Array.isArray(prev) ? prev : []).filter((p) => p && p.t && p.v > 0);
+  if (!(iv > 0)) return clean.slice(-IV_HISTORY_DAYS);
+  return [...clean.filter((p) => p.t !== t), { t, v: A.round(iv, 4) }]
+    .sort((a, b) => (a.t < b.t ? -1 : 1))
+    .slice(-IV_HISTORY_DAYS);
+}
+
+function buildStock(name, raw, vix, prevIvHistory = []) {
   const spot = raw.spot;
   const expiries = {};
   const ordered = raw.orderedExpiries.filter((e) => raw.chainsByExpiry[e]);
+  const gap = A.gapProfile(raw.ohlc ?? [], 60);
   for (const e of ordered) {
     const trimmed = trimToWindow(raw.chainsByExpiry[e], spot);
-    expiries[e] = computeExpiry(trimmed, spot, e, "monthly");
+    expiries[e] = computeExpiry(trimmed, spot, e, "monthly", { ohlc: raw.ohlc });
   }
   const defaultExpiry = ordered[0];
   const dflt = expiries[defaultExpiry];
+
+  // Term structure across the two monthlies: front bid over back = the market
+  // pricing a near-term event. Same slope is stamped on both blocks so either
+  // expiry's view carries the context.
+  const term =
+    ordered.length >= 2
+      ? A.termStructure(
+          expiries[ordered[0]].metrics.atmIv,
+          expiries[ordered[1]].metrics.atmIv,
+          expiries[ordered[0]].dte,
+          expiries[ordered[1]].dte,
+        )
+      : null;
+  for (const b of Object.values(expiries)) b.metrics.termSlope = term?.slopePts ?? null;
+
+  // ATM IV history → IV rank / percentile. Null (and its conviction weight
+  // redistributed) until enough points have accrued — nothing is invented.
+  const ivHistory = appendIvPoint(prevIvHistory, todayIso(), dflt.metrics.atmIv);
+  const ivSample = ivHistory.map((p) => p.v);
+  const enoughIv = ivSample.length >= IV_RANK_MIN_POINTS;
+  const ivRank = enoughIv ? A.round(A.rangeRank(dflt.metrics.atmIv, ivSample), 0) : null;
+  const ivPercentile = enoughIv ? A.percentile(dflt.metrics.atmIv, ivSample) : null;
+  for (const b of Object.values(expiries)) {
+    b.metrics.ivRank = ivRank;
+    b.metrics.ivPercentile = ivPercentile;
+  }
 
   const prevClose = raw.prevClose;
   const changePct = prevClose > 0 ? A.round(((spot - prevClose) / prevClose) * 100, 2) : null;
@@ -243,12 +390,35 @@ function buildStock(name, raw, vix) {
   const verdict = expiries[defaultExpiry].verdict;
   const horizons = buildHorizons(ordered, expiries);
 
+  // Scoring pass — now that each expiry has its own verdict and the term
+  // structure is known, every candidate gets a conviction score.
+  for (const e of ordered) {
+    scoreCandidates(expiries[e], {
+      spot,
+      lotSize: raw.lotSize ?? 1,
+      verdict: expiries[e].verdict,
+      gap,
+      term,
+      ivRank,
+    });
+  }
+
   const liquidity = A.liquidityScore(nearChain, raw.lotSize ?? 1, 0);
+  // Per-expiry raw liquidity, so the far month is later ranked against far
+  // months rather than inheriting the near month's (much better) numbers.
+  const liquidityByExpiry = {};
+  ordered.forEach((e, i) => {
+    liquidityByExpiry[EXPIRY_SLOTS[i] ?? `x${i}`] = {
+      date: e,
+      dte: expiries[e].dte,
+      raw: A.liquidityScore(raw.chainsByExpiry[e], raw.lotSize ?? 1, 0),
+    };
+  });
 
   const publicExpiries = {};
   for (const [e, b] of Object.entries(expiries)) {
-    const { _flow, _pcr, _maxPain, _skew, _em, ...pub } = b;
-    void _flow, void _pcr, void _maxPain, void _skew, void _em;
+    const { _flow, _pcr, _maxPain, _skew, _em, _t, _sigmaForecast, _rawChain, ...pub } = b;
+    void _flow, void _pcr, void _maxPain, void _skew, void _em, void _t, void _sigmaForecast, void _rawChain;
     publicExpiries[e] = pub;
   }
 
@@ -266,14 +436,40 @@ function buildStock(name, raw, vix) {
     defaultExpiry,
     horizons,
     expiries: publicExpiries,
-    ivHistory: [],
+    ivHistory,
+    gap,
+    term,
     verdict,
     structure,
   };
-  return { snap, liquidityRaw: liquidity, dfltMetrics: dflt.metrics };
+  return { snap, liquidityRaw: liquidity, liquidityByExpiry, dfltMetrics: dflt.metrics };
 }
 
 const fileSlug = (symbol) => symbol.replace(/[^A-Za-z0-9]/g, "_");
+
+/** Compact best-candidate summary for a screener row. */
+const topCandidateRow = (c) => ({
+  type: c.type,
+  strike: c.strike,
+  probProfit: c.probProfit,
+  pProfit: c.pProfit ?? null,
+  conviction: c.conviction ?? null,
+  band: c.band ?? null,
+});
+
+/**
+ * The stock's previously published ATM-IV history, read from the seeded copy of
+ * the `stocks-data` branch. Missing file (first ever run, or a seed failure) is
+ * not an error — history simply restarts.
+ */
+async function readPrevIvHistory(slug) {
+  try {
+    const j = JSON.parse(await readFile(resolve(STOCKS_DIR, `${slug}.json`), "utf8"));
+    return Array.isArray(j?.ivHistory) ? j.ivHistory : [];
+  } catch {
+    return [];
+  }
+}
 
 /** Shared India VIX (market-wide) — one quote + one history call. */
 async function fetchVix(token) {
@@ -302,8 +498,8 @@ async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys,
     console.error(`single: ${symbol} could not be built (no chain?) — leaving published data as-is.`);
     process.exit(0);
   }
-  const { snap } = buildStock(name, raw, vix);
   const slug = fileSlug(symbol);
+  const { snap } = buildStock(name, raw, vix, await readPrevIvHistory(slug));
   await writeFile(resolve(STOCKS_DIR, `${slug}.json`), JSON.stringify(snap));
 
   const idxPath = resolve(STOCKS_DIR, "index.json");
@@ -324,7 +520,10 @@ async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys,
     liquidity: existing?.liquidity ?? { bucket: "None", score: 0 },
     structure: snap.structure ? { label: snap.structure.label, bias: snap.structure.bias } : null,
     verdict: { verdict: snap.verdict.verdict, score: snap.verdict.score },
-    topCandidate: top ? { type: top.type, strike: top.strike, probProfit: top.probProfit } : null,
+    topCandidate: top ? topCandidateRow(top) : null,
+    conviction: top?.conviction ?? null,
+    vrp: snap.expiries[snap.defaultExpiry].metrics.vrp ?? null,
+    ivRank: snap.expiries[snap.defaultExpiry].metrics.ivRank ?? null,
   };
   idx.stocks = [...idx.stocks.filter((r) => r.symbol !== symbol), row].sort((a, b) => b.liquidity.score - a.liquidity.score);
   idx.count = idx.stocks.length;
@@ -358,11 +557,14 @@ async function main() {
   }
 
   const built = await pool(STOCKS, CONCURRENCY, async ([symbol, name]) => {
+    const slug = fileSlug(symbol);
+    // Read BEFORE writing — the seeded file is the previous run's published copy.
+    const prevIv = await readPrevIvHistory(slug);
     const raw = await fetchStock(token, symbol, instruments, equityKeys[symbol]);
     if (!raw) return { symbol, name, ok: false };
-    const { snap, liquidityRaw, dfltMetrics } = buildStock(name, raw, vix);
-    await writeFile(resolve(STOCKS_DIR, `${fileSlug(symbol)}.json`), JSON.stringify(snap));
-    return { symbol, name, ok: true, snap, liquidityRaw, dfltMetrics };
+    const { snap, liquidityRaw, liquidityByExpiry, dfltMetrics } = buildStock(name, raw, vix, prevIv);
+    await writeFile(resolve(STOCKS_DIR, `${slug}.json`), JSON.stringify(snap));
+    return { symbol, name, ok: true, snap, liquidityRaw, liquidityByExpiry, dfltMetrics };
   });
 
   const ok = built.filter((b) => b && b.ok);
@@ -374,7 +576,8 @@ async function main() {
     .map((b) => {
       const rank = rankOf(b.liquidityRaw);
       const bucket = A.liquidityBucket(rank, b.liquidityRaw);
-      const top = (b.snap.expiries[b.snap.defaultExpiry].candidates ?? [])[0] ?? null;
+      const dfltBlock = b.snap.expiries[b.snap.defaultExpiry];
+      const top = (dfltBlock.candidates ?? [])[0] ?? null;
       return {
         symbol: b.symbol,
         name: b.name,
@@ -384,50 +587,114 @@ async function main() {
         liquidity: { bucket, score: A.round(rank * 100, 0) },
         structure: b.snap.structure ? { label: b.snap.structure.label, bias: b.snap.structure.bias } : null,
         verdict: { verdict: b.snap.verdict.verdict, score: b.snap.verdict.score },
-        topCandidate: top ? { type: top.type, strike: top.strike, probProfit: top.probProfit } : null,
+        topCandidate: top ? topCandidateRow(top) : null,
+        // Best conviction available on this name, so the list can be sorted by it.
+        conviction: top?.conviction ?? null,
+        vrp: dfltBlock.metrics.vrp ?? null,
+        ivRank: dfltBlock.metrics.ivRank ?? null,
       };
     })
     .sort((a, b) => b.liquidity.score - a.liquidity.score);
 
-  // Top premium-selling candidates across the universe (liquidity ≥ Medium).
-  const liquidEnough = new Set(
-    rows.filter((r) => ["Medium", "Medium-High", "High"].includes(r.liquidity.bucket)).map((r) => r.symbol),
-  );
-  const candScore = (c) => c.ltp * c.probProfit * (c.cushionSigma ?? 0.5);
-  const candidates = [];
-  for (const b of ok) {
-    if (!liquidEnough.has(b.symbol)) continue;
-    const exp = b.snap.expiries[b.snap.defaultExpiry];
-    for (const c of exp.candidates ?? []) {
-      candidates.push({
-        symbol: b.symbol,
-        name: b.name,
-        file: fileSlug(b.symbol),
-        expiry: exp.date,
-        dte: exp.dte,
-        type: c.type,
-        strike: c.strike,
-        ltp: c.ltp,
-        delta: c.delta,
-        iv: c.iv,
-        distancePct: c.distancePct,
-        cushionSigma: c.cushionSigma,
-        probProfit: c.probProfit,
-        probTouch: c.probTouch,
-        creditPerLot: A.round(c.ltp * (b.snap.lotSize ?? 1), 0),
-        liquidity: rows.find((r) => r.symbol === b.symbol)?.liquidity.bucket ?? null,
-        _rank: candScore(c),
-      });
+  // --- Cross-universe candidates, one block PER EXPIRY SLOT -----------------
+  // Each slot is gated on its own chain's liquidity cohort. Far-month NSE
+  // single-stock options are genuinely thin, so the "next" list is often much
+  // shorter than the current one — that is the honest answer, not a bug, and
+  // `thin` tells the UI to say so.
+  const bucketBySymbol = new Map(rows.map((r) => [r.symbol, r.liquidity.bucket]));
+  const expiryBlocks = [];
+
+  for (const slot of EXPIRY_SLOTS) {
+    const cohort = ok.filter((b) => b.liquidityByExpiry?.[slot]?.raw > 0);
+    if (!cohort.length) continue;
+    // Rank this slot against ITSELF, never against the near month.
+    const slotScores = cohort.map((b) => b.liquidityByExpiry[slot].raw).sort((a, b) => a - b);
+    const slotRank = (x) => slotScores.filter((v) => v <= x).length / slotScores.length;
+
+    const list = [];
+    let date = null, dte = null;
+    for (const b of cohort) {
+      const meta = b.liquidityByExpiry[slot];
+      const bucket = A.liquidityBucket(slotRank(meta.raw), meta.raw);
+      if (!TRADEABLE_BUCKETS.includes(bucket)) continue;
+      const exp = b.snap.expiries[meta.date];
+      if (!exp) continue;
+      date ??= meta.date;
+      dte ??= meta.dte;
+      for (const c of exp.candidates ?? []) {
+        list.push({
+          symbol: b.symbol,
+          name: b.name,
+          file: fileSlug(b.symbol),
+          expiry: exp.date,
+          dte: exp.dte,
+          type: c.type,
+          strike: c.strike,
+          ltp: c.ltp,
+          delta: c.delta,
+          iv: c.iv,
+          distancePct: c.distancePct,
+          cushionSigma: c.cushionSigma,
+          probProfit: c.probProfit,
+          probTouch: c.probTouch,
+          creditPerLot: A.round(c.ltp * (b.snap.lotSize ?? 1), 0),
+          liquidity: bucket,
+          // The predictive half.
+          conviction: c.conviction,
+          band: c.band,
+          edge: c.edge,
+          edgePct: c.edgePct,
+          fair: c.fair,
+          pProfit: c.pProfit,
+          cushionSigmaF: c.cushionSigmaF,
+          probTouchF: c.probTouchF,
+          deliveryRisk: c.deliveryRisk,
+          vrp: exp.metrics.vrp ?? null,
+          ivRank: exp.metrics.ivRank ?? null,
+          factors: c.factors,
+          notes: c.notes,
+        });
+      }
     }
+    list.sort((a, b) => b.conviction - a.conviction);
+    // Diversify: keep only each name's best few strikes. Adjacent strikes on one
+    // stock are the same trade at slightly different odds, and one rich name
+    // would otherwise fill the entire list.
+    const perSymbol = new Map();
+    const top = [];
+    for (const c of list) {
+      const n = perSymbol.get(c.symbol) ?? 0;
+      if (n >= MAX_PER_SYMBOL) continue;
+      perSymbol.set(c.symbol, n + 1);
+      top.push(c);
+      if (top.length >= 24) break;
+    }
+    expiryBlocks.push({
+      slot,
+      label: slot === "current" ? "Current expiry" : "Next expiry",
+      date: date ?? null,
+      dte: dte ?? null,
+      liquidNames: cohort.filter((b) => TRADEABLE_BUCKETS.includes(A.liquidityBucket(slotRank(b.liquidityByExpiry[slot].raw), b.liquidityByExpiry[slot].raw))).length,
+      candidateCount: list.length,
+      thin: top.length < THIN_EXPIRY_CANDIDATES,
+      candidates: top,
+    });
   }
-  candidates.sort((a, b) => b._rank - a._rank);
-  const topCandidates = candidates.slice(0, 24).map(({ _rank, ...c }) => (void _rank, c));
 
   const asOf = new Date().toISOString();
   await writeFile(resolve(STOCKS_DIR, "index.json"), JSON.stringify({ asOf, count: rows.length, vix: vix.value, stocks: rows }));
-  await writeFile(resolve(STOCKS_DIR, "candidates.json"), JSON.stringify({ asOf, candidates: topCandidates }));
+  await writeFile(
+    resolve(STOCKS_DIR, "candidates.json"),
+    // `candidates` stays at the top level as the current-expiry list so a
+    // cached older frontend keeps rendering while the new one reads `expiries`.
+    JSON.stringify({ asOf, expiries: expiryBlocks, candidates: expiryBlocks[0]?.candidates ?? [] }),
+  );
 
-  console.log(`stocks: built ${ok.length}/${STOCKS.length}; ${topCandidates.length} top candidates; vix=${vix.value}`);
+  console.log(
+    `stocks: built ${ok.length}/${STOCKS.length}; ` +
+      expiryBlocks.map((e) => `${e.slot} ${e.date} ${e.candidates.length} cand${e.thin ? " (thin)" : ""}`).join("; ") +
+      `; vix=${vix.value}`,
+  );
 }
 
 // Only run the pipeline when invoked as a script (not when imported for tests).

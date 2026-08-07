@@ -243,3 +243,232 @@ describe("liquidity", () => {
     expect(A.liquidityBucket(null, 5)).toBe("None");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Predictive layer (stock premium-selling candidates)
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministic OHLC series with a KNOWN daily vol, split between an overnight
+ * gap and an intraday drift. `gapFrac` = share of each day's move that arrives
+ * as a gap, so the same total vol can be made gap-heavy or gap-light.
+ */
+function fixtureOhlc(n, dailyVol = 0.012, gapFrac = 0.3, seed = 7) {
+  let s = seed;
+  const rnd = () => {
+    s = (s * 1103515245 + 12345) % 2147483648;
+    return s / 2147483648 - 0.5; // ~U(-0.5, 0.5), sd ≈ 0.2887
+  };
+  const bars = [];
+  let c = 1000;
+  for (let i = 0; i < n; i++) {
+    const o = c * Math.exp(rnd() * dailyVol * gapFrac * 3.46);
+    const nc = o * Math.exp(rnd() * dailyVol * (1 - gapFrac) * 3.46);
+    const h = Math.max(o, nc) * (1 + Math.abs(rnd()) * dailyVol);
+    const l = Math.min(o, nc) * (1 - Math.abs(rnd()) * dailyVol);
+    bars.push({ t: `2026-01-${String((i % 28) + 1).padStart(2, "0")}`, o, h, l, c: nc, v: 1e6 });
+    c = nc;
+  }
+  return bars;
+}
+
+describe("yangZhangVol", () => {
+  it("recovers a plausible annualized vol and scales with the input vol", () => {
+    const calm = A.yangZhangVol(fixtureOhlc(200, 0.008), 60);
+    const wild = A.yangZhangVol(fixtureOhlc(200, 0.024), 60);
+    expect(calm).toBeGreaterThan(0);
+    expect(wild).toBeGreaterThan(calm * 2); // 3× the daily vol → clearly higher
+    // A 0.8%/day series annualizes to roughly 13% — allow a wide band.
+    expect(calm).toBeGreaterThan(0.05);
+    expect(calm).toBeLessThan(0.30);
+  });
+  it("needs n+1 bars and tolerates a corrupt bar without nulling the series", () => {
+    expect(A.yangZhangVol(fixtureOhlc(10), 20)).toBeNull();
+    expect(A.yangZhangVol([], 20)).toBeNull();
+    expect(A.yangZhangVol(null, 20)).toBeNull();
+    const withJunk = fixtureOhlc(120);
+    withJunk[40] = { t: "x", o: 0, h: 0, l: 0, c: 0 };
+    expect(A.yangZhangVol(withJunk, 60)).toBeGreaterThan(0);
+  });
+});
+
+describe("gapProfile", () => {
+  it("separates gap-dominated from intraday-dominated series", () => {
+    const gappy = A.gapProfile(fixtureOhlc(120, 0.012, 0.85), 60);
+    const smooth = A.gapProfile(fixtureOhlc(120, 0.012, 0.1), 60);
+    expect(gappy.gapShare).toBeGreaterThan(smooth.gapShare);
+    expect(gappy.gapShare).toBeGreaterThan(0.5);
+    expect(smooth.gapShare).toBeLessThan(0.3);
+    expect(gappy.maxAbsMove).toBeGreaterThan(0);
+  });
+  it("returns null when there aren't enough bars", () => {
+    expect(A.gapProfile(fixtureOhlc(5), 60)).toBeNull();
+  });
+});
+
+describe("forecastVol", () => {
+  const bars = fixtureOhlc(200, 0.012, 0.2);
+  it("pulls toward the slow estimate as the horizon lengthens", () => {
+    const near = A.forecastVol(bars, 7);
+    const far = A.forecastVol(bars, 60);
+    const slow = near.rv120;
+    // Longer horizon must sit closer to the 120-day anchor than the short one.
+    expect(Math.abs(far.sigma - slow)).toBeLessThanOrEqual(Math.abs(near.sigma - slow) + 1e-9);
+  });
+  it("inflates the forecast for gap-dominated names", () => {
+    const smooth = A.forecastVol(fixtureOhlc(200, 0.012, 0.1), 30);
+    const gappy = A.forecastVol(fixtureOhlc(200, 0.012, 0.9), 30);
+    expect(gappy.gapShare).toBeGreaterThan(smooth.gapShare);
+    expect(gappy.sigma).toBeGreaterThan(smooth.sigma);
+  });
+  it("returns null without usable history", () => {
+    expect(A.forecastVol([], 30)).toBeNull();
+    expect(A.forecastVol(fixtureOhlc(5), 30)).toBeNull();
+  });
+});
+
+describe("option-implied signals", () => {
+  it("termStructure names backwardation and contango", () => {
+    expect(A.termStructure(0.34, 0.28, 20, 50).regime).toBe("backwardation");
+    expect(A.termStructure(0.28, 0.34, 20, 50).regime).toBe("contango");
+    expect(A.termStructure(0.3, 0.3, 20, 50).regime).toBe("flat");
+    expect(A.termStructure(0.34, 0.28, 20, 50).slopePts).toBeCloseTo(6, 5);
+    expect(A.termStructure(null, 0.3, 20, 50)).toBeNull();
+    // Far expiry must actually be further out.
+    expect(A.termStructure(0.34, 0.28, 50, 20)).toBeNull();
+  });
+  it("cpIvSpread is positive when ATM calls are bid over puts", () => {
+    const chain = [
+      { strike: 1000, type: "CE", ltp: 30, iv: 0.32, oi: 100, volume: 10 },
+      { strike: 1000, type: "PE", ltp: 28, iv: 0.28, oi: 100, volume: 10 },
+    ];
+    expect(A.cpIvSpread(chain, 1000)).toBeCloseTo(4, 5);
+    expect(A.cpIvSpread([], 1000)).toBeNull();
+  });
+  it("putSmirk measures OTM put IV over ATM IV", () => {
+    const chain = [
+      { strike: 1000, type: "CE", ltp: 30, iv: 0.3, oi: 100, volume: 10 },
+      { strike: 1000, type: "PE", ltp: 30, iv: 0.3, oi: 100, volume: 10 },
+      { strike: 900, type: "PE", ltp: 5, iv: 0.42, oi: 100, volume: 10 },
+    ];
+    expect(A.putSmirk(chain, 1000)).toBeCloseTo(12, 5);
+    // No strike near the -10% target → no reading rather than a wrong one.
+    expect(A.putSmirk(chain.filter((o) => o.strike !== 900), 1000)).toBeNull();
+  });
+});
+
+describe("real-world probability and edge", () => {
+  const S = 1000, K = 1100, T = 30 / 365, sigma = 0.25;
+  it("at zero drift, P(call expires OTM) equals 1 − N(d2)", () => {
+    const sT = sigma * Math.sqrt(T);
+    const d1 = (Math.log(S / K) + (sigma * sigma / 2) * T) / sT;
+    const d2 = d1 - sT;
+    expect(A.pMeasureProb(S, K, T, sigma, 0, "CE")).toBeCloseTo(1 - A.normCdf(d2), 6);
+  });
+  it("call and put probabilities at the same strike are complementary", () => {
+    const ce = A.pMeasureProb(S, K, T, sigma, 0.05, "CE");
+    const pe = A.pMeasureProb(S, K, T, sigma, 0.05, "PE");
+    expect(ce + pe).toBeCloseTo(1, 6);
+  });
+  it("positive drift makes a short call less safe and a short put safer", () => {
+    expect(A.pMeasureProb(S, K, T, sigma, 0.4, "CE")).toBeLessThan(A.pMeasureProb(S, K, T, sigma, -0.4, "CE"));
+    expect(A.pMeasureProb(S, 900, T, sigma, 0.4, "PE")).toBeGreaterThan(A.pMeasureProb(S, 900, T, sigma, -0.4, "PE"));
+  });
+  it("driftFromVerdict is capped and scales with confidence", () => {
+    expect(A.driftFromVerdict({ score: 10, confidence: 1 })).toBeCloseTo(0.1, 6);
+    expect(A.driftFromVerdict({ score: -10, confidence: 1 })).toBeCloseTo(-0.1, 6);
+    expect(A.driftFromVerdict({ score: 10, confidence: 0.5 })).toBeCloseTo(0.05, 6);
+    expect(A.driftFromVerdict({ score: 50, confidence: 1 })).toBeCloseTo(0.1, 6); // clamped
+    expect(A.driftFromVerdict(null)).toBe(0);
+  });
+  it("edge is positive when IV exceeds the forecast and negative when it doesn't", () => {
+    const rich = A.bsPrice(S, K, T, 0.36, "CE"); // market charging 36 vol
+    const cheap = A.bsPrice(S, K, T, 0.18, "CE"); // market charging 18 vol
+    expect(A.candidateEdge(rich, S, K, T, 0.25, 0, "CE").edge).toBeGreaterThan(0);
+    expect(A.candidateEdge(cheap, S, K, T, 0.25, 0, "CE").edge).toBeLessThan(0);
+    // Selling at exactly the forecast vol is a zero-edge trade.
+    const fairPx = A.bsPrice(S, K, T, 0.25, "CE");
+    expect(A.candidateEdge(fairPx, S, K, T, 0.25, 0, "CE").edge).toBeCloseTo(0, 2);
+  });
+  it("edgePct normalizes across price levels — same vol edge, same score", () => {
+    const cheapStock = A.candidateEdge(A.bsPrice(200, 220, T, 0.36, "CE"), 200, 220, T, 0.25, 0, "CE");
+    const dearStock = A.candidateEdge(A.bsPrice(4000, 4400, T, 0.36, "CE"), 4000, 4400, T, 0.25, 0, "CE");
+    expect(dearStock.edge).toBeGreaterThan(cheapStock.edge * 10); // raw rupees are wildly different
+    expect(dearStock.edgePct).toBeCloseTo(cheapStock.edgePct, 3); // normalized, they agree
+  });
+});
+
+describe("sellConviction", () => {
+  const base = {
+    type: "CE", strike: 1100, ltp: 10.4, iv: 0.36, oi: 600000, volume: 80000, lotSize: 500,
+    spot: 1000, t: 30 / 365, sigmaForecast: 0.25, mu: 0,
+    verdict: { score: 0, confidence: 0.6, verdict: "NEUTRAL" },
+    ivRank: null, gap: null, term: null, smirk: null,
+  };
+
+  it("scores an option priced above the forecast higher than one priced below", () => {
+    const rich = A.sellConviction({ ...base, ltp: A.bsPrice(1000, 1100, base.t, 0.36, "CE"), iv: 0.36 });
+    const cheap = A.sellConviction({ ...base, ltp: A.bsPrice(1000, 1100, base.t, 0.18, "CE"), iv: 0.18 });
+    expect(rich.conviction).toBeGreaterThan(cheap.conviction);
+    expect(rich.band).toBe("HIGH");
+    expect(cheap.band).toBe("LOW");
+  });
+
+  it("redistributes weight when IV rank is missing rather than zeroing it", () => {
+    const without = A.sellConviction(base);
+    const ivFactor = without.factors.find((f) => f.key === "ivRank");
+    expect(ivFactor.present).toBe(false);
+    expect(ivFactor.weight).toBe(0);
+    // Present weights still sum to 1 — the missing factor's share was shared out.
+    const total = without.factors.reduce((a, f) => a + f.weight, 0);
+    expect(total).toBeCloseTo(1, 6);
+    const with60 = A.sellConviction({ ...base, ivRank: 60 });
+    expect(with60.factors.find((f) => f.key === "ivRank").present).toBe(true);
+    expect(with60.factors.reduce((a, f) => a + f.weight, 0)).toBeCloseTo(1, 6);
+  });
+
+  it("the gap-risk haircut is monotonically decreasing in gapShare", () => {
+    const at = (gapShare) => A.sellConviction({ ...base, gap: { gapShare, maxAbsMove: 0.01 } }).conviction;
+    const scores = [0.2, 0.4, 0.6, 0.8].map(at);
+    for (let i = 1; i < scores.length; i++) expect(scores[i]).toBeLessThanOrEqual(scores[i - 1]);
+    expect(scores.at(-1)).toBeLessThan(scores[0]);
+    expect(A.sellConviction({ ...base, gap: { gapShare: 0.8, maxAbsMove: 0.01 } }).notes.length).toBeGreaterThan(0);
+  });
+
+  it("penalizes selling into the wrong side of a confident direction read", () => {
+    const bullish = { score: 8, confidence: 0.9, verdict: "BULLISH" };
+    const shortCall = A.sellConviction({ ...base, type: "CE", verdict: bullish });
+    const shortPut = A.sellConviction({ ...base, type: "PE", strike: 900, verdict: bullish });
+    expect(shortCall.factors.find((f) => f.key === "direction").s)
+      .toBeLessThan(shortPut.factors.find((f) => f.key === "direction").s);
+  });
+
+  it("backwardation tilts conviction down, contango slightly up", () => {
+    const back = A.sellConviction({ ...base, term: { slopePts: 6, regime: "backwardation" } });
+    const flat = A.sellConviction({ ...base, term: { slopePts: 0, regime: "flat" } });
+    const cont = A.sellConviction({ ...base, term: { slopePts: -6, regime: "contango" } });
+    expect(back.conviction).toBeLessThan(flat.conviction);
+    expect(cont.conviction).toBeGreaterThanOrEqual(flat.conviction);
+  });
+
+  it("a steep put smirk penalizes short puts but not short calls", () => {
+    const pe = (smirk) => A.sellConviction({ ...base, type: "PE", strike: 900, smirk }).conviction;
+    const ce = (smirk) => A.sellConviction({ ...base, type: "CE", smirk }).conviction;
+    expect(pe(12)).toBeLessThan(pe(0));
+    expect(ce(12)).toBe(ce(0));
+  });
+
+  it("flags delivery risk only when the strike may actually finish ITM", () => {
+    const near = A.sellConviction({ ...base, strike: 1010, ltp: 30 });
+    const far = A.sellConviction({ ...base, strike: 1300, ltp: 1.5 });
+    expect(near.deliveryRisk).toBe(true);
+    expect(far.deliveryRisk).toBe(false);
+  });
+
+  it("returns null on unusable inputs instead of a fabricated score", () => {
+    expect(A.sellConviction(null)).toBeNull();
+    expect(A.sellConviction({ ...base, spot: 0 })).toBeNull();
+    expect(A.sellConviction({ ...base, ltp: 0 })).toBeNull();
+    expect(A.sellConviction({ ...base, t: 0 })).toBeNull();
+  });
+});

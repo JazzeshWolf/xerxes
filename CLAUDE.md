@@ -116,6 +116,14 @@ outside the header band where the toggle was added.
   `PositionTab` reads it (localStorage key); nothing does `INDEX_META[snap.index]`.
 - Screener rows **emphasise whichever field is being sorted** and dim the rest —
   added because a bold LIQUIDITY badge made conviction-sorted lists look wrong.
+  Note the sort field named `conviction` is now the **sell**-conviction score;
+  the old meaning (|direction score|) survives as `signal`.
+- The candidates card has a **Current / Next expiry** switch fed by
+  `candidates.json → expiries[]`. Each block is gated on **its own** liquidity
+  cohort, so a short or empty next-expiry list is correct, not a bug — far-month
+  NSE single-stock chains really are thin. `thin: true` renders the warning.
+- Candidate rows expand into their factor breakdown; `VolPremiumCard` (stock-only)
+  carries the IV-vs-forecast-RV case on the stock dashboard.
 - Refresh buttons: if `VITE_STOCK_REFRESH_URL` is set they trigger a real rebuild
   and poll; otherwise they just re-pull the last published snapshot.
 
@@ -129,6 +137,57 @@ a `fallback` flag (BANKNIFTY/stocks have no weeklies).
 
 Position analyzer (`src/lib/position.ts`): multi-leg payoff, breakevens,
 POP + expected P&L (lognormal), net delta/theta, and a rule-based fit assessment.
+
+### The predictive layer (stock selling candidates)
+
+Everything above answers *what does the chain look like now*. The section at the
+bottom of `analytics.mjs` answers the different question *is selling this strike
+into this expiry likely to pay*, and it is what the stock candidate list ranks by.
+
+**The load-bearing idea**: the market prices the option at its implied vol; we
+value it at our forecast of realized vol plus a small drift. The gap between the
+premium collected and that fair value is the expected edge (`candidateEdge`),
+normalised by a margin proxy so a ₹200 and a ₹4,000 stock compete fairly.
+
+Why it must be measured per name rather than assumed: **Driessen, Maenhout &
+Vilkov (2009, J. Finance)** found individual-equity variance risk is essentially
+*not* priced — the index variance premium comes from correlation risk. "Sell
+premium because premium is rich" is simply false for single stocks.
+
+What replaced what:
+
+| Old | Why it was wrong | New |
+|---|---|---|
+| `ltp` (raw ₹) | favours expensive stocks, not good trades | `edgePct` on a margin proxy |
+| `probProfit = 1−\|Δ\|` | risk-neutral ⇒ fair by construction, zero information | `pMeasureProb` at forecast vol + drift |
+| `cushionSigma` ÷ straddle | circular: high IV ⇒ looks "safe" | `cushionSigmaF` ÷ **forecast** σ |
+| direction ignored | "Sell CE" on a long-buildup name | `direction` factor, 0.15 weight |
+
+Pieces, all pure and unit-tested:
+- `yangZhangVol` — gap-aware OHLC realized vol (~14× more efficient than
+  close-to-close). `upstox.dailyCandles` now returns `ohlc` for this; `history`
+  stays close-only so the index pipeline is untouched.
+- `gapProfile` / `forecastVol` — share of variance arriving overnight, and the
+  horizon-matched vol forecast (inflated for gappy names).
+- `termStructure`, `cpIvSpread` (Cremers-Weinbaum), `putSmirk` (Xing et al.).
+- `sellConviction` — the blended 0-100 score. **Same contract as `directionScore`**:
+  components emit s ∈ [0,1], missing ones drop and redistribute pro-rata. Weights
+  are hand-set priors, not backtested — same honesty caveat as the direction engine.
+- Only the **gap-risk haircut** is aggressive (a multiplier, plus a note). Term
+  structure, smirk and direction are scoring components; physical-settlement risk
+  (`deliveryRisk`) is a **badge, never a filter** — NSE stock options settle
+  physically and ITM shorts face ~40%-of-contract-value margin near expiry.
+
+**IV rank needs history and history needs the seed step.** `stocks.yml` seeds
+`public/data/stocks` from the `stocks-data` branch on **every** run (not just
+single-symbol) — since that branch is republished as an orphan commit each time,
+seeding is the only thing carrying each stock's `ivHistory` forward. Break that
+step and IV rank silently never accrues. `ivRank`/`ivPercentile` stay `null` below
+20 points and their weight redistributes; `vrp` (IV ÷ forecast RV) carries the same
+information from the first run, which is why the feature shipped useful on day one.
+
+The cross-universe list caps **2 strikes per symbol** — without it one rich name's
+strike ladder fills the whole list with near-identical trades.
 
 ---
 
