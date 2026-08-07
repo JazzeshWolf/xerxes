@@ -242,7 +242,26 @@ rather than pretend to price it.
 ## Gotchas learned the hard way
 
 - **Sandbox can't reach Upstox/Google News/raw.githubusercontent** — always verify
-  data changes by triggering the real workflow, not locally.
+  data changes by triggering the real workflow, not locally. (raw.githubusercontent
+  *does* resolve through the agent proxy in some sessions — worth one `curl` before
+  assuming otherwise, since reading the published JSON is the only real check.)
+- **The Upstox asset CDN intermittently 403s GitHub runners.** Seen live: both
+  instrument-master URLs 403 on one run, fine 30 min either side. Without the
+  instrument master the whole stocks build aborts, so `fetchInstruments` retries
+  3× with backoff. A run whose "Build stock screener" step lasts ~1 s aborted —
+  check the step log for `no NSE instrument master`.
+- **A green stocks run does not prove fresh data.** Seeding runs on every build,
+  so an aborted build leaves the *seeded* files on disk. The publish guard
+  therefore compares `index.json`'s `asOf` before and after the build and refuses
+  to republish when it hasn't moved (with a `::warning::`). Never weaken that back
+  to a bare file-exists check — it turns a failure into a green run that
+  force-pushes stale data.
+- **Don't re-list candidate fields by hand.** `candidates.json` rows spread the
+  scored candidate; an earlier explicit field list silently dropped
+  `tailReliance`/`cvar`/`worst` so the per-stock files had them and the UI (which
+  reads `candidates.json`) showed nothing.
+- Light mode remaps the **300/400** accent shades only — `amber-200` and friends
+  stay as-is and are near-invisible on white. Use `-300` for warning text.
 - **Never commit `public/data/*.json`** from a local/fixture run — `git checkout`
   them before committing; the runner regenerates real data.
 - Playwright screenshots: abort `**raw.githubusercontent.com**` so the Pages
