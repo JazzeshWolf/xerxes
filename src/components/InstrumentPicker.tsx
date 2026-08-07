@@ -7,13 +7,16 @@ const ORDER: IndexKey[] = ["NIFTY", "BANKNIFTY", "SENSEX"];
 /** Landing chooser — pick which market to analyse. Persisted by the caller. */
 export function InstrumentPicker({ onPick, onPickStocks }: { onPick: (i: IndexKey) => void; onPickStocks: () => void }) {
   return (
-    <div className="relative flex flex-col min-h-[100dvh] px-5 justify-center">
-      <div className="absolute top-4 right-5">
-        <ThemeToggle />
-      </div>
-      <div className="text-center mb-6">
+    <div className="flex flex-col min-h-[100dvh] px-5 justify-center">
+      {/* The whole block is vertically centred, so the toggle rides alongside
+          the title rather than pinning to the top of the viewport. `top-0.5`
+          centres the 28px button on the 32px h1 line. */}
+      <div className="relative text-center mb-6">
         <h1 className="text-2xl font-bold tracking-tight">⚔️ Xerxes</h1>
         <p className="text-[11px] text-white/45 mt-1">Index option screener — pick a market</p>
+        <div className="absolute right-0 top-0.5">
+          <ThemeToggle />
+        </div>
       </div>
       <div className="space-y-2.5">
         {ORDER.map((k) => (
