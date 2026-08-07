@@ -173,7 +173,7 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
             )}
 
             {active.thin && (
-              <div className="mb-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/80">
+              <div className="mb-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-300/80">
                 Thin expiry — only {active.candidates.length} strike
                 {active.candidates.length === 1 ? "" : "s"} across {active.liquidNames} name
                 {active.liquidNames === 1 ? "" : "s"} cleared the liquidity floor for this expiry.
@@ -382,11 +382,11 @@ function CandidateRow({ c, onOpen }: { c: StockCandidate; onOpen: (file: string,
           )}
 
           {c.notes?.length ? (
-            <div className="text-[9px] text-amber-200/70 leading-relaxed">⚠ {c.notes.join(" · ")}</div>
+            <div className="text-[9px] text-amber-300/80 leading-relaxed">⚠ {c.notes.join(" · ")}</div>
           ) : null}
 
           {c.deliveryRisk && (
-            <div className="text-[9px] text-amber-200/70 leading-relaxed">
+            <div className="text-[9px] text-amber-300/80 leading-relaxed">
               Physical settlement: an ITM short is assigned into delivery and margin steps up to
               ~40% of contract value in the days before expiry.
             </div>

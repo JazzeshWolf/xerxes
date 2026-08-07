@@ -220,6 +220,8 @@ function scoreCandidates(block, { spot, lotSize, verdict, gap, term, ivRank, ret
       deliveryRisk: conv.deliveryRisk,
       tailReliance: conv.tailReliance,
       empirical: conv.empirical,
+      cvar: conv.cvar,
+      worst: conv.worst,
       factors: conv.factors,
       notes: conv.notes,
     });
@@ -630,37 +632,21 @@ async function main() {
       date ??= meta.date;
       dte ??= meta.dte;
       for (const c of exp.candidates ?? []) {
+        // SPREAD the scored candidate rather than re-listing its fields. An
+        // explicit list silently dropped tailReliance/cvar/worst on their first
+        // run — the per-stock files had them, candidates.json didn't, and the UI
+        // reads candidates.json. Spreading makes that class of bug impossible.
         list.push({
+          ...c,
           symbol: b.symbol,
           name: b.name,
           file: fileSlug(b.symbol),
           expiry: exp.date,
           dte: exp.dte,
-          type: c.type,
-          strike: c.strike,
-          ltp: c.ltp,
-          delta: c.delta,
-          iv: c.iv,
-          distancePct: c.distancePct,
-          cushionSigma: c.cushionSigma,
-          probProfit: c.probProfit,
-          probTouch: c.probTouch,
           creditPerLot: A.round(c.ltp * (b.snap.lotSize ?? 1), 0),
           liquidity: bucket,
-          // The predictive half.
-          conviction: c.conviction,
-          band: c.band,
-          edge: c.edge,
-          edgePct: c.edgePct,
-          fair: c.fair,
-          pProfit: c.pProfit,
-          cushionSigmaF: c.cushionSigmaF,
-          probTouchF: c.probTouchF,
-          deliveryRisk: c.deliveryRisk,
           vrp: exp.metrics.vrp ?? null,
           ivRank: exp.metrics.ivRank ?? null,
-          factors: c.factors,
-          notes: c.notes,
         });
       }
     }
