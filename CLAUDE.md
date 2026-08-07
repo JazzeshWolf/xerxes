@@ -189,6 +189,54 @@ information from the first run, which is why the feature shipped useful on day o
 The cross-universe list caps **2 strikes per symbol** — without it one rich name's
 strike ladder fills the whole list with near-identical trades.
 
+#### The far-OTM trap (found in production — do not undo these three things)
+
+The first live run ranked deep-OTM lottery tickets at the top. LICHSGFIN's
++27%-OTM call traded at ₹3.95 while Black-Scholes valued it at ₹0.14, so 96% of
+the premium showed up as "edge". Three separate causes, three fixes:
+
+1. **Every far-OTM strike pegged the same factors.** `edge` clamped at 2% of
+   margin, and `cushion`/`survival` saturate by construction out there — so 3 of
+   7 components hit 1.0 together. The clamp is now **4%**, which is what restores
+   discrimination: edge-per-margin has a real interior maximum along the ladder
+   (0.54% → 2.32% → 1.09% on a live SBIN put ladder) and at 2% that shape was
+   invisible.
+2. **No penalty for betting on an unmeasurable tail.** `tailReliance` = share of
+   the premium not explained by modelled fair value; above 0.7 it cuts conviction
+   by up to 45% and writes a note. This is the guard that actually stops the
+   ranking chasing pennies.
+3. **The vol forecast could sit below the name's own long-run realized.**
+   `forecastVol` now floors at `0.85 × rv120`. Deliberately asymmetric: vol
+   mean-reverts up out of quiet stretches, and for a seller a low forecast is the
+   expensive direction.
+
+Regression test: `sellConviction with an empirical sample › ranks the strike
+ladder with an interior maximum`. If that ever goes monotonic-outward again, the
+list is back to selling lottery tickets.
+
+#### What the bootstrap does and doesn't do
+
+`terminalSample` is a **block** bootstrap (filtered historical simulation):
+standardize the name's daily returns, rescale to the forecast vol, resample in
+contiguous blocks of horizon/3 (bounded 5-15), sum to the horizon. `riskMetrics`
+then prices every strike off that one sorted sample — value, real-world P(OTM)
+and CVaR from a single consistent object, with no per-strike sort (the sample is
+sorted and a short option's loss is monotone in terminal price, so the tail is
+just the k extreme entries). Whole universe: **~430 ms**.
+
+Do not oversell it. Measured at a 37-day horizon, **no block length recovers
+excess kurtosis** — it stays ~2.8-3.0 at block 1 through block 37, because
+summing that many draws the CLT flattens the daily fat tail regardless. What
+blocks do buy is dispersion: terminal sd rises monotonically with block length
+(+16% at 12, +30% at 37 vs i.i.d.), which is the conservative direction for a
+seller. Both properties are pinned by tests, including one that asserts the
+kurtosis limit so nobody later builds on tail shape that isn't there.
+
+The residual gap on wing options is the **volatility smile** — the market charged
+~40% IV on that LICHSGFIN wing against a 24% ATM forecast — and history alone
+can't settle whether that's overpayment or information. Hence fix (2): flag it
+rather than pretend to price it.
+
 ---
 
 ## Gotchas learned the hard way

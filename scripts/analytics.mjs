@@ -659,6 +659,12 @@ export function forecastVol(ohlc, dte = 30) {
   const gap = gapProfile(bars, 60);
   if (gap?.gapShare != null) sigma *= 1 + 0.5 * Math.max(0, gap.gapShare - 0.35);
 
+  // Asymmetric floor. Vol mean-reverts UP out of quiet stretches, and for a
+  // short-premium book underestimating vol is the direction that costs money —
+  // so the forecast is never allowed far below the name's own long-run level.
+  // (Seen live: LICHSGFIN forecast 24.1% against a 28.4% 120-day realized.)
+  if (rv120 > 0) sigma = Math.max(sigma, 0.85 * rv120);
+
   return {
     sigma: round(sigma, 4),
     rv20: round(rv20, 4),
@@ -724,6 +730,175 @@ export function putSmirk(chain, spot, pct = 0.1) {
     .sort((a, b) => Math.abs(a.strike - target) - Math.abs(b.strike - target))[0];
   if (!otm || Math.abs(otm.strike - target) / spot > 0.05) return null;
   return round((otm.iv - atm) * 100, 2);
+}
+
+// --- Filtered historical simulation ----------------------------------------
+// Black-Scholes prices the tail off a lognormal, and a lognormal does not
+// believe in the tail. Live data made this concrete: LICHSGFIN's +27%-OTM call
+// traded at ₹3.95 while the lognormal called it worth ₹0.14 — a 2.9σ move over
+// 53 days is a ~0.2% event to Black-Scholes and a routine one to an Indian
+// single stock on results, a block deal or a rating change. Every strike whose
+// modelled value rounds toward zero looked like free money, so the ranking
+// drifted toward exactly the far-OTM lottery tickets that bankrupt sellers.
+//
+// The fix uses data already on hand — ~200 daily bars per name. Take the SHAPE
+// of the actual return distribution (its fat tails and its skew) and impose the
+// SCALE of our forecast vol on it, then bootstrap N-day paths from it. That is
+// filtered historical simulation, the standard fix in risk management for
+// exactly this failure; nothing here assumes normality.
+
+/** Daily close-to-close log returns, oldest-first. */
+export function dailyLogReturns(ohlc) {
+  const bars = cleanOhlc(ohlc);
+  const out = [];
+  for (let i = 1; i < bars.length; i++) out.push(Math.log(bars[i].c / bars[i - 1].c));
+  return out;
+}
+
+/** Deterministic PRNG — a rebuild of the same data must reproduce the same numbers. */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const TRADING_DAYS_PER_CALENDAR = 252 / 365;
+export const tradingDaysTo = (calendarDays) => Math.max(1, Math.round(calendarDays * TRADING_DAYS_PER_CALENDAR));
+
+/**
+ * Bootstrap a sample of TERMINAL log-returns over `tradingDays`, drawing from
+ * the name's own daily returns standardized and rescaled to `sigmaAnnual`.
+ *
+ * Resampling is done in CONTIGUOUS BLOCKS so that volatility clustering — quiet
+ * stretches and violent ones arriving in runs — survives into the horizon.
+ *
+ * Be clear about what this does and does not buy, because it is easy to assume
+ * more. Measured on a 37-day horizon, no block length recovers excess kurtosis:
+ * it sits at ~2.8-3.0 (i.e. normal) from block 1 to block 37. Summing that many
+ * draws, the central limit theorem wins and the daily fat tail is washed out —
+ * that is a property of the horizon, not a flaw to tune away. What blocks
+ * genuinely deliver is DISPERSION: terminal sd rises monotonically with block
+ * length (+16% at block 12 over i.i.d., +30% at block 37), because drawing
+ * contiguous high-vol runs compounds them. For a short-premium book that is the
+ * conservative direction, and it is the real reason to prefer this over both an
+ * i.i.d. bootstrap and a lognormal.
+ *
+ * So this is NOT what stops far-OTM strikes dominating the ranking — the edge
+ * clamp and the tail-reliance guard in `sellConviction` do that. It is the
+ * better-founded distribution underneath them, and it yields the value, the
+ * probability and the CVaR from one consistent object.
+ *
+ * Block length is horizon/3, bounded: long enough to span the ~11-day half-life
+ * of clustering, short enough that ~200 observations still give varied paths.
+ *
+ * Returned values are zero-mean excess log-returns, sorted; drift is applied by
+ * the caller so one sample serves every strike on that expiry (which is what
+ * keeps this affordable across ~157 names twice per build).
+ */
+export function terminalSample(returns, tradingDays, sigmaAnnual, { paths = 4000, seed = 0x5eed, blockOverride = null } = {}) {
+  if (!Array.isArray(returns) || returns.length < 60) return null;
+  if (!(tradingDays >= 1) || !(sigmaAnnual > 0)) return null;
+  const n = returns.length;
+  const mean = returns.reduce((a, b) => a + b, 0) / n;
+  const sd = Math.sqrt(returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1));
+  if (!(sd > 0)) return null;
+  const target = sigmaAnnual / Math.sqrt(252);
+  const shaped = returns.map((r) => ((r - mean) / sd) * target);
+
+  const days = Math.max(1, Math.round(tradingDays));
+  // `blockOverride: 1` degrades this to an i.i.d. bootstrap — only useful for
+  // demonstrating that doing so flattens the tail back toward normal.
+  const block = blockOverride ?? clamp(Math.round(days / 3), 5, 15);
+  const rnd = mulberry32(seed);
+  const out = new Float64Array(paths);
+  for (let p = 0; p < paths; p++) {
+    let s = 0;
+    for (let d = 0; d < days; ) {
+      // Circular blocks so every observation is equally likely to be drawn.
+      let start = (rnd() * n) | 0;
+      const take = Math.min(block, days - d);
+      for (let k = 0; k < take; k++) s += shaped[(start + k) % n];
+      d += take;
+    }
+    out[p] = s;
+  }
+  // Returned SORTED (ascending): `riskMetrics` reads the tail straight off the
+  // ends, so no per-strike sorting is ever needed.
+  return out.sort();
+}
+
+/**
+ * Price an option off a `terminalSample`, and get the real-world P(expire OTM)
+ * from the same paths — one distribution, so value and probability can never
+ * disagree. Drift is set so E[S_T] = S·e^{μT}. Undiscounted (r ≈ 0), matching
+ * the rest of this file.
+ */
+export function simulatedValue(sample, S, K, T, sigmaAnnual, mu = 0, type = "CE") {
+  if (!sample?.length || !(S > 0) || !(K > 0) || !(T > 0) || !(sigmaAnnual > 0)) return null;
+  const drift = mu * T - (sigmaAnnual * sigmaAnnual * T) / 2;
+  let payoff = 0, otm = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const st = S * Math.exp(drift + sample[i]);
+    const p = type === "CE" ? st - K : K - st;
+    if (p > 0) payoff += p;
+    else otm++;
+  }
+  return { fair: payoff / sample.length, pOtm: otm / sample.length };
+}
+
+/**
+ * Risk-adjusted economics of SELLING one option, straight off the simulated
+ * terminal distribution.
+ *
+ * Expected profit alone is not enough to rank short options, and this is the
+ * trap that a plain edge number walks into: a far-OTM strike has a small
+ * positive expectation and a catastrophic left tail, so it can look excellent
+ * on expectation and still be the trade that ends you. Dividing expectation by
+ * expected shortfall — the mean loss in the worst `tailPct` of outcomes, the
+ * Basel-standard tail measure — prices that asymmetry in, and does it without
+ * any margin proxy, so it is comparable across every name and strike.
+ *
+ * Returns per-share rupee figures plus `edgeOnRisk` = expected ÷ |CVaR|.
+ */
+export function riskMetrics(sortedSample, S, K, T, sigmaAnnual, mu = 0, type = "CE", credit = 0, tailPct = 0.05) {
+  const n = sortedSample?.length ?? 0;
+  if (!n || !(S > 0) || !(K > 0) || !(T > 0) || !(sigmaAnnual > 0) || !(credit > 0)) return null;
+  const drift = mu * T - (sigmaAnnual * sigmaAnnual * T) / 2;
+  const priceAt = (i) => S * Math.exp(drift + sortedSample[i]);
+
+  let payoffSum = 0, otm = 0;
+  for (let i = 0; i < n; i++) {
+    const st = priceAt(i);
+    const payoff = type === "CE" ? st - K : K - st;
+    if (payoff > 0) payoffSum += payoff;
+    else otm++;
+  }
+  const fair = payoffSum / n;
+  const expected = credit - fair;
+
+  // `sortedSample` is ascending, and a short option's loss is monotone in the
+  // terminal price — worst outcomes are the top of the sample for a short call
+  // and the bottom for a short put. So the tail needs no per-strike sort: it is
+  // just the k most extreme entries, which is what makes this affordable at
+  // ~48 strikes × ~157 names per build.
+  const k = Math.max(1, Math.floor(n * tailPct));
+  let tail = 0;
+  for (let j = 0; j < k; j++) {
+    const i = type === "CE" ? n - 1 - j : j;
+    tail += credit - Math.max(type === "CE" ? priceAt(i) - K : K - priceAt(i), 0);
+  }
+  const worstIdx = type === "CE" ? n - 1 : 0;
+  return {
+    fair,
+    pOtm: otm / n,
+    expected,
+    cvar: tail / k, // negative when the tail loses money
+    worst: credit - Math.max(type === "CE" ? priceAt(worstIdx) - K : K - priceAt(worstIdx), 0),
+  };
 }
 
 /**
@@ -808,15 +983,32 @@ export function sellConviction(inp) {
   const {
     type, strike: K, ltp, iv, oi = 0, volume = 0, lotSize = 1,
     spot: S, t, sigmaForecast: sf, mu = 0, verdict = null,
-    ivRank = null, gap = null, term = null, smirk = null,
+    ivRank = null, gap = null, term = null, smirk = null, sample = null,
   } = inp ?? {};
   if (!(S > 0) || !(K > 0) || !(t > 0) || !(ltp > 0)) return null;
 
   const sig = {};
 
-  // Expected edge on margin — the trade's own expected value.
-  const ed = sf > 0 ? candidateEdge(ltp, S, K, t, sf, mu, type) : null;
-  if (ed) sig.edge = { s: clamp(ed.edgePct / 0.02, 0, 1), reading: `${round(ed.edgePct * 100, 2)}% of margin (fair ₹${ed.fair})` };
+  // Expected edge on margin — the trade's own expected value. Fair value comes
+  // from the bootstrapped empirical distribution when one is available, and
+  // falls back to Black-Scholes only when there isn't enough history. The
+  // lognormal fallback is optimistic about far-OTM strikes; `tailReliance`
+  // below is what stops that optimism from reaching the top of the list.
+  const sim = sample ? riskMetrics(sample, S, K, t, sf, mu, type, ltp) : null;
+  const ed = sim
+    ? { fair: round(sim.fair, 2), edge: round(ltp - sim.fair, 2), edgePct: round((ltp - sim.fair) / (0.15 * S), 4) }
+    : sf > 0
+      ? candidateEdge(ltp, S, K, t, sf, mu, type)
+      : null;
+  if (ed) {
+    // Clamp at 4%, not 2%. At 2% every strike from ~12% to ~22% OTM pegged at
+    // 1.0, so the factor stopped separating exactly where the ladder matters;
+    // edge-per-margin has a genuine interior maximum and this lets it show.
+    sig.edge = {
+      s: clamp(ed.edgePct / 0.04, 0, 1),
+      reading: `${round(ed.edgePct * 100, 2)}% of margin (fair ₹${ed.fair}${sim ? "" : ", lognormal"})`,
+    };
+  }
 
   // Volatility risk premium for THIS name — measured, never assumed.
   if (iv > 0 && sf > 0) {
@@ -917,8 +1109,22 @@ export function sellConviction(inp) {
     if (cut > 0.03) notes.push(`put smirk ${smirk} vol pts`);
   }
 
+  // Tail reliance. When the modelled fair value is a sliver of the premium, the
+  // whole "edge" is a claim that a tail event won't happen — and the tail is
+  // precisely where any model is least believable. Such strikes also peg the
+  // edge/cushion/survival factors at once, so without this they sweep the top of
+  // the list. This is the guard that stops the ranking chasing lottery tickets.
+  const tailReliance = ed?.fair != null && ltp > 0 ? clamp(1 - ed.fair / ltp, 0, 1) : null;
+  if (tailReliance != null && tailReliance > 0.7) {
+    const cut = clamp((tailReliance - 0.7) / 0.3, 0, 1) * 0.45;
+    mult *= 1 - cut;
+    notes.push(`${round(tailReliance * 100, 0)}% of the premium is tail-risk compensation — thin real cushion`);
+  }
+
   const conviction = round(clamp(score * mult, 0, 1) * 100, 0);
-  const pProfit = sf > 0 ? pMeasureProb(S, K, t, sf, mu, type) : null;
+  // One distribution for value and probability: the bootstrap when we have it,
+  // the lognormal only as a fallback.
+  const pProfit = sim ? sim.pOtm : sf > 0 ? pMeasureProb(S, K, t, sf, mu, type) : null;
 
   return {
     conviction,
@@ -931,6 +1137,14 @@ export function sellConviction(inp) {
     pProfit: round(pProfit, 3),
     cushionSigmaF: round(cushionSigmaF, 2),
     probTouchF: round(probTouchF, 3),
+    /** Share of the premium that is pure tail compensation (1 = fair value ≈ 0). */
+    tailReliance: round(tailReliance, 2),
+    /** false = fair value came from the lognormal fallback, not the bootstrap. */
+    empirical: !!sim,
+    /** Mean P&L per share in the worst 5% of simulated outcomes (negative = loss). */
+    cvar: sim ? round(sim.cvar, 2) : null,
+    /** Worst single simulated outcome, per share. */
+    worst: sim ? round(sim.worst, 2) : null,
     // NSE single stocks settle PHYSICALLY: an ITM short gets assigned into
     // delivery and margin steps up to ~40% of contract value near expiry. Shown
     // as a warning, never used to filter — the user asked to see the candidates.
