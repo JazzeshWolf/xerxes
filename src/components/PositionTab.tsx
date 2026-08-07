@@ -3,6 +3,7 @@ import type { Snapshot, ExpiryBlock } from "../lib/types";
 import type { Leg } from "../lib/position";
 import { analyzePosition } from "../lib/position";
 import { fmt } from "../lib/format";
+import { C, mix } from "../lib/palette";
 import { Card, Stat, Badge } from "./ui";
 
 let seq = 0;
@@ -203,12 +204,12 @@ function PayoffChart({ result, exp }: { result: ReturnType<typeof analyzePositio
           <clipPath id="above"><rect x={0} y={0} width={W} height={y0} /></clipPath>
           <clipPath id="below"><rect x={0} y={y0} width={W} height={H - y0} /></clipPath>
           <linearGradient id="pgrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="rgb(52 211 153)" stop-opacity="0.5" />
-            <stop offset="100%" stop-color="rgb(52 211 153)" stop-opacity="0.06" />
+            <stop offset="0%" style={{ stopColor: C.bull, stopOpacity: C.plStrong }} />
+            <stop offset="100%" style={{ stopColor: C.bull, stopOpacity: C.plWeak }} />
           </linearGradient>
           <linearGradient id="lgrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="rgb(244 63 94)" stop-opacity="0.06" />
-            <stop offset="100%" stop-color="rgb(244 63 94)" stop-opacity="0.5" />
+            <stop offset="0%" style={{ stopColor: C.bearDeep, stopOpacity: C.plWeak }} />
+            <stop offset="100%" style={{ stopColor: C.bearDeep, stopOpacity: C.plStrong }} />
           </linearGradient>
         </defs>
 
@@ -217,48 +218,48 @@ function PayoffChart({ result, exp }: { result: ReturnType<typeof analyzePositio
           const e = oiMap.get(s)!, cx = x(s);
           return (
             <g key={s}>
-              <rect x={cx - barW - 0.3} y={y0 - barH(e.c)} width={barW} height={barH(e.c)} fill="rgb(52 211 153 / 0.28)" />
-              <rect x={cx + 0.3} y={y0 - barH(e.p)} width={barW} height={barH(e.p)} fill="rgb(244 63 94 / 0.28)" />
+              <rect x={cx - barW - 0.3} y={y0 - barH(e.c)} width={barW} height={barH(e.c)} style={{ fill: mix(C.bull, 0.28) }} />
+              <rect x={cx + 0.3} y={y0 - barH(e.p)} width={barW} height={barH(e.p)} style={{ fill: mix(C.bearDeep, 0.28) }} />
             </g>
           );
         })}
 
         {/* 1SD band */}
         {inWin(spot - em) && inWin(spot + em) && (
-          <rect x={x(spot - em)} y={TOP} width={x(spot + em) - x(spot - em)} height={H - TOP - BOT} fill="rgb(56 189 248 / 0.05)" />
+          <rect x={x(spot - em)} y={TOP} width={x(spot + em) - x(spot - em)} height={H - TOP - BOT} style={{ fill: mix("var(--x-c-info-wash)", 0.05) }} />
         )}
         {/* profit / loss shading (at expiry) */}
         <path d={areaTop} fill="url(#pgrad)" clipPath="url(#above)" />
         <path d={areaTop} fill="url(#lgrad)" clipPath="url(#below)" />
         {/* zero line + P/L axis labels */}
-        <line x1={PADL} x2={W - PADR} y1={y0} y2={y0} stroke="rgb(255 255 255 / 0.3)" strokeWidth="0.75" strokeDasharray="3 3" />
+        <line x1={PADL} x2={W - PADR} y1={y0} y2={y0} style={{ stroke: C.axisLine }} strokeWidth="0.75" strokeDasharray="3 3" />
         {[pMax, 0].map((v, i) => (
-          <text key={i} x={PADL - 3} y={y(v) + 2.5} textAnchor="end" fontSize="6.5" fill="rgb(255 255 255 / 0.4)" className="tnum">{axisK(Math.round(v))}</text>
+          <text key={i} x={PADL - 3} y={y(v) + 2.5} textAnchor="end" fontSize="6.5" style={{ fill: C.axis }} className="tnum">{axisK(Math.round(v))}</text>
         ))}
-        {pMin < -1 && <text x={PADL - 3} y={H - BOT - 6} textAnchor="end" fontSize="6.5" fill="rgb(255 255 255 / 0.4)" className="tnum">{axisK(Math.round(pMin))}</text>}
+        {pMin < -1 && <text x={PADL - 3} y={H - BOT - 6} textAnchor="end" fontSize="6.5" style={{ fill: C.axis }} className="tnum">{axisK(Math.round(pMin))}</text>}
         {/* SD gridlines */}
         {sdLines.map((d) => (
           <g key={d.k}>
-            <line x1={x(d.s)} x2={x(d.s)} y1={TOP} y2={H - BOT} stroke="rgb(255 255 255 / 0.12)" strokeWidth="0.75" />
-            <text x={x(d.s)} y={TOP - 6} textAnchor="middle" fontSize="7" fill="rgb(255 255 255 / 0.4)">{d.k > 0 ? `+${d.k}` : d.k}SD</text>
+            <line x1={x(d.s)} x2={x(d.s)} y1={TOP} y2={H - BOT} style={{ stroke: C.gridLine }} strokeWidth="0.75" />
+            <text x={x(d.s)} y={TOP - 6} textAnchor="middle" fontSize="7" style={{ fill: C.axis }}>{d.k > 0 ? `+${d.k}` : d.k}SD</text>
           </g>
         ))}
         {/* halfway (blue) + today (orange) + expiry (green) curves */}
-        {curveHalf.length > 0 && <path d={path(curveHalf)} fill="none" stroke="rgb(96 165 250)" strokeWidth="1.3" strokeDasharray="3 2" opacity="0.9" />}
-        {curveToday.length > 0 && <path d={path(curveToday)} fill="none" stroke="rgb(251 146 60)" strokeWidth="1.5" />}
-        <path d={line} fill="none" stroke="rgb(52 211 153)" strokeWidth="1.9" />
+        {curveHalf.length > 0 && <path d={path(curveHalf)} fill="none" style={{ stroke: C.proj }} strokeWidth="1.3" strokeDasharray="3 2" opacity="0.9" />}
+        {curveToday.length > 0 && <path d={path(curveToday)} fill="none" style={{ stroke: C.today }} strokeWidth="1.5" />}
+        <path d={line} fill="none" style={{ stroke: C.bull }} strokeWidth="1.9" />
         {/* spot line */}
-        <line x1={x(spot)} x2={x(spot)} y1={TOP} y2={H - BOT} stroke="rgb(125 211 252)" strokeWidth="1.1" />
+        <line x1={x(spot)} x2={x(spot)} y1={TOP} y2={H - BOT} style={{ stroke: C.info }} strokeWidth="1.1" />
         {/* breakevens */}
         {breakevens.map((b) => (
           <g key={b}>
-            <line x1={x(b)} x2={x(b)} y1={y0 - 4} y2={y0 + 4} stroke="rgb(251 191 36)" strokeWidth="1.5" />
-            <text x={x(b)} y={y0 - 6} textAnchor="middle" fontSize="6.5" fill="rgb(251 191 36)" className="tnum">{fmt(b)}</text>
+            <line x1={x(b)} x2={x(b)} y1={y0 - 4} y2={y0 + 4} style={{ stroke: C.warn }} strokeWidth="1.5" />
+            <text x={x(b)} y={y0 - 6} textAnchor="middle" fontSize="6.5" style={{ fill: C.warn }} className="tnum">{fmt(b)}</text>
           </g>
         ))}
         {/* strike axis */}
         {strikeTicks.map((s, i) => (
-          <text key={i} transform={`rotate(-32 ${x(s)} ${H - BOT + 12})`} x={x(s)} y={H - BOT + 12} textAnchor="end" fontSize="6.5" fill="rgb(255 255 255 / 0.4)" className="tnum">{fmt(s)}</text>
+          <text key={i} transform={`rotate(-32 ${x(s)} ${H - BOT + 12})`} x={x(s)} y={H - BOT + 12} textAnchor="end" fontSize="6.5" style={{ fill: C.axis }} className="tnum">{fmt(s)}</text>
         ))}
       </svg>
 

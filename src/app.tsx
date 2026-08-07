@@ -19,6 +19,7 @@ import { OutlookTab } from "./components/OutlookTab";
 import { NewsTab } from "./components/NewsTab";
 import { PositionTab } from "./components/PositionTab";
 import { TabBar, type Tab } from "./components/TabBar";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { timeAgo } from "./lib/format";
 
 const TABS: Tab[] = ["verdict", "chain", "holistic", "outlook", "news", "position"];
@@ -99,6 +100,7 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
             <span className={dash.loading ? "animate-spin" : ""}>⟳</span>
             {dash.loading ? "…" : "Refresh"}
           </button>
+          <ThemeToggle />
         </div>
       </header>
 

@@ -1,23 +1,20 @@
 import type { Snapshot, Verdict } from "../lib/types";
 import { resolveHorizons } from "../lib/horizons";
+import { C, blend } from "../lib/palette";
 import { Card, Badge } from "./ui";
 
 // Direction is a diverging polarity: bearish ← neutral → bullish. The dial arc
 // is a fixed scale (rose → muted → emerald); the *value* is carried by the
 // needle position, the numeric score AND the text label — never colour alone,
 // so it survives colour-blind / greyscale reading.
-const BEAR = [244, 63, 94]; // rose-500
-const MID = [148, 163, 184]; // slate-400
-const BULL = [52, 211, 153]; // emerald-400
-const mix = (a: number[], b: number[], t: number) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
-const tickColor = (f: number) => {
-  const c = f < 0.5 ? mix(BEAR, MID, f / 0.5) : mix(MID, BULL, (f - 0.5) / 0.5);
-  return `rgb(${c[0]} ${c[1]} ${c[2]})`;
-};
+// The blend is done in CSS rather than JS arithmetic so the arc re-derives
+// itself from the live theme's accent ramp.
+const tickColor = (f: number) =>
+  f < 0.5 ? blend(C.bearDeep, C.mid, f / 0.5) : blend(C.mid, C.bull, (f - 0.5) / 0.5);
 const verdictTone = (v: string) =>
   v === "BULLISH" ? "text-emerald-400" : v === "BEARISH" ? "text-rose-400" : v === "NEUTRAL" ? "text-sky-300" : "text-white/40";
 const needleColor = (v: string) =>
-  v === "BULLISH" ? "rgb(52 211 153)" : v === "BEARISH" ? "rgb(244 63 94)" : "rgb(125 211 252)";
+  v === "BULLISH" ? C.bull : v === "BEARISH" ? C.bearDeep : C.info;
 
 const CX = 50, CY = 48, R = 38;
 const polar = (deg: number, r: number) => {
@@ -41,10 +38,10 @@ function Gauge({ v, active, onClick, label, dte }: { v: Verdict; active: boolean
         {ticks.map((f, i) => {
           const [x1, y1] = polar((1 - f) * 180, R - 5);
           const [x2, y2] = polar((1 - f) * 180, R);
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={tickColor(f)} strokeWidth="2.4" strokeLinecap="round" />;
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} style={{ stroke: tickColor(f) }} strokeWidth="2.4" strokeLinecap="round" />;
         })}
-        <line x1={CX} y1={CY} x2={nx} y2={ny} stroke={needleColor(v.verdict)} strokeWidth="2.2" strokeLinecap="round" />
-        <circle cx={CX} cy={CY} r="3" fill={needleColor(v.verdict)} />
+        <line x1={CX} y1={CY} x2={nx} y2={ny} style={{ stroke: needleColor(v.verdict) }} strokeWidth="2.2" strokeLinecap="round" />
+        <circle cx={CX} cy={CY} r="3" style={{ fill: needleColor(v.verdict) }} />
       </svg>
       <div className={`-mt-1.5 text-base font-bold tnum ${verdictTone(v.verdict)}`}>
         {v.score > 0 ? "+" : ""}{v.score}

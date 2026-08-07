@@ -1,5 +1,6 @@
 import type { Snapshot, ExpiryBlock, Point } from "../lib/types";
 import { fmt } from "../lib/format";
+import { C } from "../lib/palette";
 import { Card } from "./ui";
 
 // Hand-rolled SVG charts for the Holistic tab — price vs the option-defined
@@ -51,10 +52,10 @@ export function PriceLevelsChart({ snap, exp }: { snap: Snapshot; exp: ExpiryBlo
   // Right-edge labels: staggered so nearby levels never overlap.
   type Lbl = { y: number; lineY: number; color: string; text: string; bold?: boolean };
   const lbls: Lbl[] = [];
-  if (m.callWall != null) lbls.push({ y: y(m.callWall), lineY: y(m.callWall), color: "rgb(251 113 133)", text: `CW ${fmt(m.callWall)}` });
-  if (m.putWall != null) lbls.push({ y: y(m.putWall), lineY: y(m.putWall), color: "rgb(52 211 153)", text: `PW ${fmt(m.putWall)}` });
-  if (m.maxPain != null) lbls.push({ y: y(m.maxPain), lineY: y(m.maxPain), color: "rgb(251 191 36)", text: `MP ${fmt(m.maxPain)}` });
-  lbls.push({ y: y(spot), lineY: y(spot), color: "rgb(125 211 252)", text: `spot ${fmt(spot)}`, bold: true });
+  if (m.callWall != null) lbls.push({ y: y(m.callWall), lineY: y(m.callWall), color: C.bear, text: `CW ${fmt(m.callWall)}` });
+  if (m.putWall != null) lbls.push({ y: y(m.putWall), lineY: y(m.putWall), color: C.bull, text: `PW ${fmt(m.putWall)}` });
+  if (m.maxPain != null) lbls.push({ y: y(m.maxPain), lineY: y(m.maxPain), color: C.warn, text: `MP ${fmt(m.maxPain)}` });
+  lbls.push({ y: y(spot), lineY: y(spot), color: C.info, text: `spot ${fmt(spot)}`, bold: true });
   const placed = layoutLabels(lbls);
 
   return (
@@ -63,23 +64,23 @@ export function PriceLevelsChart({ snap, exp }: { snap: Snapshot; exp: ExpiryBlo
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
         {/* expected-move band into expiry (right edge) */}
         {em > 0 && (
-          <rect x={xEnd - 26} y={y(spot + em)} width={26} height={Math.max(2, y(spot - em) - y(spot + em))} fill="rgb(56 189 248 / 0.10)" rx={2} />
+          <rect x={xEnd - 26} y={y(spot + em)} width={26} height={Math.max(2, y(spot - em) - y(spot + em))} style={{ fill: C.infoWash }} rx={2} />
         )}
         {m.callWall != null && (
-          <line x1={PAD.l} x2={xEnd} y1={y(m.callWall)} y2={y(m.callWall)} stroke="rgb(251 113 133)" strokeWidth="1" strokeDasharray="4 3" opacity="0.75" />
+          <line x1={PAD.l} x2={xEnd} y1={y(m.callWall)} y2={y(m.callWall)} style={{ stroke: C.bear }} strokeWidth="1" strokeDasharray="4 3" opacity="0.75" />
         )}
         {m.putWall != null && (
-          <line x1={PAD.l} x2={xEnd} y1={y(m.putWall)} y2={y(m.putWall)} stroke="rgb(52 211 153)" strokeWidth="1" strokeDasharray="4 3" opacity="0.75" />
+          <line x1={PAD.l} x2={xEnd} y1={y(m.putWall)} y2={y(m.putWall)} style={{ stroke: C.bull }} strokeWidth="1" strokeDasharray="4 3" opacity="0.75" />
         )}
         {m.maxPain != null && (
-          <line x1={PAD.l} x2={xEnd} y1={y(m.maxPain)} y2={y(m.maxPain)} stroke="rgb(251 191 36)" strokeWidth="1" strokeDasharray="1 3" opacity="0.8" />
+          <line x1={PAD.l} x2={xEnd} y1={y(m.maxPain)} y2={y(m.maxPain)} style={{ stroke: C.warn }} strokeWidth="1" strokeDasharray="1 3" opacity="0.8" />
         )}
         {/* price line */}
-        <path d={linePath(xs, ys)} fill="none" stroke="rgb(125 211 252)" strokeWidth="1.6" />
-        <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r="2.5" fill="rgb(125 211 252)" />
+        <path d={linePath(xs, ys)} fill="none" style={{ stroke: C.info }} strokeWidth="1.6" />
+        <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r="2.5" style={{ fill: C.info }} />
         {/* leader ticks from each level line to its staggered label */}
         {placed.map((l) => (
-          <line key={l.text} x1={xEnd} x2={xEnd + 4} y1={l.lineY} y2={l.y} stroke={l.color} strokeWidth="0.75" opacity="0.6" />
+          <line key={l.text} x1={xEnd} x2={xEnd + 4} y1={l.lineY} y2={l.y} style={{ stroke: l.color }} strokeWidth="0.75" opacity="0.6" />
         ))}
       </svg>
       {/* HTML labels overlaid on the SVG — predictable size, never clipped */}
@@ -87,7 +88,7 @@ export function PriceLevelsChart({ snap, exp }: { snap: Snapshot; exp: ExpiryBlo
         <span
           key={l.text}
           className={`absolute right-0 tnum text-[9px] leading-none ${l.bold ? "font-bold" : ""}`}
-          style={{ top: `${(l.y / H) * 100}%`, transform: "translateY(-50%)", color: l.color, textShadow: "0 0 4px rgb(10 14 20)" }}
+          style={{ top: `${(l.y / H) * 100}%`, transform: "translateY(-50%)", color: l.color, textShadow: C.glow }}
         >
           {l.text}
         </span>
@@ -127,12 +128,12 @@ export function VixChart({ snap }: { snap: Snapshot }) {
     <Card title="India VIX — the fear gauge">
       <div className="relative">
         <svg viewBox={`0 0 ${W} ${H * 0.62}`} className="w-full">
-          <path d={linePath(xs, ys)} fill="none" stroke="rgb(251 191 36)" strokeWidth="1.6" />
-          <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r="2.5" fill="rgb(251 191 36)" />
+          <path d={linePath(xs, ys)} fill="none" style={{ stroke: C.warn }} strokeWidth="1.6" />
+          <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r="2.5" style={{ fill: C.warn }} />
         </svg>
         <span
           className="absolute right-0 tnum text-[10px] font-bold leading-none"
-          style={{ top: `${(ys[ys.length - 1] / (H * 0.62)) * 100}%`, transform: "translateY(-50%)", color: "rgb(251 191 36)" }}
+          style={{ top: `${(ys[ys.length - 1] / (H * 0.62)) * 100}%`, transform: "translateY(-50%)", color: C.warn }}
         >
           {fmt(cur, 2)}
         </span>

@@ -12,6 +12,7 @@ import { FactorsCard } from "./FactorsCard";
 import { HolisticTab } from "./HolisticTab";
 import { PositionTab } from "./PositionTab";
 import { TabBar, type Tab } from "./TabBar";
+import { ThemeToggle } from "./ThemeToggle";
 import { timeAgo } from "../lib/format";
 
 // Stocks get the option-centric subset of the index tabs (no macro Outlook/News).
@@ -51,6 +52,7 @@ export function StockDashboard({ file, name, onBack }: { file: string; name: str
             <span className={dash.loading || dash.refreshing ? "animate-spin" : ""}>⟳</span>
             {dash.refreshing ? "Refreshing…" : dash.loading ? "…" : "Refresh"}
           </button>
+          <ThemeToggle />
         </div>
       </header>
       {dash.refreshing && (
