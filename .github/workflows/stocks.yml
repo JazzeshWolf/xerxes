@@ -53,6 +53,19 @@ jobs:
             echo "No existing stocks-data branch to seed — will publish just this symbol."
           fi
 
+      # Remember what the seed brought in. Because seeding now happens on EVERY
+      # run, a build that aborts (expired token, upstream 403) would otherwise
+      # leave the seeded files in place, satisfy the guard below and republish
+      # stale data as a green run — a failure that looks like a success.
+      - name: Record seeded timestamp
+        id: pre
+        run: |
+          if [ -f public/data/stocks/index.json ]; then
+            echo "asof=$(node -p "require('./public/data/stocks/index.json').asOf")" >> "$GITHUB_OUTPUT"
+          else
+            echo "asof=none" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build stock screener
         env:
           UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
@@ -63,14 +76,23 @@ jobs:
       # branch never accumulates ~150 rewritten files per run. force_orphan
       # replaces the branch with a single commit each time → no history growth.
       # The frontend reads stock data from this branch via raw.githubusercontent.
-      - name: Guard — did the build produce data?
+      # Publish only on data the build actually refreshed: the file must exist
+      # AND its timestamp must have moved past the seeded one.
+      - name: Guard — did the build produce FRESH data?
         id: check
         run: |
-          if [ -f public/data/stocks/index.json ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ ! -f public/data/stocks/index.json ]; then
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "No stock data built — leaving stocks-data untouched."
+            echo "::warning::No stock data built — leaving stocks-data untouched."
+            exit 0
+          fi
+          NOW=$(node -p "require('./public/data/stocks/index.json').asOf")
+          if [ "$NOW" = "${{ steps.pre.outputs.asof }}" ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Build did not refresh the data (asOf still $NOW) — upstream fetch likely failed. Leaving stocks-data untouched."
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "Refreshed: ${{ steps.pre.outputs.asof }} -> $NOW"
           fi
 
       - name: Publish to stocks-data branch

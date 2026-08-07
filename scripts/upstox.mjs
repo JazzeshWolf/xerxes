@@ -38,23 +38,31 @@ export async function fetchInstruments(exchange = "NSE") {
     Referer: "https://upstox.com/",
   };
   const primary = exchange === "BSE" ? INSTRUMENTS_BSE : INSTRUMENTS_NSE;
+  // The asset CDN intermittently 403s GitHub runners (seen live: both URLs 403
+  // on one run, both fine on the next). Without a retry the whole build aborts
+  // on a blip, so each URL gets a few attempts with backoff before moving on.
+  const ATTEMPTS = 3;
   for (const url of [primary, INSTRUMENTS_ALL]) {
-    try {
-      const res = await fetch(url, { headers });
-      if (!res.ok) throw new Error(`${res.status}`);
-      const buf = Buffer.from(await res.arrayBuffer());
-      const gz = buf[0] === 0x1f && buf[1] === 0x8b;
-      if (!gz && (buf[0] === 0x3c /* '<' */ || buf.length < 100)) {
-        throw new Error("blocked (HTML/empty response)");
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+      try {
+        const res = await fetch(url, { headers });
+        if (!res.ok) throw new Error(`${res.status}`);
+        const buf = Buffer.from(await res.arrayBuffer());
+        const gz = buf[0] === 0x1f && buf[1] === 0x8b;
+        if (!gz && (buf[0] === 0x3c /* '<' */ || buf.length < 100)) {
+          throw new Error("blocked (HTML/empty response)");
+        }
+        const text = gz ? gunzipSync(buf).toString("utf8") : buf.toString("utf8");
+        const arr = JSON.parse(text);
+        if (Array.isArray(arr) && arr.length) {
+          console.log(`upstox instruments: ${arr.length} from ${url}`);
+          return arr;
+        }
+        throw new Error("empty instrument list");
+      } catch (e) {
+        console.warn(`upstox instruments ${url} (attempt ${attempt}/${ATTEMPTS}): ${e.message}`);
+        if (attempt < ATTEMPTS) await new Promise((r) => setTimeout(r, 2000 * attempt));
       }
-      const text = gz ? gunzipSync(buf).toString("utf8") : buf.toString("utf8");
-      const arr = JSON.parse(text);
-      if (Array.isArray(arr) && arr.length) {
-        console.log(`upstox instruments: ${arr.length} from ${url}`);
-        return arr;
-      }
-    } catch (e) {
-      console.warn(`upstox instruments ${url}: ${e.message}`);
     }
   }
   return [];
