@@ -522,3 +522,418 @@ export function liquidityBucket(rank, score = 1) {
   if (rank >= 0.25) return "Medium-Low";
   return "Low";
 }
+
+// ===========================================================================
+// PREDICTIVE LAYER (stock premium-selling candidates)
+//
+// Everything above answers "what does the chain look like right now". This
+// section answers the different question "is selling THIS strike into THIS
+// expiry likely to pay" — which needs a forecast of what the underlying will
+// actually do, not just what the market is charging for it.
+//
+// The load-bearing idea: the market prices the option at its implied vol; we
+// value it at OUR forecast of realized vol (plus a small drift). The gap
+// between the premium collected and that fair value IS the expected edge.
+//
+// Why this can't be assumed rather than measured: Driessen, Maenhout & Vilkov
+// (2009, J. Finance) show individual equity variance risk is essentially NOT
+// priced — the index variance premium comes from correlation risk. So "sell
+// premium because premium is rich" is false for single stocks; richness has to
+// be established per name. That is exactly what `candidateEdge` does.
+//
+// Same honesty note as the direction engine applies: the WEIGHTS below are
+// hand-set priors, not backtested. Trust the band and the factor breakdown,
+// not the last digit of the score.
+// ===========================================================================
+
+/** Keep only bars with a full, positive OHLC. One bad bar shouldn't null a series. */
+function cleanOhlc(ohlc) {
+  if (!Array.isArray(ohlc)) return [];
+  return ohlc.filter(
+    (b) => b && b.o > 0 && b.h > 0 && b.l > 0 && b.c > 0 && b.h >= b.l,
+  );
+}
+
+const variance = (arr) => {
+  if (arr.length < 2) return null;
+  const mu = arr.reduce((a, b) => a + b, 0) / arr.length;
+  return arr.reduce((a, b) => a + (b - mu) ** 2, 0) / (arr.length - 1);
+};
+
+/**
+ * Yang-Zhang (2000) realized volatility from daily OHLC, annualized.
+ *
+ *   σ²_YZ = σ²_overnight + k·σ²_open→close + (1−k)·σ²_Rogers-Satchell
+ *   k = 0.34 / (1.34 + (n+1)/(n−1))
+ *
+ * Preferred over the close-to-close `realizedVol` above for single stocks: it
+ * is ~14× more efficient (so 20 bars actually say something) AND it is the only
+ * common estimator that accounts for overnight gaps — which is most of what
+ * kills a short option on an Indian single stock. Needs n+1 bars.
+ */
+export function yangZhangVol(ohlc, n = 20) {
+  const bars = cleanOhlc(ohlc);
+  if (n < 3 || bars.length < n + 1) return null;
+  const w = bars.slice(-(n + 1));
+  const overnight = [], openClose = [], rs = [];
+  for (let i = 1; i < w.length; i++) {
+    const prev = w[i - 1], b = w[i];
+    overnight.push(Math.log(b.o / prev.c));
+    openClose.push(Math.log(b.c / b.o));
+    rs.push(Math.log(b.h / b.c) * Math.log(b.h / b.o) + Math.log(b.l / b.c) * Math.log(b.l / b.o));
+  }
+  const m = overnight.length;
+  const vOvernight = variance(overnight), vOpenClose = variance(openClose);
+  if (vOvernight == null || vOpenClose == null) return null;
+  const vRs = rs.reduce((a, b) => a + b, 0) / rs.length;
+  const k = 0.34 / (1.34 + (m + 1) / (m - 1));
+  const v = vOvernight + k * vOpenClose + (1 - k) * vRs;
+  return v > 0 ? Math.sqrt(v * 252) : null;
+}
+
+/**
+ * How much of this name's recent risk arrives as GAPS rather than as tradeable
+ * intraday movement. A short option can be managed through an intraday drift;
+ * it cannot be managed through an overnight gap. `gapShare` is the fraction of
+ * total variance contributed by close→open moves; `maxAbsMove` is the worst
+ * single-day close-to-close move in the window; `jumpCount` counts days beyond
+ * 3× the median absolute move.
+ */
+export function gapProfile(ohlc, n = 60) {
+  const bars = cleanOhlc(ohlc).slice(-(n + 1));
+  if (bars.length < 12) return null;
+  let gapSq = 0, intraSq = 0, maxAbs = 0;
+  const rets = [];
+  for (let i = 1; i < bars.length; i++) {
+    const g = Math.log(bars[i].o / bars[i - 1].c);
+    const u = Math.log(bars[i].c / bars[i].o);
+    const r = Math.abs(Math.log(bars[i].c / bars[i - 1].c));
+    gapSq += g * g;
+    intraSq += u * u;
+    rets.push(r);
+    if (r > maxAbs) maxAbs = r;
+  }
+  const tot = gapSq + intraSq;
+  const sorted = [...rets].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  return {
+    gapShare: tot > 0 ? round(gapSq / tot, 3) : null,
+    maxAbsMove: round(maxAbs, 4),
+    jumpCount: median > 0 ? rets.filter((r) => r > 3 * median).length : 0,
+  };
+}
+
+/**
+ * Horizon-matched volatility forecast for an expiry `dte` days away.
+ *
+ * Blend of Yang-Zhang over 20/60/120 bars, weighted toward the recent estimate
+ * for near expiries and toward the slow one for far expiries, then mean-reverted
+ * toward the slow estimate in proportion to horizon (vol mean-reverts, so a
+ * 60-day forecast should not simply extrapolate the last three weeks).
+ *
+ * Finally inflated for gap-dominated names: close-to-close statistics understate
+ * what a gappy stock does to a short option, so those names get a forecast that
+ * is deliberately less flattering.
+ */
+export function forecastVol(ohlc, dte = 30) {
+  const bars = cleanOhlc(ohlc);
+  const rv20 = yangZhangVol(bars, 20);
+  const rv60 = yangZhangVol(bars, 60);
+  const rv120 = yangZhangVol(bars, 120);
+  const parts = [[rv20, "w20"], [rv60, "w60"], [rv120, "w120"]].filter(([v]) => v > 0);
+  if (!parts.length) return null;
+
+  const h = clamp(dte, 1, 90);
+  const w = { w20: clamp(0.65 - (h / 90) * 0.35, 0.25, 0.65), w60: 0.3 };
+  w.w120 = Math.max(0.05, 1 - w.w20 - w.w60);
+
+  let num = 0, den = 0;
+  for (const [v, key] of parts) { num += v * w[key]; den += w[key]; }
+  let sigma = num / den;
+
+  // Mean-revert toward the slowest available estimate; longer horizon, more pull.
+  const anchor = rv120 ?? rv60 ?? sigma;
+  const lambda = clamp(h / 120, 0, 0.5);
+  sigma = sigma * (1 - lambda) + anchor * lambda;
+
+  const gap = gapProfile(bars, 60);
+  if (gap?.gapShare != null) sigma *= 1 + 0.5 * Math.max(0, gap.gapShare - 0.35);
+
+  return {
+    sigma: round(sigma, 4),
+    rv20: round(rv20, 4),
+    rv60: round(rv60, 4),
+    rv120: round(rv120, 4),
+    gapShare: gap?.gapShare ?? null,
+    maxAbsMove: gap?.maxAbsMove ?? null,
+    jumpCount: gap?.jumpCount ?? null,
+  };
+}
+
+/**
+ * IV term structure between two expiries, in vol points (near − far).
+ * Positive = BACKWARDATION: the front is bid over the back, which is how the
+ * market prices a known near-term event or acute stress. Sustained backwardation
+ * is the regime short-vol strategies lose in, so it tilts conviction down.
+ */
+export function termStructure(nearIv, farIv, nearDte, farDte) {
+  if (!(nearIv > 0) || !(farIv > 0)) return null;
+  if (nearDte != null && farDte != null && !(farDte > nearDte)) return null;
+  const slopePts = round((nearIv - farIv) * 100, 2);
+  return {
+    slopePts,
+    regime: slopePts > 2 ? "backwardation" : slopePts < -2 ? "contango" : "flat",
+    nearIv: round(nearIv, 4),
+    farIv: round(farIv, 4),
+  };
+}
+
+/**
+ * ATM call IV minus ATM put IV, in vol points — the Cremers & Weinbaum (2010,
+ * JFQA) deviation-from-put-call-parity measure. Stocks whose calls are
+ * relatively expensive outperform those whose puts are, so positive = bullish
+ * tilt. Cheap to compute from a chain we already have, and it is the best
+ * documented option-implied predictor of single-stock returns.
+ */
+export function cpIvSpread(chain, spot) {
+  const k = atmStrike(chain, spot);
+  if (k == null) return null;
+  const ce = chain.find((o) => o.strike === k && o.type === "CE" && o.iv > 0)?.iv;
+  const pe = chain.find((o) => o.strike === k && o.type === "PE" && o.iv > 0)?.iv;
+  return ce > 0 && pe > 0 ? round((ce - pe) * 100, 2) : null;
+}
+
+/**
+ * Volatility SMIRK: IV of the ~`pct` OTM put minus ATM IV, in vol points — the
+ * Xing, Zhang & Zhao (2010, JFQA) measure. A steep smirk is the market paying up
+ * for crash protection on this specific name, and predicts underperformance —
+ * so it argues against selling ITS puts. Distinct from `ivSkew` above, which is
+ * a symmetric ±2.5% put-vs-call spread; both are kept because they say different
+ * things.
+ */
+export function putSmirk(chain, spot, pct = 0.1) {
+  if (!(spot > 0)) return null;
+  const k = atmStrike(chain, spot);
+  if (k == null) return null;
+  const atmIvs = chain.filter((o) => o.strike === k && o.iv > 0).map((o) => o.iv);
+  if (!atmIvs.length) return null;
+  const atm = atmIvs.reduce((a, b) => a + b, 0) / atmIvs.length;
+  const target = spot * (1 - pct);
+  const otm = chain
+    .filter((o) => o.type === "PE" && o.iv > 0 && o.strike < spot)
+    .sort((a, b) => Math.abs(a.strike - target) - Math.abs(b.strike - target))[0];
+  if (!otm || Math.abs(otm.strike - target) / spot > 0.05) return null;
+  return round((otm.iv - atm) * 100, 2);
+}
+
+/**
+ * REAL-WORLD probability the short option expires out of the money, under a
+ * lognormal with our forecast vol and drift.
+ *
+ *   P(S_T < K) = N( (ln(K/S) − (μ − σ²/2)T) / (σ√T) )
+ *
+ * This is the whole point of the rewrite. `1 − |delta|` is the RISK-NEUTRAL
+ * P(expire OTM) — under that measure every option is fair by construction, so
+ * ranking by it conveys no information about whether the trade makes money.
+ * Swapping the market's σ for our forecast, and adding a drift, is what makes
+ * the number a prediction rather than a restatement of the price.
+ */
+export function pMeasureProb(S, K, T, sigma, mu = 0, type = "CE") {
+  if (!(S > 0) || !(K > 0) || !(T > 0) || !(sigma > 0)) return null;
+  const d = (Math.log(K / S) - (mu - (sigma * sigma) / 2) * T) / (sigma * Math.sqrt(T));
+  const below = normCdf(d); // P(S_T < K)
+  return clamp(type === "CE" ? below : 1 - below, 0, 1);
+}
+
+/**
+ * Annualized drift implied by a direction verdict, deliberately capped small
+ * (±10%/yr at full score and full confidence). The direction weights are priors,
+ * not backtested — letting them push the probability around hard would dress a
+ * guess up as a forecast.
+ */
+export function driftFromVerdict(verdict, maxAnnual = 0.1) {
+  if (!verdict || !Number.isFinite(verdict.score)) return 0;
+  const s = clamp(verdict.score / 10, -1, 1);
+  const c = clamp(verdict.confidence ?? 0, 0, 1);
+  return s * c * maxAnnual;
+}
+
+/**
+ * The expected edge in selling one option: premium received minus what the
+ * option is worth under our forecast vol and drift, normalized by a margin
+ * proxy so a ₹200 stock and a ₹4,000 stock compete on equal terms.
+ *
+ * `marginPct · spot` stands in for SPAN+exposure, which we can't compute without
+ * exchange risk arrays. It is a constant-factor approximation, which is all the
+ * ranking needs — it only has to be consistent across names.
+ */
+export function candidateEdge(ltp, S, K, T, sigmaForecast, mu, type, marginPct = 0.15) {
+  if (!(ltp > 0) || !(S > 0) || !(K > 0) || !(T > 0) || !(sigmaForecast > 0)) return null;
+  const fair = bsPrice(S * Math.exp((mu ?? 0) * T), K, T, sigmaForecast, type);
+  const edge = ltp - fair;
+  return { fair: round(fair, 2), edge: round(edge, 2), edgePct: round(edge / (marginPct * S), 4) };
+}
+
+// --- Conviction -------------------------------------------------------------
+// Same contract as FACTORS/directionScore: each component emits s ∈ [0,1],
+// missing components are DROPPED and their weight redistributed pro-rata rather
+// than silently counted as zero.
+
+const SELL_FACTORS = [
+  { key: "edge", label: "Expected edge on margin", weight: 0.24 },
+  { key: "vrp", label: "IV vs forecast RV", weight: 0.18 },
+  { key: "direction", label: "Direction alignment", weight: 0.15 },
+  { key: "cushion", label: "Cushion (forecast σ)", weight: 0.13 },
+  { key: "survival", label: "Path safety to expiry", weight: 0.1 },
+  { key: "ivRank", label: "IV rank", weight: 0.1 },
+  { key: "liquidity", label: "Strike liquidity", weight: 0.1 },
+];
+
+export { SELL_FACTORS };
+
+/**
+ * Blended 0-100 conviction that selling this strike into this expiry pays.
+ *
+ * inputs: {
+ *   type, strike, ltp, iv, oi, volume, lotSize,
+ *   spot, t (years), sigmaForecast, mu, verdict,
+ *   ivRank, gap: gapProfile(), term: termStructure(), smirk,
+ * }
+ *
+ * Returns { conviction, band, factors[], edge, edgePct, fair, pProfit,
+ *           cushionSigmaF, probTouchF, deliveryRisk } — or null when the
+ * inputs can't support a score at all.
+ */
+export function sellConviction(inp) {
+  const {
+    type, strike: K, ltp, iv, oi = 0, volume = 0, lotSize = 1,
+    spot: S, t, sigmaForecast: sf, mu = 0, verdict = null,
+    ivRank = null, gap = null, term = null, smirk = null,
+  } = inp ?? {};
+  if (!(S > 0) || !(K > 0) || !(t > 0) || !(ltp > 0)) return null;
+
+  const sig = {};
+
+  // Expected edge on margin — the trade's own expected value.
+  const ed = sf > 0 ? candidateEdge(ltp, S, K, t, sf, mu, type) : null;
+  if (ed) sig.edge = { s: clamp(ed.edgePct / 0.02, 0, 1), reading: `${round(ed.edgePct * 100, 2)}% of margin (fair ₹${ed.fair})` };
+
+  // Volatility risk premium for THIS name — measured, never assumed.
+  if (iv > 0 && sf > 0) {
+    const ratio = iv / sf;
+    sig.vrp = { s: clamp((ratio - 1) / 0.5, 0, 1), reading: `IV ${round(iv * 100, 1)}% vs forecast RV ${round(sf * 100, 1)}% (${round(ratio, 2)}×)` };
+  }
+
+  // Direction alignment: short puts want a bullish read, short calls a bearish one.
+  if (verdict && Number.isFinite(verdict.score)) {
+    const align = type === "PE" ? verdict.score : -verdict.score; // -10..+10
+    const conf = clamp(verdict.confidence ?? 0.5, 0, 1);
+    const raw = clamp(0.5 + (align / 10) * 0.5, 0, 1);
+    sig.direction = { s: 0.5 + (raw - 0.5) * conf, reading: `${verdict.verdict} ${verdict.score > 0 ? "+" : ""}${verdict.score} · sell ${type}` };
+  }
+
+  // Cushion measured in FORECAST sigmas. The old cushionSigma divided by the ATM
+  // straddle, which made a high-IV name look safe precisely because its IV was
+  // high — a circularity this removes.
+  let cushionSigmaF = null;
+  if (sf > 0) {
+    const move = S * sf * Math.sqrt(t);
+    if (move > 0) {
+      cushionSigmaF = Math.abs(K - S) / move;
+      sig.cushion = { s: clamp(cushionSigmaF / 2, 0, 1), reading: `${round(cushionSigmaF, 2)}σ away on forecast vol` };
+    }
+  }
+
+  // Path safety: held to expiry you live through the whole path, so touch matters.
+  // Stress-tested at 1.3× the forecast so a mild vol expansion doesn't surprise.
+  let probTouchF = null;
+  if (sf > 0) {
+    probTouchF = probTouch(S, K, t, sf);
+    const stressed = probTouch(S, K, t, sf * 1.3);
+    if (probTouchF != null && stressed != null) {
+      sig.survival = { s: clamp(1 - (0.6 * probTouchF + 0.4 * stressed), 0, 1), reading: `P(touch) ${round(probTouchF * 100, 0)}% · ${round(stressed * 100, 0)}% stressed` };
+    }
+  }
+
+  // IV rank — null until enough history has accrued, and then its weight simply
+  // rejoins the blend. Nothing is faked in the meantime.
+  if (ivRank != null && Number.isFinite(ivRank)) {
+    sig.ivRank = { s: clamp(ivRank / 60, 0, 1), reading: `IVR ${round(ivRank, 0)}` };
+  }
+
+  // Strike-level liquidity on THIS expiry — a far-month strike is not tradeable
+  // just because the name's near month is.
+  const lot = lotSize > 0 ? lotSize : 1;
+  const oiNotional = oi > 0 ? oi * ltp * lot : 0;
+  const turnover = volume > 0 ? volume * ltp * lot : 0;
+  if (oiNotional > 0 || turnover > 0) {
+    const sOi = oiNotional > 0 ? clamp((Math.log10(oiNotional) - 6) / 3, 0, 1) : 0;
+    const sTurn = turnover > 0 ? clamp((Math.log10(turnover) - 5) / 3, 0, 1) : 0;
+    sig.liquidity = { s: sOi * 0.6 + sTurn * 0.4, reading: `OI ${fmtL(oi)} · vol ${fmtL(volume)}` };
+  }
+
+  const present = SELL_FACTORS.filter((f) => sig[f.key]);
+  const wSum = present.reduce((a, f) => a + f.weight, 0);
+  if (!present.length || wSum <= 0) return null;
+  let score = 0;
+  const factors = SELL_FACTORS.map((f) => {
+    const p = sig[f.key];
+    const w = p ? f.weight / wSum : 0;
+    if (p) score += p.s * w;
+    return { key: f.key, label: f.label, s: p ? round(p.s, 2) : null, weight: round(w, 3), reading: p?.reading ?? null, present: !!p };
+  });
+
+  // --- modifiers ------------------------------------------------------------
+  const notes = [];
+  let mult = 1;
+
+  // Gap-risk haircut. The names that blow up short premium held to expiry are the
+  // ones whose risk arrives overnight, where no stop and no adjustment reaches.
+  if (gap?.gapShare != null) {
+    const cut = clamp((gap.gapShare - 0.35) / 0.4, 0, 1) * 0.35;
+    if (cut > 0) {
+      mult *= 1 - cut;
+      notes.push(`gap risk: ${round(gap.gapShare * 100, 0)}% of variance arrives overnight`);
+    }
+  }
+  if (gap?.maxAbsMove != null && sf > 0) {
+    const dailySigma = sf / Math.sqrt(252);
+    if (dailySigma > 0 && gap.maxAbsMove > 3.5 * dailySigma) {
+      mult *= 0.85;
+      notes.push(`recent ${round(gap.maxAbsMove * 100, 1)}% single-day move`);
+    }
+  }
+
+  // Term structure: front bid over back = near-term event/stress priced in.
+  if (term?.slopePts != null) {
+    mult *= 1 - clamp(term.slopePts / 6, -1, 1) * 0.08;
+    if (term.regime === "backwardation") notes.push(`backwardation ${term.slopePts} vol pts`);
+  }
+
+  // A steep crash smirk argues specifically against selling this name's puts.
+  if (smirk != null && type === "PE" && smirk > 0) {
+    const cut = clamp(smirk / 10, 0, 1) * 0.1;
+    mult *= 1 - cut;
+    if (cut > 0.03) notes.push(`put smirk ${smirk} vol pts`);
+  }
+
+  const conviction = round(clamp(score * mult, 0, 1) * 100, 0);
+  const pProfit = sf > 0 ? pMeasureProb(S, K, t, sf, mu, type) : null;
+
+  return {
+    conviction,
+    band: conviction >= 70 ? "HIGH" : conviction >= 50 ? "MEDIUM" : "LOW",
+    factors,
+    notes,
+    fair: ed?.fair ?? null,
+    edge: ed?.edge ?? null,
+    edgePct: ed?.edgePct ?? null,
+    pProfit: round(pProfit, 3),
+    cushionSigmaF: round(cushionSigmaF, 2),
+    probTouchF: round(probTouchF, 3),
+    // NSE single stocks settle PHYSICALLY: an ITM short gets assigned into
+    // delivery and margin steps up to ~40% of contract value near expiry. Shown
+    // as a warning, never used to filter — the user asked to see the candidates.
+    deliveryRisk: pProfit != null ? pProfit < 0.85 : null,
+  };
+}

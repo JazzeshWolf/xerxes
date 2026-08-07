@@ -8,6 +8,7 @@ import { OiProfile } from "./OiProfile";
 import { LevelsCard } from "./LevelsCard";
 import { MetricsCard } from "./MetricsCard";
 import { SellTable } from "./SellTable";
+import { VolPremiumCard } from "./VolPremiumCard";
 import { FactorsCard } from "./FactorsCard";
 import { HolisticTab } from "./HolisticTab";
 import { PositionTab } from "./PositionTab";
@@ -84,6 +85,7 @@ export function StockDashboard({ file, name, onBack }: { file: string; name: str
                 <HorizonBiasCard snap={snap} selected={exp.date} onSelect={setSelectedExpiry} />
                 <VerdictCard v={exp.verdict ?? snap.verdict} dte={exp.dte} />
                 <MarketStructureCard structure={snap.structure} exp={exp} />
+                <VolPremiumCard exp={exp} />
                 <SellTable snap={snap} exp={exp} />
                 <FactorsCard v={exp.verdict ?? snap.verdict} snap={snap} exp={exp} />
               </>

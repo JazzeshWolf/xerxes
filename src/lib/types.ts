@@ -52,7 +52,34 @@ export interface Metrics {
   expectedMove: number | null;
   skew: number | null;
   gex: Gex | null;
+  // --- predictive layer (stocks; optional so older published JSON still parses)
+  rv60?: number | null;
+  rv120?: number | null;
+  /** Horizon-matched Yang-Zhang realized-vol forecast for THIS expiry. */
+  sigmaForecast?: number | null;
+  /** ATM IV ÷ forecast RV. >1 = the market charges more than the stock delivers. */
+  vrp?: number | null;
+  /** Share of recent variance arriving as overnight gaps. */
+  gapShare?: number | null;
+  /** ATM call IV − ATM put IV, vol points (Cremers-Weinbaum). + = bullish tilt. */
+  cpIvSpread?: number | null;
+  /** ~10% OTM put IV − ATM IV, vol points (Xing et al.). High = crash risk priced. */
+  smirk?: number | null;
+  /** Near ATM IV − far ATM IV, vol points. + = backwardation. */
+  termSlope?: number | null;
 }
+
+/** One component of a conviction score — same shape as a direction `Factor`. */
+export interface ConvictionFactor {
+  key: string;
+  label: string;
+  s: number | null; // 0..1
+  weight: number;
+  reading: string | null;
+  present: boolean;
+}
+
+export type ConvictionBand = "HIGH" | "MEDIUM" | "LOW";
 
 export interface SellCandidate {
   strike: number;
@@ -64,7 +91,25 @@ export interface SellCandidate {
   distancePct: number;
   cushionSigma: number | null;
   probTouch: number | null;
+  /** Risk-neutral P(expire OTM) = 1 − |delta|. Kept for comparison. */
   probProfit: number;
+  // --- predictive layer (optional: older files, and the index build, lack these)
+  conviction?: number; // 0..100
+  band?: ConvictionBand;
+  /** Premium − fair value under the forecast vol/drift, ₹ per share. */
+  edge?: number | null;
+  /** `edge` as a fraction of the margin proxy — the cross-name comparable. */
+  edgePct?: number | null;
+  fair?: number | null;
+  /** REAL-WORLD P(expire OTM) under forecast vol + drift. Compare to probProfit. */
+  pProfit?: number | null;
+  /** Distance to strike in forecast sigmas (not the market's straddle). */
+  cushionSigmaF?: number | null;
+  probTouchF?: number | null;
+  /** P(finish ITM) > 15% — NSE stock options settle physically. Warning only. */
+  deliveryRisk?: boolean | null;
+  factors?: ConvictionFactor[];
+  notes?: string[];
 }
 
 export interface Factor {
@@ -191,7 +236,18 @@ export interface StockRow {
   liquidity: { bucket: LiquidityBucket; score: number };
   structure: { label: string; bias: string } | null;
   verdict: { verdict: string; score: number };
-  topCandidate: { type: "CE" | "PE"; strike: number; probProfit: number } | null;
+  topCandidate: {
+    type: "CE" | "PE";
+    strike: number;
+    probProfit: number;
+    pProfit?: number | null;
+    conviction?: number | null;
+    band?: ConvictionBand | null;
+  } | null;
+  /** Best conviction available on this name (current expiry). */
+  conviction?: number | null;
+  vrp?: number | null;
+  ivRank?: number | null;
 }
 
 export interface StockScreener {
@@ -218,10 +274,41 @@ export interface StockCandidate {
   probTouch: number | null;
   creditPerLot: number | null;
   liquidity: string | null;
+  // --- predictive layer (optional so a cached older candidates.json still renders)
+  conviction?: number;
+  band?: ConvictionBand;
+  edge?: number | null;
+  edgePct?: number | null;
+  fair?: number | null;
+  pProfit?: number | null;
+  cushionSigmaF?: number | null;
+  probTouchF?: number | null;
+  deliveryRisk?: boolean | null;
+  vrp?: number | null;
+  ivRank?: number | null;
+  factors?: ConvictionFactor[];
+  notes?: string[];
+}
+
+/** One expiry's candidate list, gated on that expiry's OWN liquidity cohort. */
+export interface CandidateExpiry {
+  slot: "current" | "next";
+  label: string;
+  date: string | null;
+  dte: number | null;
+  /** Names clearing the liquidity floor for this expiry specifically. */
+  liquidNames: number;
+  candidateCount: number;
+  /** Too few candidates cleared — far-month stock chains are genuinely thin. */
+  thin: boolean;
+  candidates: StockCandidate[];
 }
 
 export interface StockCandidates {
   asOf: string;
+  /** Per-expiry blocks. Absent on older published files. */
+  expiries?: CandidateExpiry[];
+  /** Current-expiry list — kept flat for backward compatibility. */
   candidates: StockCandidate[];
 }
 
