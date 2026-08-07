@@ -472,3 +472,176 @@ describe("sellConviction", () => {
     expect(A.sellConviction({ ...base, t: 0 })).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Empirical tail model (filtered historical simulation)
+//
+// These exist because live data caught the lognormal claiming a +27%-OTM call
+// was worth ₹0.14 when the market paid ₹3.95 — which pushed far-OTM lottery
+// tickets to the top of the candidate list.
+// ---------------------------------------------------------------------------
+
+/** Returns with volatility CLUSTERING — shocks persist, as they do in reality. */
+function clusteredReturns(n, seed = 991) {
+  let s = seed;
+  const r = () => {
+    s = (s * 1103515245 + 12345) % 2147483648;
+    return s / 2147483648 - 0.5;
+  };
+  const out = [];
+  let vol = 0.012;
+  for (let i = 0; i < n; i++) {
+    vol = 0.94 * vol + 0.06 * 0.012 + (Math.abs(r()) > 0.45 ? 0.02 : 0);
+    out.push(r() * 3.46 * vol);
+  }
+  return out;
+}
+
+describe("dailyLogReturns", () => {
+  it("returns n-1 log returns and skips corrupt bars", () => {
+    const bars = fixtureOhlc(50);
+    expect(A.dailyLogReturns(bars)).toHaveLength(49);
+    expect(A.dailyLogReturns([])).toEqual([]);
+    expect(A.dailyLogReturns(null)).toEqual([]);
+  });
+});
+
+describe("terminalSample", () => {
+  const rets = clusteredReturns(200);
+
+  it("is deterministic for a given seed and sorted ascending", () => {
+    const a = A.terminalSample(rets, 37, 0.25);
+    const b = A.terminalSample(rets, 37, 0.25);
+    expect(Array.from(a)).toEqual(Array.from(b));
+    for (let i = 1; i < a.length; i++) expect(a[i]).toBeGreaterThanOrEqual(a[i - 1]);
+  });
+
+  it("scales to the requested annual vol", () => {
+    const days = 37, sigma = 0.25;
+    const s = A.terminalSample(rets, days, sigma);
+    const mean = s.reduce((a, b) => a + b, 0) / s.length;
+    const sd = Math.sqrt(s.reduce((a, b) => a + (b - mean) ** 2, 0) / s.length);
+    expect(sd).toBeCloseTo(sigma * Math.sqrt(days / 252), 1);
+  });
+
+  const sd = (a) => {
+    const m = a.reduce((x, y) => x + y, 0) / a.length;
+    return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length);
+  };
+
+  it("block resampling widens terminal dispersion versus i.i.d.", () => {
+    // What blocks actually buy: contiguous high-vol runs compound, so terminal
+    // spread grows with block length. This is the conservative direction for a
+    // seller and is the real reason to prefer it over an i.i.d. bootstrap.
+    const days = 37, sigma = 0.25;
+    const iid = sd(A.terminalSample(rets, days, sigma, { blockOverride: 1 }));
+    const short = sd(A.terminalSample(rets, days, sigma, { blockOverride: 6 }));
+    const long = sd(A.terminalSample(rets, days, sigma, { blockOverride: 18 }));
+    expect(short).toBeGreaterThan(iid);
+    expect(long).toBeGreaterThan(short);
+  });
+
+  it("does NOT claim excess kurtosis at a multi-week horizon", () => {
+    // Documents a limit rather than a feature. Summing ~37 draws, the central
+    // limit theorem flattens the daily fat tail back toward normal at every
+    // block length — so nothing downstream should lean on tail shape here.
+    const kurt = (a) => {
+      const m = a.reduce((x, y) => x + y, 0) / a.length;
+      const s = sd(a);
+      return a.reduce((x, y) => x + ((y - m) / s) ** 4, 0) / a.length;
+    };
+    for (const b of [1, 6, 18, 37]) {
+      expect(kurt(A.terminalSample(rets, 37, 0.25, { blockOverride: b }))).toBeLessThan(3.6);
+    }
+  });
+
+  it("refuses to guess from too little history", () => {
+    expect(A.terminalSample(rets.slice(0, 20), 37, 0.25)).toBeNull();
+    expect(A.terminalSample(rets, 37, 0)).toBeNull();
+    expect(A.terminalSample(null, 37, 0.25)).toBeNull();
+  });
+});
+
+describe("riskMetrics", () => {
+  const S = 1000, T = 53 / 365, sigma = 0.25;
+  const sample = A.terminalSample(clusteredReturns(200), A.tradingDaysTo(53), sigma);
+
+  it("agrees with simulatedValue on fair value and P(OTM)", () => {
+    const sim = A.simulatedValue(sample, S, 900, T, sigma, 0, "PE");
+    const rm = A.riskMetrics(sample, S, 900, T, sigma, 0, "PE", 5);
+    expect(rm.fair).toBeCloseTo(sim.fair, 6);
+    expect(rm.pOtm).toBeCloseTo(sim.pOtm, 6);
+  });
+
+  it("expected P&L equals credit minus fair value", () => {
+    const rm = A.riskMetrics(sample, S, 900, T, sigma, 0, "PE", 5);
+    expect(rm.expected).toBeCloseTo(5 - rm.fair, 6);
+  });
+
+  it("the tail loses more for a near strike than a far one, on both sides", () => {
+    const nearPut = A.riskMetrics(sample, S, 980, T, sigma, 0, "PE", 20);
+    const farPut = A.riskMetrics(sample, S, 800, T, sigma, 0, "PE", 2);
+    expect(nearPut.cvar).toBeLessThan(farPut.cvar);
+    expect(nearPut.worst).toBeLessThan(farPut.worst);
+    const nearCall = A.riskMetrics(sample, S, 1020, T, sigma, 0, "CE", 20);
+    const farCall = A.riskMetrics(sample, S, 1200, T, sigma, 0, "CE", 2);
+    expect(nearCall.cvar).toBeLessThan(farCall.cvar);
+  });
+
+  it("returns null without a credit or a usable sample", () => {
+    expect(A.riskMetrics(sample, S, 900, T, sigma, 0, "PE", 0)).toBeNull();
+    expect(A.riskMetrics(null, S, 900, T, sigma, 0, "PE", 5)).toBeNull();
+  });
+});
+
+describe("forecastVol conservatism floor", () => {
+  it("never forecasts far below the name's own long-run realized vol", () => {
+    // A stretch of calm at the end of a volatile history: the naive blend would
+    // extrapolate the quiet window, which is the dangerous direction for a seller.
+    const calmTail = [...fixtureOhlc(140, 0.03, 0.3, 5), ...fixtureOhlc(60, 0.004, 0.3, 9)];
+    const f = A.forecastVol(calmTail, 53);
+    expect(f.sigma).toBeGreaterThanOrEqual(0.85 * f.rv120 - 1e-9);
+  });
+});
+
+describe("sellConviction with an empirical sample", () => {
+  const S = 1097.2, T = 53 / 365, sigma = 0.2269;
+  const sample = A.terminalSample(clusteredReturns(200), A.tradingDaysTo(53), sigma);
+  const verdict = { score: 1.0, confidence: 0.6, verdict: "NEUTRAL" };
+  const at = (K, ltp) =>
+    A.sellConviction({
+      type: "PE", strike: K, ltp, iv: 0.26, oi: 600000, volume: 60000, lotSize: 500,
+      spot: S, t: T, sigmaForecast: sigma, mu: A.driftFromVerdict(verdict), verdict,
+      ivRank: null, gap: { gapShare: 0.21, maxAbsMove: 0.05 }, term: null, smirk: null, sample,
+    });
+
+  it("ranks the strike ladder with an interior maximum, not monotonically outward", () => {
+    // The production bug: far-OTM strikes swept the top because edge, cushion
+    // and survival all saturated at once. A sane ladder peaks in the middle.
+    const ladder = [[1040, 18], [1000, 11], [960, 7], [910, 4.7], [860, 3.0], [800, 1.8]].map(([k, p]) => at(k, p).conviction);
+    const peak = ladder.indexOf(Math.max(...ladder));
+    expect(peak).toBeGreaterThan(0);
+    expect(peak).toBeLessThan(ladder.length - 1);
+    // Both extremes must lose to the peak.
+    expect(ladder[0]).toBeLessThan(ladder[peak]);
+    expect(ladder.at(-1)).toBeLessThan(ladder[peak]);
+  });
+
+  it("flags a strike whose premium is almost entirely tail compensation", () => {
+    const far = at(800, 1.8);
+    expect(far.tailReliance).toBeGreaterThan(0.9);
+    expect(far.notes.some((n) => n.includes("tail-risk"))).toBe(true);
+    expect(far.band).toBe("LOW");
+    const sane = at(960, 7);
+    expect(sane.tailReliance).toBeLessThan(0.7);
+    expect(sane.notes.some((n) => n.includes("tail-risk"))).toBe(false);
+  });
+
+  it("marks results as empirical and carries the tail numbers through", () => {
+    const c = at(960, 7);
+    expect(c.empirical).toBe(true);
+    expect(c.cvar).toBeLessThan(0);
+    expect(c.worst).toBeLessThan(c.cvar);
+    expect(A.sellConviction({ ...{ type: "PE", strike: 960, ltp: 7, iv: 0.26, oi: 1, volume: 1, lotSize: 1, spot: S, t: T, sigmaForecast: sigma } }).empirical).toBe(false);
+  });
+});

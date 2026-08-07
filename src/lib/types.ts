@@ -108,6 +108,14 @@ export interface SellCandidate {
   probTouchF?: number | null;
   /** P(finish ITM) > 15% — NSE stock options settle physically. Warning only. */
   deliveryRisk?: boolean | null;
+  /** Share of the premium that is pure tail compensation (1 = fair value ≈ 0). */
+  tailReliance?: number | null;
+  /** true = fair value came from the bootstrap, false = lognormal fallback. */
+  empirical?: boolean;
+  /** Mean P&L per share in the worst 5% of simulated outcomes (negative = loss). */
+  cvar?: number | null;
+  /** Worst single simulated outcome, per share. */
+  worst?: number | null;
   factors?: ConvictionFactor[];
   notes?: string[];
 }
@@ -284,6 +292,10 @@ export interface StockCandidate {
   cushionSigmaF?: number | null;
   probTouchF?: number | null;
   deliveryRisk?: boolean | null;
+  tailReliance?: number | null;
+  empirical?: boolean;
+  cvar?: number | null;
+  worst?: number | null;
   vrp?: number | null;
   ivRank?: number | null;
   factors?: ConvictionFactor[];

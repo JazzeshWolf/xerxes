@@ -367,6 +367,20 @@ function CandidateRow({ c, onOpen }: { c: StockCandidate; onOpen: (file: string,
             </div>
           )}
 
+          {(c.cvar != null || c.tailReliance != null) && (
+            <div className="flex items-center justify-between text-[9px] text-white/40 tnum">
+              <span>
+                {c.cvar != null ? `worst 5%: ₹${c.cvar.toFixed(1)}/sh` : ""}
+                {c.worst != null ? ` · worst case ₹${c.worst.toFixed(0)}/sh` : ""}
+              </span>
+              {c.tailReliance != null && (
+                <span className={c.tailReliance > 0.7 ? "text-amber-300/70" : ""}>
+                  {Math.round(c.tailReliance * 100)}% tail-priced
+                </span>
+              )}
+            </div>
+          )}
+
           {c.notes?.length ? (
             <div className="text-[9px] text-amber-200/70 leading-relaxed">⚠ {c.notes.join(" · ")}</div>
           ) : null}

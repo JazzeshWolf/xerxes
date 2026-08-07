@@ -169,11 +169,14 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
  * P(OTM) which is fair by construction, and dividing distance by the straddle
  * made high-IV names look safe *because* their IV was high.
  */
-function scoreCandidates(block, { spot, lotSize, verdict, gap, term, ivRank }) {
+function scoreCandidates(block, { spot, lotSize, verdict, gap, term, ivRank, returns }) {
   const t = block._t;
   const sf = block._sigmaForecast;
   const mu = A.driftFromVerdict(verdict);
   const smirk = block.metrics.smirk;
+  // One bootstrap per (stock, expiry), reused for every strike on it — which is
+  // what keeps filtered historical simulation affordable across ~157 names.
+  const sample = sf > 0 ? A.terminalSample(returns ?? [], A.tradingDaysTo(block.dte), sf) : null;
   const byStrike = new Map();
   for (const o of block._rawChain ?? []) byStrike.set(`${o.type}:${o.strike}`, o);
 
@@ -198,6 +201,7 @@ function scoreCandidates(block, { spot, lotSize, verdict, gap, term, ivRank }) {
       gap,
       term,
       smirk,
+      sample,
     });
     if (!conv) continue;
     scored.push({
@@ -214,6 +218,8 @@ function scoreCandidates(block, { spot, lotSize, verdict, gap, term, ivRank }) {
       cushionSigmaF: conv.cushionSigmaF,
       probTouchF: conv.probTouchF,
       deliveryRisk: conv.deliveryRisk,
+      tailReliance: conv.tailReliance,
+      empirical: conv.empirical,
       factors: conv.factors,
       notes: conv.notes,
     });
@@ -392,6 +398,7 @@ function buildStock(name, raw, vix, prevIvHistory = []) {
 
   // Scoring pass — now that each expiry has its own verdict and the term
   // structure is known, every candidate gets a conviction score.
+  const returns = A.dailyLogReturns(raw.ohlc ?? []);
   for (const e of ordered) {
     scoreCandidates(expiries[e], {
       spot,
@@ -400,6 +407,7 @@ function buildStock(name, raw, vix, prevIvHistory = []) {
       gap,
       term,
       ivRank,
+      returns,
     });
   }
 
