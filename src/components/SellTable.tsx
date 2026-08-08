@@ -45,8 +45,11 @@ export function SellTable({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
         </div>
       )}
       {!rows.length && <div className="text-xs text-white/40 py-4 text-center">No strikes pass the filters (Δ ≤ 0.25, premium ≥ min).</div>}
+      {/* Conv + Edge take this to 8 columns, which overflows a phone — the table
+          scrolls inside its own box rather than pushing the page sideways. */}
       {rows.length > 0 && (
-        <table className="w-full text-xs tnum">
+        <div className="-mx-1 overflow-x-auto px-1">
+        <table className="w-full min-w-[340px] text-xs tnum">
           <thead>
             <tr className="text-[9px] uppercase text-white/35">
               {scored && <th className="text-left font-medium pb-1">Conv</th>}
@@ -65,6 +68,7 @@ export function SellTable({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
       <div className="text-[9px] text-white/25 mt-2">
         Prem × lot {lot ? `(${lot})` : ""} = credit/lot. Touch = prob. of strike being tested before expiry.{" "}
