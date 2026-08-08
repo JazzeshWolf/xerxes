@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import * as upstox from "./upstox.mjs";
 import * as nse from "./nse.mjs";
 import * as A from "./analytics.mjs";
-import { fetchStockNews, mergeEvents, impliedEvent, pruneEvents } from "./stock-news.mjs";
+import { fetchStockNews, mergeEvents, impliedEvent, pruneEvents, pruneNews } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -473,7 +473,10 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
       pruneEvents(newsBundle?.nseEvents ?? []),
       [impliedEvent(term?.slopePts ?? null, defaultExpiry)].filter(Boolean),
     ).slice(0, 10),
-    news: newsBundle?.news ?? raw.prevNews ?? [],
+    // Cached news is re-filtered every build, so tightening the relevance guard
+    // takes effect immediately rather than when the name next cycles through
+    // the fetch queue.
+    news: newsBundle?.news ?? pruneNews(raw.prevNews ?? [], raw.symbol, name),
     newsAsOf: newsBundle ? new Date().toISOString() : raw.prevNewsAsOf ?? null,
     verdict,
     structure,

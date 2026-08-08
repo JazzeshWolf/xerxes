@@ -263,6 +263,24 @@ function parseRssItems(xml) {
  */
 let AMBIGUOUS = null; // computed once from the universe, on first use
 
+/**
+ * Re-apply the relevance guard (and the age cut) to CACHED news. News is only
+ * re-fetched for a few names per build, so a stored item outlives many runs —
+ * without this, headlines admitted by an older, looser guard stay on the page
+ * forever. Seen live: "Reliance Power Q1 Results" persisted on RELIANCE after
+ * `mentionsCompany` had been tightened, because that name wasn't due a refetch.
+ */
+export function pruneNews(news, symbol, name, { now = Date.now() } = {}) {
+  AMBIGUOUS ??= ambiguousFirstWords(STOCKS);
+  const cutoff = now - MAX_AGE_MS;
+  return (Array.isArray(news) ? news : []).filter(
+    (n) =>
+      n?.title &&
+      Date.parse(n.publishedAt) >= cutoff &&
+      mentionsCompany(`${n.title} ${n.snippet ?? ""}`, symbol, name, AMBIGUOUS),
+  );
+}
+
 export async function fetchStockNews(symbol, name, { now = Date.now() } = {}) {
   AMBIGUOUS ??= ambiguousFirstWords(STOCKS);
   const company = `"${name}" OR "${symbol}"`;

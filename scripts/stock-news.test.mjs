@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords, pruneEvents } from "./stock-news.mjs";
+import { parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords, pruneEvents, pruneNews } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 // Fixed reference so "28 Aug" resolves deterministically.
@@ -151,5 +151,26 @@ describe("pruneEvents", () => {
   it("tolerates junk", () => {
     expect(pruneEvents(null, NOW2)).toEqual([]);
     expect(pruneEvents([null, {}], NOW2)).toEqual([]);
+  });
+});
+
+describe("pruneNews", () => {
+  const fresh = (title) => ({ title, snippet: "", publishedAt: new Date().toISOString(), url: title });
+  it("re-applies the relevance guard to cached items", () => {
+    // The exact case that survived a guard tightening on the live site.
+    const kept = pruneNews(
+      [fresh("Reliance Power Q1 Results: PAT jumps 44%"), fresh("Reliance Industries posts record profit")],
+      "RELIANCE",
+      "Reliance Industries",
+    );
+    expect(kept.map((n) => n.title)).toEqual(["Reliance Industries posts record profit"]);
+  });
+  it("drops items that have aged out", () => {
+    const old = { title: "SBIN gains", snippet: "", publishedAt: new Date(Date.now() - 40 * 86400000).toISOString() };
+    expect(pruneNews([old], "SBIN", "State Bank of India")).toEqual([]);
+  });
+  it("tolerates junk", () => {
+    expect(pruneNews(null, "SBIN", "State Bank of India")).toEqual([]);
+    expect(pruneNews([{}], "SBIN", "State Bank of India")).toEqual([]);
   });
 });
