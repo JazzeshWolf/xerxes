@@ -118,6 +118,18 @@ outside the header band where the toggle was added.
   — keep it that way absent another explicit decision.
 - `Snapshot.index` is `string` (IndexKey for indices, NSE symbol for stocks). Only
   `PositionTab` reads it (localStorage key); nothing does `INDEX_META[snap.index]`.
+- **Expiry selection** is `ExpiryChooser` (in `SpotStrip`): cadence tabs
+  Weekly/Monthly, then This week / Next week / Week after — or This month / Next
+  month / Month after. It replaced both the ISO-date dropdown (`ExpiryPicker`, now
+  deleted) and the 1W/1M/2M `HorizonChips`, which it subsumes. It is **stateless**
+  — the cadence is derived from the selected expiry, so it stays correct when
+  `HorizonBiasCard`'s dials change the selection; tapping a cadence tab jumps to
+  that cadence's nearest expiry. Cadences with no expiries aren't offered, so
+  BANKNIFTY shows no toggle. `resolveHorizons`/`src/lib/horizons.ts` survives —
+  `HorizonBiasCard` still uses it.
+- Index `expirySelect` is **3 weeklies + 3 monthlies** (`MAX_EXPIRIES = 6`) so both
+  cadences go three deep. BANKNIFTY has no weeklies and BSE often lists only one
+  far SENSEX monthly — a short list is correct, not a bug.
 - Screener rows **emphasise whichever field is being sorted** and dim the rest —
   added because a bold LIQUIDITY badge made conviction-sorted lists look wrong.
   Note the sort field named `conviction` is now the **sell**-conviction score;

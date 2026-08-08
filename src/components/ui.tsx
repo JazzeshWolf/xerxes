@@ -1,40 +1,4 @@
 import type { ComponentChildren } from "preact";
-import type { Snapshot } from "../lib/types";
-import { fmtExpiry } from "../lib/format";
-
-/** Expiry dropdown — switches the chain/levels/metrics panels between expiries. */
-export function ExpiryPicker({
-  snap,
-  value,
-  onChange,
-}: {
-  snap: Snapshot;
-  value: string;
-  onChange: (e: string) => void;
-}) {
-  const expiries = Object.values(snap.expiries).sort((a, b) => (a.date < b.date ? -1 : 1));
-  if (expiries.length <= 1) {
-    const only = expiries[0];
-    return (
-      <span className="text-[11px] text-white/50">
-        {only ? `${fmtExpiry(only.date)} · ${only.dte}d` : "—"}
-      </span>
-    );
-  }
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange((e.target as HTMLSelectElement).value)}
-      className="text-[11px] bg-white/[0.06] border border-white/15 rounded px-1.5 py-0.5 text-white/85"
-    >
-      {expiries.map((b) => (
-        <option key={b.date} value={b.date}>
-          {fmtExpiry(b.date)} · {b.label} · {b.dte}d
-        </option>
-      ))}
-    </select>
-  );
-}
 
 export function Card({ title, right, children }: { title?: string; right?: ComponentChildren; children: ComponentChildren }) {
   return (

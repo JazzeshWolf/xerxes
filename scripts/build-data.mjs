@@ -41,7 +41,7 @@ const INDEXES = {
     nseSymbol: "NIFTY",
     yahoo: "^NSEI",
     expiryKind: "weekly (Tue)",
-    expirySelect: { weeklies: 2, monthlies: 3 },
+    expirySelect: { weeklies: 3, monthlies: 3 },
     file: "nifty.json",
   },
   BANKNIFTY: {
@@ -65,7 +65,7 @@ const INDEXES = {
     nseSymbol: null, // BSE — no NSE public-API fallback
     yahoo: "^BSESN",
     expiryKind: "weekly (Thu)",
-    expirySelect: { weeklies: 2, monthlies: 3 },
+    expirySelect: { weeklies: 3, monthlies: 3 },
     file: "sensex.json",
   },
 };
@@ -76,7 +76,7 @@ const TARGETS = ONLY ? [ONLY] : Object.keys(INDEXES);
 
 const VIX_KEY = "NSE_INDEX|India VIX";
 const YEAR_MS = 365 * 86400000;
-const MAX_EXPIRIES = 5;
+const MAX_EXPIRIES = 6; // up to 3 weeklies + 3 monthlies, so the expiry chooser can offer both cadences three deep
 
 // Expiry cutoff: 15:30 IST = 10:00 UTC on the expiry date.
 function timeToExpiryYears(expiryIso) {
