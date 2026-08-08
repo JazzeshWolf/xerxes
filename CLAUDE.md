@@ -109,9 +109,13 @@ outside the header band where the toggle was added.
 - **Stocks**: `StockScreenerView` (search + liquidity/structure list + top
   premium-selling candidates) → `StockDashboard` (reuses the index tab components;
   tabs Verdict / Chain / Holistic / Position — no macro Outlook/News per stock).
-- The index `Dashboard` and its tabs are **deliberately untouched** by stock work —
-  the user was emphatic about this. Stock UI duplicates the shell rather than
-  parameterising the index one.
+- The index dashboard (`src/app.tsx`) was long **deliberately untouched** by stock
+  work, and stock UI duplicates the shell rather than parameterising it. That rule
+  was relaxed *once*, deliberately, to give indices the seller analytics: they now
+  share `SellTable` (which grows its Conv/Edge columns only when `conviction` is
+  present, so nothing changed for a snapshot without it) and `VolPremiumCard`
+  (`kind="index" | "stock"`). Everything else about the index layout is unchanged
+  — keep it that way absent another explicit decision.
 - `Snapshot.index` is `string` (IndexKey for indices, NSE symbol for stocks). Only
   `PositionTab` reads it (localStorage key); nothing does `INDEX_META[snap.index]`.
 - Screener rows **emphasise whichever field is being sorted** and dim the rest —
@@ -236,6 +240,30 @@ The residual gap on wing options is the **volatility smile** — the market char
 ~40% IV on that LICHSGFIN wing against a 24% ATM forecast — and history alone
 can't settle whether that's overpayment or information. Hence fix (2): flag it
 rather than pretend to price it.
+
+#### The same engine on indices — where it's worth MORE
+
+`build-data.mjs` runs the identical scorer, with `A.INDEX_SELL_OPTS` applied:
+**cash settlement** (so `deliveryRisk` is null, never a badge — indices don't
+deliver) and a **lower margin proxy** (0.08 × spot vs 0.15, since index options
+margin far less relative to notional; without it index and stock scores wouldn't
+be comparable). `gap` is passed as `null` on purpose — an index has no earnings
+and barely gaps, so the haircut would be noise.
+
+The counter-intuitive part: the empirical model earns more here than it does on
+monthly stock options, and for the opposite reason to the caveat above. Measured
+terminal kurtosis is **~3.5 at 5 trading days and ~3.2 at 10, versus ~2.96 at 21+**
+— with only a handful of daily draws the CLT hasn't flattened anything yet, so
+Black-Scholes genuinely underprices near-dated index wings. Weeklies are the case
+this helps most, which is why the block-length floor is **2, not 5**: at a 5-day
+horizon a block of 5 is one block per path and collapses 4000 paths onto ~250
+distinct historical windows. Both facts are pinned by tests.
+
+Economically the direction of the research also flips. Individual-equity variance
+risk is barely priced, so stock richness must be *verified* per name; the **index**
+variance premium is robust and well documented (compensation for correlation
+risk), so there the question is how big it is, not whether it exists — which is
+what `VolPremiumCard`'s `kind="index"` copy says when VRP drops near or below 1.
 
 ---
 

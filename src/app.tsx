@@ -13,6 +13,7 @@ import { OiProfile } from "./components/OiProfile";
 import { LevelsCard } from "./components/LevelsCard";
 import { MetricsCard } from "./components/MetricsCard";
 import { SellTable } from "./components/SellTable";
+import { VolPremiumCard } from "./components/VolPremiumCard";
 import { FactorsCard } from "./components/FactorsCard";
 import { HolisticTab } from "./components/HolisticTab";
 import { OutlookTab } from "./components/OutlookTab";
@@ -129,6 +130,7 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
                 <HorizonBiasCard snap={snap} selected={exp.date} onSelect={setSelectedExpiry} />
                 <VerdictCard v={exp.verdict ?? snap.verdict} dte={exp.dte} />
                 <MarketStructureCard structure={snap.structure} exp={exp} />
+                <VolPremiumCard exp={exp} kind="index" />
                 <SellTable snap={snap} exp={exp} />
                 <FactorsCard v={exp.verdict ?? snap.verdict} snap={snap} exp={exp} />
               </>

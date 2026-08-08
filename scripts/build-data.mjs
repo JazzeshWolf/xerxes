@@ -170,6 +170,8 @@ async function fetchViaUpstox(cfg, instruments) {
       vix: q[VIX_KEY]?.lastPrice ?? null,
       vixHistory: vixC.history,
       spotHistory: spot.history,
+      // Full bars (same call) — the seller analytics need gap-aware realized vol.
+      spotOhlc: spot.ohlc ?? [],
       future:
         futQ?.lastPrice != null && picked.future
           ? { price: futQ.lastPrice, expiry: picked.future.expiry, oi: futQ.oi, oiHistory: futC.oiHistory }
@@ -244,7 +246,7 @@ const slimChain = (chain) =>
   }));
 
 /** Per-expiry analytics block. */
-function computeExpiry(chain, spot, expiryIso, label) {
+function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
   const t = timeToExpiryYears(expiryIso);
   const dte = dteCalendar(expiryIso);
   const pcr = A.pcr(chain);
@@ -257,6 +259,11 @@ function computeExpiry(chain, spot, expiryIso, label) {
   const expectedMove = straddle ?? (atmIv != null ? spot * atmIv * Math.sqrt(t) : null);
   const skew = A.ivSkew(chain, spot);
   const gex = A.computeGex(chain, spot, t);
+  // Horizon-matched realized-vol forecast — the yardstick the option's price is
+  // judged against. Null when history is short (NSE fallback), and everything
+  // downstream degrades to the previous behaviour rather than guessing.
+  const fc = A.forecastVol(ctx.ohlc ?? [], dte);
+  const sigmaForecast = fc?.sigma ?? null;
   const candidates = A.sellCandidates(chain, spot, t, expectedMove, {
     maxDelta: 0.25,
     minPremium: Math.max(2, spot * 0.0004),
@@ -281,7 +288,17 @@ function computeExpiry(chain, spot, expiryIso, label) {
       atmIv: A.round(atmIv, 4),
       ivRank: null, // filled for the default expiry only
       ivPercentile: null,
-      rv20: null,
+      rv20: fc?.rv20 ?? null,
+      rv60: fc?.rv60 ?? null,
+      rv120: fc?.rv120 ?? null,
+      sigmaForecast,
+      // >1 = the market is charging more than the index has been delivering.
+      // Unlike single stocks this premium is robustly positive on average (it is
+      // compensation for correlation risk), so the question is how big, not whether.
+      vrp: atmIv > 0 && sigmaForecast > 0 ? A.round(atmIv / sigmaForecast, 2) : null,
+      cpIvSpread: A.cpIvSpread(chain, spot),
+      smirk: A.putSmirk(chain, spot),
+      termSlope: null, // needs the neighbouring expiry — filled in buildIndex
       straddle: A.round(straddle, 1),
       expectedMove: A.round(expectedMove, 0),
       skew: A.round(skew, 4),
@@ -294,6 +311,9 @@ function computeExpiry(chain, spot, expiryIso, label) {
     _maxPain: maxPain,
     _skew: skew,
     _em: expectedMove,
+    _t: t,
+    _sigmaForecast: sigmaForecast,
+    _rawChain: chain,
   };
 }
 
@@ -320,7 +340,7 @@ function buildIndex(cfg, raw, prev) {
   const ordered = raw.orderedExpiries.filter((e) => raw.chainsByExpiry[e]);
   const expiries = {};
   for (const e of ordered) {
-    expiries[e] = computeExpiry(raw.chainsByExpiry[e], spot, e, raw.labels[e] ?? "weekly");
+    expiries[e] = computeExpiry(raw.chainsByExpiry[e], spot, e, raw.labels[e] ?? "weekly", { ohlc: raw.spotOhlc });
   }
   // Default to the nearest expiry — on expiry day that's today's contract
   // (dte 0), which is what a seller is watching; the dropdown still offers the
@@ -375,6 +395,56 @@ function buildIndex(cfg, raw, prev) {
   for (const b of Object.values(expiries)) b.verdict = verdictFor(b);
   const verdict = expiries[defaultExpiry].verdict; // top-level = nearest (back-compat)
 
+  // --- Seller conviction per strike ----------------------------------------
+  // Same engine as the stock screener, with the index differences applied via
+  // INDEX_SELL_OPTS: cash settlement (no delivery warning) and a lower margin
+  // proxy. `gap` is deliberately not passed — an index has no earnings and
+  // barely gaps, so the haircut would be noise rather than signal.
+  //
+  // This matters MOST on the weeklies. Terminal-distribution kurtosis is ~3.5 at
+  // a 5-day horizon versus ~3.0 at a month, so Black-Scholes really does
+  // underprice near-dated index wings, and the bootstrap is what catches it.
+  const term =
+    ordered.length >= 2
+      ? A.termStructure(
+          expiries[ordered[0]].metrics.atmIv,
+          expiries[ordered[1]].metrics.atmIv,
+          expiries[ordered[0]].dte,
+          expiries[ordered[1]].dte,
+        )
+      : null;
+  const indexReturns = A.dailyLogReturns(raw.spotOhlc ?? []);
+  for (const b of Object.values(expiries)) {
+    b.metrics.termSlope = term?.slopePts ?? null;
+    const sf = b._sigmaForecast;
+    const sample = sf > 0 ? A.terminalSample(indexReturns, A.tradingDaysTo(b.dte), sf) : null;
+    const mu = A.driftFromVerdict(b.verdict);
+    const byStrike = new Map((b._rawChain ?? []).map((o) => [`${o.type}:${o.strike}`, o]));
+    b.candidates = b.candidates
+      .map((c) => {
+        const row = byStrike.get(`${c.type}:${c.strike}`);
+        const conv = A.sellConviction({
+          ...A.INDEX_SELL_OPTS,
+          type: c.type, strike: c.strike, ltp: c.ltp, iv: c.iv,
+          oi: row?.oi ?? c.oi, volume: row?.volume ?? 0, lotSize: raw.lotSize ?? 1,
+          spot, t: b._t, sigmaForecast: sf, mu, verdict: b.verdict,
+          ivRank: null, gap: null, term, smirk: b.metrics.smirk, sample,
+        });
+        return conv
+          ? {
+              ...c,
+              conviction: conv.conviction, band: conv.band,
+              edge: conv.edge, edgePct: conv.edgePct, fair: conv.fair,
+              pProfit: conv.pProfit, cushionSigmaF: conv.cushionSigmaF,
+              probTouchF: conv.probTouchF, tailReliance: conv.tailReliance,
+              empirical: conv.empirical, cvar: conv.cvar, worst: conv.worst,
+              factors: conv.factors, notes: conv.notes,
+            }
+          : c;
+      })
+      .sort((x, y) => (y.conviction ?? -1) - (x.conviction ?? -1));
+  }
+
   // Horizon map: 1W / 1M / 2M → the fetched expiry whose DTE is closest to the
   // target. `fallback` flags a poor match (e.g. BANKNIFTY has no weekly, so 1W
   // lands on the nearest monthly) so the UI can label it honestly.
@@ -399,8 +469,8 @@ function buildIndex(cfg, raw, prev) {
   // Strip the private `_*` helper fields before serialising.
   const publicExpiries = {};
   for (const [e, b] of Object.entries(expiries)) {
-    const { _flow, _pcr, _maxPain, _skew, _em, ...pub } = b;
-    void _flow, void _pcr, void _maxPain, void _skew, void _em;
+    const { _flow, _pcr, _maxPain, _skew, _em, _t, _sigmaForecast, _rawChain, ...pub } = b;
+    void _flow, void _pcr, void _maxPain, void _skew, void _em, void _t, void _sigmaForecast, void _rawChain;
     publicExpiries[e] = pub;
   }
 
@@ -513,7 +583,13 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error("build-data failed:", e);
-  process.exit(1);
-});
+// Only run the pipeline when invoked as a script, so the pure builders above can
+// be imported and exercised against fixtures (same pattern as build-stocks.mjs).
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((e) => {
+    console.error("build-data failed:", e);
+    process.exit(1);
+  });
+}
+
+export { buildIndex, computeExpiry };

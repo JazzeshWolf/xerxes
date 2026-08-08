@@ -85,7 +85,7 @@ export function StockDashboard({ file, name, onBack }: { file: string; name: str
                 <HorizonBiasCard snap={snap} selected={exp.date} onSelect={setSelectedExpiry} />
                 <VerdictCard v={exp.verdict ?? snap.verdict} dte={exp.dte} />
                 <MarketStructureCard structure={snap.structure} exp={exp} />
-                <VolPremiumCard exp={exp} />
+                <VolPremiumCard exp={exp} kind="stock" />
                 <SellTable snap={snap} exp={exp} />
                 <FactorsCard v={exp.verdict ?? snap.verdict} snap={snap} exp={exp} />
               </>

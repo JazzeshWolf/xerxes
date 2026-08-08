@@ -812,7 +812,11 @@ export function terminalSample(returns, tradingDays, sigmaAnnual, { paths = 4000
   const days = Math.max(1, Math.round(tradingDays));
   // `blockOverride: 1` degrades this to an i.i.d. bootstrap — only useful for
   // demonstrating that doing so flattens the tail back toward normal.
-  const block = blockOverride ?? clamp(Math.round(days / 3), 5, 15);
+  // Aim for ~3 blocks per path: long enough to span clustering, short enough
+  // that the paths stay varied. The floor of 2 matters for WEEKLY index expiries
+  // — at a 5-day horizon a block of 5 is one block per path, which collapses
+  // 4000 paths onto ~250 distinct historical windows.
+  const block = blockOverride ?? clamp(Math.round(days / 3), 2, 15);
   const rnd = mulberry32(seed);
   const out = new Float64Array(paths);
   for (let p = 0; p < paths; p++) {
@@ -967,6 +971,25 @@ const SELL_FACTORS = [
 export { SELL_FACTORS };
 
 /**
+ * `sellConviction` overrides for INDEX options, where three of the single-stock
+ * assumptions are wrong:
+ *
+ *  - **Cash settled.** No physical delivery, so no delivery-risk warning.
+ *  - **Margin is much lower relative to notional** (~8% of spot for a short
+ *    index option vs ~15% for a single stock), so the edge denominator differs;
+ *    without this an index score would not be comparable to a stock one.
+ *  - **Gap risk barely applies.** No earnings, and overnight moves are a small
+ *    share of variance — callers pass `gap: null` so the haircut simply never
+ *    fires rather than adding noise.
+ *
+ * Worth knowing: the empirical tail model is MORE informative here than for
+ * monthly stock options. Measured kurtosis of the terminal distribution is ~3.5
+ * at a 5-day horizon and ~3.2 at 10 days, versus ~2.96 (i.e. normal) at 21+ —
+ * so on weekly index expiries Black-Scholes genuinely underprices the wings.
+ */
+export const INDEX_SELL_OPTS = { marginPct: 0.08, physicallySettled: false };
+
+/**
  * Blended 0-100 conviction that selling this strike into this expiry pays.
  *
  * inputs: {
@@ -984,6 +1007,10 @@ export function sellConviction(inp) {
     type, strike: K, ltp, iv, oi = 0, volume = 0, lotSize = 1,
     spot: S, t, sigmaForecast: sf, mu = 0, verdict = null,
     ivRank = null, gap = null, term = null, smirk = null, sample = null,
+    // Single stocks settle physically and their margin proxy is ~15% of spot.
+    // INDEX options settle in CASH and margin far less relative to notional, so
+    // both differ there — see `INDEX_SELL_OPTS`.
+    marginPct = 0.15, physicallySettled = true,
   } = inp ?? {};
   if (!(S > 0) || !(K > 0) || !(t > 0) || !(ltp > 0)) return null;
 
@@ -996,9 +1023,9 @@ export function sellConviction(inp) {
   // below is what stops that optimism from reaching the top of the list.
   const sim = sample ? riskMetrics(sample, S, K, t, sf, mu, type, ltp) : null;
   const ed = sim
-    ? { fair: round(sim.fair, 2), edge: round(ltp - sim.fair, 2), edgePct: round((ltp - sim.fair) / (0.15 * S), 4) }
+    ? { fair: round(sim.fair, 2), edge: round(ltp - sim.fair, 2), edgePct: round((ltp - sim.fair) / (marginPct * S), 4) }
     : sf > 0
-      ? candidateEdge(ltp, S, K, t, sf, mu, type)
+      ? candidateEdge(ltp, S, K, t, sf, mu, type, marginPct)
       : null;
   if (ed) {
     // Clamp at 4%, not 2%. At 2% every strike from ~12% to ~22% OTM pegged at
@@ -1148,6 +1175,8 @@ export function sellConviction(inp) {
     // NSE single stocks settle PHYSICALLY: an ITM short gets assigned into
     // delivery and margin steps up to ~40% of contract value near expiry. Shown
     // as a warning, never used to filter — the user asked to see the candidates.
-    deliveryRisk: pProfit != null ? pProfit < 0.85 : null,
+    // Index options settle in CASH, so the flag is simply absent there rather
+    // than false — there is no delivery to warn about.
+    deliveryRisk: physicallySettled && pProfit != null ? pProfit < 0.85 : null,
   };
 }

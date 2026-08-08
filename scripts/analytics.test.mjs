@@ -645,3 +645,52 @@ describe("sellConviction with an empirical sample", () => {
     expect(A.sellConviction({ ...{ type: "PE", strike: 960, ltp: 7, iv: 0.26, oi: 1, volume: 1, lotSize: 1, spot: S, t: T, sigmaForecast: sigma } }).empirical).toBe(false);
   });
 });
+
+describe("index options (INDEX_SELL_OPTS)", () => {
+  const S = 25000, T = 5 / 365, sigma = 0.12;
+  const sample = A.terminalSample(clusteredReturns(250), A.tradingDaysTo(5), sigma);
+  const base = {
+    type: "CE", strike: 25500, ltp: 40, iv: 0.14, oi: 3000000, volume: 2000000, lotSize: 75,
+    spot: S, t: T, sigmaForecast: sigma, mu: 0, verdict: { score: 0, confidence: 0.6, verdict: "NEUTRAL" },
+    ivRank: null, gap: null, term: null, smirk: null, sample,
+  };
+
+  it("never flags delivery risk — index options settle in cash", () => {
+    // Even deep ITM, where a single stock would be assigned into delivery.
+    const deepItm = { ...base, ...A.INDEX_SELL_OPTS, strike: 24000, ltp: 1100 };
+    expect(A.sellConviction(deepItm).deliveryRisk).toBeNull();
+    // The same strike on a physically-settled single stock DOES warn.
+    expect(A.sellConviction({ ...deepItm, ...{ marginPct: 0.15, physicallySettled: true } }).deliveryRisk).toBe(true);
+  });
+
+  it("the lower index margin proxy raises edge-per-margin for the same option", () => {
+    const idx = A.sellConviction({ ...base, ...A.INDEX_SELL_OPTS });
+    const stock = A.sellConviction(base); // defaults: 15% margin proxy
+    expect(idx.edge).toBeCloseTo(stock.edge, 6); // same rupee edge
+    expect(idx.edgePct).toBeGreaterThan(stock.edgePct); // smaller denominator
+  });
+
+  it("weekly horizons keep a fatter-than-normal tail, unlike monthly ones", () => {
+    // This is why the empirical model is worth more on index weeklies than it is
+    // on monthly stock options: with only ~5 daily draws the CLT hasn't yet
+    // flattened the distribution.
+    const kurt = (a) => {
+      const m = a.reduce((x, y) => x + y, 0) / a.length;
+      const sd = Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length);
+      return a.reduce((x, y) => x + ((y - m) / sd) ** 4, 0) / a.length;
+    };
+    const rets = clusteredReturns(250);
+    const weekly = kurt(A.terminalSample(rets, A.tradingDaysTo(7), 0.14));
+    const monthly = kurt(A.terminalSample(rets, A.tradingDaysTo(30), 0.14));
+    expect(weekly).toBeGreaterThan(3.1);
+    expect(weekly).toBeGreaterThan(monthly);
+  });
+
+  it("a short horizon still produces varied paths, not a handful of windows", () => {
+    // Regression: a block-length floor of 5 at a 5-day horizon meant one block
+    // per path, collapsing 4000 paths onto ~250 distinct historical windows.
+    const s = A.terminalSample(clusteredReturns(250), 5, 0.14);
+    const distinct = new Set(Array.from(s).map((x) => x.toFixed(8))).size;
+    expect(distinct).toBeGreaterThan(2000);
+  });
+});
