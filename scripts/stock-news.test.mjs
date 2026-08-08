@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords } from "./stock-news.mjs";
+import { parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords, pruneEvents } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 // Fixed reference so "28 Aug" resolves deterministically.
@@ -129,5 +129,27 @@ describe("ambiguous company names", () => {
 
   it("leaves unambiguous names matching on their distinctive word", () => {
     expect(mentionsCompany("Manappuram gains 4% after results", "MANAPPURAM", "Manappuram Finance", ambiguous)).toBe(true);
+  });
+});
+
+describe("pruneEvents", () => {
+  const NOW2 = Date.UTC(2026, 7, 8);
+  it("drops events that have gone by but keeps a recent one", () => {
+    const kept = pruneEvents(
+      [
+        { kind: "Results", date: "2005-01-28", source: "nse" }, // ancient
+        { kind: "Results", date: "2026-08-05", source: "nse" }, // 3 days ago
+        { kind: "Board meeting", date: "2026-09-01", source: "nse" }, // upcoming
+      ],
+      NOW2,
+    );
+    expect(kept.map((e) => e.date)).toEqual(["2026-08-05", "2026-09-01"]);
+  });
+  it("keeps undated entries, since nothing better has dated them yet", () => {
+    expect(pruneEvents([{ kind: "Buyback", date: null, source: "news" }], NOW2)).toHaveLength(1);
+  });
+  it("tolerates junk", () => {
+    expect(pruneEvents(null, NOW2)).toEqual([]);
+    expect(pruneEvents([null, {}], NOW2)).toEqual([]);
   });
 });

@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import * as upstox from "./upstox.mjs";
 import * as nse from "./nse.mjs";
 import * as A from "./analytics.mjs";
-import { fetchStockNews, mergeEvents, impliedEvent } from "./stock-news.mjs";
+import { fetchStockNews, mergeEvents, impliedEvent, pruneEvents } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -465,10 +465,14 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
     // recomputed every run from the term structure, so the list is never bare
     // even when both scrapes fail.
     events: mergeEvents(
-      newsBundle?.events ?? raw.prevEvents?.filter((e) => e.source !== "options") ?? [],
-      newsBundle?.nseEvents ?? [],
+      // Cached events are pruned every run, so a build that doesn't re-fetch
+      // still drops what has gone by. The options-implied entry is excluded
+      // from the carry-forward because it is recomputed below from today's
+      // term structure.
+      newsBundle?.events ?? pruneEvents(raw.prevEvents?.filter((e) => e.source !== "options") ?? []),
+      pruneEvents(newsBundle?.nseEvents ?? []),
       [impliedEvent(term?.slopePts ?? null, defaultExpiry)].filter(Boolean),
-    ),
+    ).slice(0, 10),
     news: newsBundle?.news ?? raw.prevNews ?? [],
     newsAsOf: newsBundle ? new Date().toISOString() : raw.prevNewsAsOf ?? null,
     verdict,

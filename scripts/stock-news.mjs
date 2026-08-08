@@ -175,6 +175,21 @@ export function mentionsCompany(text, symbol, name, ambiguous = new Set()) {
   return words.some((w) => hay.includes(w));
 }
 
+/**
+ * Drop events that have gone by. Cached events are carried forward between runs
+ * (news is only re-fetched for a few names each build), so without pruning a
+ * past event would linger indefinitely — and the first live run showed exactly
+ * that, with NSE's full history back to 2005 stuck in the file. Pruning runs on
+ * EVERY build, not just ones that fetch, so stale entries clear themselves out.
+ */
+export function pruneEvents(events, now = Date.now(), keepPastMs = 7 * 86400000) {
+  return (Array.isArray(events) ? events : []).filter((e) => {
+    if (!e || !e.kind) return false;
+    if (!e.date) return true; // undated: can't tell, keep until something dates it
+    return Date.parse(`${e.date}T00:00:00Z`) >= now - keepPastMs;
+  });
+}
+
 /** Merge event lists, keeping the most precise entry per (kind, date). */
 export function mergeEvents(...lists) {
   const out = new Map();
