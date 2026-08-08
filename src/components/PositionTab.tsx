@@ -121,7 +121,7 @@ export function PositionTab({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
                 className="w-11 shrink-0 py-1 px-1 rounded bg-white/[0.06] border border-white/10 text-white/85 tnum text-center"
               />
               <span className="w-12 shrink-0 text-right tnum text-white/50">{l.premium != null ? fmt(l.premium, 1) : "—"}</span>
-              <button onClick={() => del(l.id)} className="w-5 shrink-0 text-white/30 active:text-rose-300">✕</button>
+              <button onClick={() => del(l.id)} className="w-5 shrink-0 text-white/45 active:text-rose-300">✕</button>
             </div>
           ))}
         </div>
@@ -130,7 +130,7 @@ export function PositionTab({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
             <span className="text-[10px] text-white/45 shrink-0">Shift strikes</span>
             <button onClick={() => shift(-1)} aria-label="shift down a strike" className="w-8 h-7 grid place-items-center rounded-lg border border-white/15 text-white/80 active:bg-white/[0.08]">◀</button>
             <button onClick={() => shift(1)} aria-label="shift up a strike" className="w-8 h-7 grid place-items-center rounded-lg border border-white/15 text-white/80 active:bg-white/[0.08]">▶</button>
-            <span className="text-[9px] text-white/30 leading-tight">slide the whole position up/down a strike and watch the payoff move</span>
+            <span className="text-[9px] text-white/45 leading-tight">slide the whole position up/down a strike and watch the payoff move</span>
           </div>
         )}
         <div className="flex items-center justify-between mt-2">
@@ -339,7 +339,7 @@ function FitCard({ result }: { result: ReturnType<typeof analyzePosition> }) {
           {a.suggestions.map((s, i) => <Line key={i} icon="→" color="text-sky-300/90" text={s} />)}
         </div>
       )}
-      <div className="text-[9px] text-white/25 mt-2">
+      <div className="text-[9px] text-white/45 mt-2">
         A hand-set rule engine, not backtested advice. Probability uses the market's own IV; real fills, slippage and gap risk aren't modelled.
       </div>
     </Card>

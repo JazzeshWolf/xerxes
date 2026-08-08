@@ -110,7 +110,7 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
           <span className="text-base font-semibold">Stocks</span>
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-[9px] text-white/30 tnum">
+          <span className="text-[9px] text-white/45 tnum">
             {screener ? `${screener.count} names · ${timeAgo(screener.asOf)}` : ""}
           </span>
           <button
@@ -135,14 +135,14 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
           value={q}
           onInput={(e) => setQ((e.target as HTMLInputElement).value)}
           placeholder="Search stock by name or ticker…"
-          className="w-full px-3 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-sm text-white/90 placeholder:text-white/30"
+          className="w-full px-3 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-sm text-white/90 placeholder:text-white/45"
         />
 
         {loading && !screener && <div className="text-center text-white/40 py-16">Loading stock universe…</div>}
         {error && !screener && (
           <div className="text-center text-white/40 py-16 text-sm">
             Stock data not available yet.
-            <div className="text-[10px] mt-2 text-white/25">The screener populates after the first stock data run.</div>
+            <div className="text-[10px] mt-2 text-white/45">The screener populates after the first stock data run.</div>
           </div>
         )}
 
@@ -182,7 +182,7 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
               </div>
             )}
 
-            <div className="text-[9px] text-white/30 mb-1.5">
+            <div className="text-[9px] text-white/45 mb-1.5">
               score · name · side · strike · P(keep) · edge · credit/lot — tap a row for the breakdown
             </div>
             <div className="space-y-1">
@@ -203,7 +203,7 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
             title="Liquidity & structure"
             right={
               <div className="flex items-center gap-1">
-                <span className="text-[9px] text-white/35">sort</span>
+                <span className="text-[9px] text-white/50">sort</span>
                 <select
                   value={field}
                   onChange={(e) => onField((e.target as HTMLSelectElement).value as SortField)}
@@ -284,7 +284,7 @@ function StockRowItem({ r, field, onOpen }: { r: StockRow; field: SortField; onO
           {r.structure && r.structure.label !== "Indecisive" ? (
             <Badge tone={biasTone(r.structure.bias)}>{r.structure.label}</Badge>
           ) : (
-            <span className="text-[9px] text-white/30">indecisive</span>
+            <span className="text-[9px] text-white/45">indecisive</span>
           )}
         </div>
         <div className={`mt-0.5 tnum ${verdictTone(r.verdict.verdict)} ${verdictActive ? "text-[12px] font-bold" : "text-[9px]"}`}>
@@ -339,7 +339,7 @@ function CandidateRow({ c, onOpen }: { c: StockCandidate; onOpen: (file: string,
 
       {open && (
         <div className="px-2.5 pb-2 space-y-1.5">
-          <div className="text-[9px] text-white/35 leading-relaxed">
+          <div className="text-[9px] text-white/50 leading-relaxed">
             {c.name} · {fmtExpiry(c.expiry)} ({c.dte}d) · IV {c.iv != null ? `${(c.iv * 100).toFixed(1)}%` : "—"}
             {c.vrp != null ? ` · IV/RV ${c.vrp}×` : ""}
             {c.ivRank != null ? ` · IVR ${c.ivRank}` : ""}
@@ -393,7 +393,7 @@ function CandidateRow({ c, onOpen }: { c: StockCandidate; onOpen: (file: string,
           )}
 
           <div className="flex items-center justify-between pt-0.5">
-            <span className="text-[9px] text-white/30 tnum">
+            <span className="text-[9px] text-white/45 tnum">
               OI-adj · risk-neutral {Math.round(c.probProfit * 100)}% vs forecast {Math.round(pKeep * 100)}%
               {c.probTouchF != null ? ` · touch ${Math.round(c.probTouchF * 100)}%` : ""}
             </span>

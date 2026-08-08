@@ -40,10 +40,10 @@ export function StockDashboard({ file, name, onBack }: { file: string; name: str
         <button onClick={onBack} className="flex items-center gap-1.5 active:opacity-70">
           <span className="text-white/40 text-sm">←</span>
           <span className="text-base font-semibold">{name}</span>
-          <span className="text-[10px] text-white/35 uppercase tracking-wide border border-white/12 rounded px-1 py-0.5">stock</span>
+          <span className="text-[10px] text-white/50 uppercase tracking-wide border border-white/12 rounded px-1 py-0.5">stock</span>
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-[9px] text-white/30 tnum">{snap?.asOf ? timeAgo(snap.asOf) : ""}</span>
+          <span className="text-[9px] text-white/45 tnum">{snap?.asOf ? timeAgo(snap.asOf) : ""}</span>
           <button
             onClick={dash.hardRefresh}
             className="flex items-center gap-1 text-xs px-2 py-1 rounded-full border border-white/15 text-white/70 active:bg-white/[0.08] disabled:opacity-50"
@@ -67,7 +67,7 @@ export function StockDashboard({ file, name, onBack }: { file: string; name: str
         {dash.error && !snap && (
           <div className="text-center text-white/40 py-16 text-sm">
             No data yet for {name}.
-            <div className="text-[10px] mt-2 text-white/25">{dash.error}</div>
+            <div className="text-[10px] mt-2 text-white/45">{dash.error}</div>
           </div>
         )}
         {!snap && !dash.error && <div className="text-center text-white/40 py-16">Loading {name}…</div>}
@@ -110,7 +110,7 @@ export function StockDashboard({ file, name, onBack }: { file: string; name: str
         )}
       </main>
 
-      <footer className="px-4 pb-5 text-[9px] leading-relaxed text-white/25">
+      <footer className="px-4 pb-5 text-[9px] leading-relaxed text-white/45">
         Decision aid, not advice. Options carry unlimited risk when sold naked — always define risk.
         Data is delayed and may be stale outside market hours.
       </footer>

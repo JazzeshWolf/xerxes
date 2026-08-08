@@ -13,7 +13,7 @@ export function FactorsCard({ v, snap, exp }: { v: Verdict; snap: Snapshot; exp:
   const rows = v.factors.filter((f) => f.present);
   if (!rows.length) return null;
   return (
-    <Card title="Why — factor breakdown" right={<span className="text-[9px] text-white/35">tap a row to decode it</span>}>
+    <Card title="Why — factor breakdown" right={<span className="text-[9px] text-white/50">tap a row to decode it</span>}>
       <div className="space-y-1">
         {rows.map((f) => {
           const s = f.s ?? 0;
@@ -25,7 +25,7 @@ export function FactorsCard({ v, snap, exp }: { v: Verdict; snap: Snapshot; exp:
               <button className="w-full text-left py-1" onClick={() => setOpen(isOpen ? null : f.key)}>
                 <div className="flex justify-between text-[10px]">
                   <span className="text-white/70">
-                    <span className={`inline-block w-2 text-white/30 ${isOpen ? "rotate-90" : ""} transition-transform`}>›</span>{" "}
+                    <span className={`inline-block w-2 text-white/45 ${isOpen ? "rotate-90" : ""} transition-transform`}>›</span>{" "}
                     {f.label}
                   </span>
                   <span className="text-white/40 tnum">{f.reading}</span>
@@ -49,7 +49,7 @@ export function FactorsCard({ v, snap, exp }: { v: Verdict; snap: Snapshot; exp:
           );
         })}
       </div>
-      <div className="text-[9px] text-white/25 mt-2">
+      <div className="text-[9px] text-white/45 mt-2">
         Bar = signal strength × direction; weights redistribute when a factor's data is missing.
       </div>
     </Card>
@@ -59,7 +59,7 @@ export function FactorsCard({ v, snap, exp }: { v: Verdict; snap: Snapshot; exp:
 function ExplainRow({ tag, text }: { tag: string; text: string }) {
   return (
     <div className="text-[10px] leading-relaxed">
-      <span className="uppercase tracking-wide text-[8px] text-white/35 mr-1">{tag}</span>
+      <span className="uppercase tracking-wide text-[8px] text-white/50 mr-1">{tag}</span>
       <span className="text-white/70">{text}</span>
     </div>
   );

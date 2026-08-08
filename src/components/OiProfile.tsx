@@ -68,7 +68,7 @@ export function OiProfile({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
       }
     >
       {/* header */}
-      <div className="grid grid-cols-[1fr_74px_1fr] items-center text-[8.5px] uppercase tracking-wider text-white/35 pb-1 border-b border-white/[0.08]">
+      <div className="grid grid-cols-[1fr_74px_1fr] items-center text-[8.5px] uppercase tracking-wider text-white/50 pb-1 border-b border-white/[0.08]">
         <div className="flex justify-between pr-1">
           <span>{total ? "OI" : "ΔOI"}</span>
           <span>LTP</span>
@@ -79,7 +79,7 @@ export function OiProfile({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
           <span>{total ? "OI" : "ΔOI"}</span>
         </div>
       </div>
-      <div className="grid grid-cols-[1fr_74px_1fr] text-[8px] text-white/25 pb-0.5">
+      <div className="grid grid-cols-[1fr_74px_1fr] text-[8px] text-white/45 pb-0.5">
         <div className="text-left">CALLS · resistance</div>
         <div />
         <div className="text-right">PUTS · support</div>
@@ -109,7 +109,7 @@ export function OiProfile({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
                   >
                     {fmt(r.strike)}
                   </div>
-                  <div className="text-[8px] text-white/30 tnum">
+                  <div className="text-[8px] text-white/45 tnum">
                     {avgIv(r) != null ? `${(avgIv(r)! * 100).toFixed(1)}` : "—"}
                   </div>
                 </div>
@@ -120,13 +120,13 @@ export function OiProfile({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
         })}
       </div>
 
-      <div className="mt-2 flex justify-between text-[9px] text-white/35">
+      <div className="mt-2 flex justify-between text-[9px] text-white/50">
         <span><span className="text-rose-300/80">■</span> call OI bar</span>
         <span className="text-amber-300/80">gold row = max pain</span>
         <span>shaded = ITM</span>
         <span><span className="text-emerald-300/80">■</span> put OI bar</span>
       </div>
-      <div className="mt-0.5 text-center text-[9px] text-white/30">
+      <div className="mt-0.5 text-center text-[9px] text-white/45">
         brightest bar = wall (largest OI) · {total ? "" : "Δ view: solid = build, outline = unwind · "}max {fmtOi(maxV)}
       </div>
     </Card>

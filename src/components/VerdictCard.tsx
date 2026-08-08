@@ -27,7 +27,7 @@ export function VerdictCard({ v, dte }: { v: Verdict; dte: number }) {
           style={{ left: `${pct}%` }}
         />
       </div>
-      <div className="flex justify-between text-[9px] text-white/30 mt-1">
+      <div className="flex justify-between text-[9px] text-white/45 mt-1">
         <span>bearish −10</span>
         <span>0</span>
         <span>+10 bullish</span>
@@ -38,7 +38,7 @@ export function VerdictCard({ v, dte }: { v: Verdict; dte: number }) {
           ⚠ Expiry {dte === 0 ? "today" : "tomorrow"} — gamma risk is extreme; size down or sit out.
         </div>
       )}
-      <div className="mt-2 text-[9px] text-white/25">
+      <div className="mt-2 text-[9px] text-white/45">
         Hand-set priors, not backtested — trust the band + confidence, not the decimal.
       </div>
     </Card>

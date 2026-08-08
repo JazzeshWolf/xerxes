@@ -15,7 +15,7 @@ export function HolisticTab({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
       <Section title="Where it's likely headed" items={n.whereHeaded} />
       <Section title="What would change the view" items={n.whatFlips} bullet />
       <VixChart snap={snap} />
-      <p className="text-[9px] text-white/25 px-1">
+      <p className="text-[9px] text-white/45 px-1">
         Generated from the live snapshot by a fixed rule set — no forecasting model. Trust the levels and
         the structure, not a single sentence.
       </p>
@@ -30,7 +30,7 @@ function Section({ title, items, bullet }: { title: string; items: string[]; bul
       <div className="space-y-1.5">
         {items.map((t, i) => (
           <div key={i} className="flex gap-1.5 text-[12px] leading-relaxed text-white/75">
-            {bullet && <span className="text-white/30 mt-0.5">•</span>}
+            {bullet && <span className="text-white/45 mt-0.5">•</span>}
             <span>{rich(t)}</span>
           </div>
         ))}

@@ -47,8 +47,8 @@ function Gauge({ v, active, onClick, label, dte }: { v: Verdict; active: boolean
         {v.score > 0 ? "+" : ""}{v.score}
       </div>
       <div className={`text-[9px] font-semibold tracking-wide ${verdictTone(v.verdict)}`}>{v.verdict}</div>
-      <div className="text-[10px] font-semibold text-white/70 mt-0.5">{label}<span className="text-white/35"> · {dte}d</span></div>
-      <div className="text-[8.5px] text-white/35">conf {Math.round(v.confidence * 100)}%</div>
+      <div className="text-[10px] font-semibold text-white/70 mt-0.5">{label}<span className="text-white/50"> · {dte}d</span></div>
+      <div className="text-[8.5px] text-white/50">conf {Math.round(v.confidence * 100)}%</div>
     </button>
   );
 }
@@ -92,9 +92,9 @@ export function HorizonBiasCard({
         <div className="text-[12px]">
           <span className="text-white/45">Play</span> <span className="font-semibold text-white/90">{activeV.structure}</span>
         </div>
-        <span className="text-[9px] text-white/35 shrink-0">needle ◀ bearish · bullish ▶</span>
+        <span className="text-[9px] text-white/50 shrink-0">needle ◀ bearish · bullish ▶</span>
       </div>
-      <div className="text-[9px] text-white/30 mt-1">
+      <div className="text-[9px] text-white/45 mt-1">
         Tap a dial to load that horizon below. Shared trend/VIX core; each horizon shifts with its own positioning.
       </div>
     </Card>

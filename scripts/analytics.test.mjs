@@ -600,8 +600,16 @@ describe("forecastVol conservatism floor", () => {
     // would extrapolate the quiet window, the dangerous direction for a seller.
     const calmTail = [...fixtureOhlc(180, 0.02, 0.3, 5), ...fixtureOhlc(25, 0.012, 0.3, 9)];
     const f = A.forecastVol(calmTail, 53);
-    const anchor = Math.min(f.rv120, 1.2 * f.rv60);
-    expect(f.sigma).toBeGreaterThanOrEqual(0.85 * anchor - 1e-9);
+    expect(f.sigma).toBeGreaterThanOrEqual(0.85 * Math.min(f.rv60, f.rv120) - 1e-9);
+  });
+
+  it("stays a backstop, never binding above the medium-term estimate", () => {
+    // Regression: an earlier staleness cap of 1.2 x rv60 made the effective
+    // floor 1.02 x rv60, so it bound on every index at every expiry and pinned
+    // the volatility-premium factor at zero across the board.
+    const anyBars = fixtureOhlc(220, 0.02, 0.3, 17);
+    const f = A.forecastVol(anyBars, 30);
+    expect(0.85 * Math.min(f.rv60, f.rv120)).toBeLessThan(f.rv60);
   });
 
   it("does not anchor to a STALE long window after a regime shift", () => {
@@ -612,7 +620,6 @@ describe("forecastVol conservatism floor", () => {
     const f = A.forecastVol(shifted, 17);
     expect(f.rv120 / f.rv60).toBeGreaterThan(1.2); // regime really did shift
     expect(f.sigma).toBeLessThan(0.85 * f.rv120); // so the stale anchor is NOT used
-    expect(f.sigma).toBeGreaterThanOrEqual(0.85 * Math.min(f.rv120, 1.2 * f.rv60) - 1e-9);
   });
 });
 

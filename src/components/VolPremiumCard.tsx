@@ -39,7 +39,7 @@ export function VolPremiumCard({ exp, kind = "stock" }: { exp: ExpiryBlock; kind
               : `Options are CHEAP relative to what ${noun} actually does. Selling premium here is negative expectancy — this is a name to leave alone.`;
 
   return (
-    <Card title="Volatility premium" right={<span className="text-[9px] text-white/35">{exp.dte}d horizon</span>}>
+    <Card title="Volatility premium" right={<span className="text-[9px] text-white/50">{exp.dte}d horizon</span>}>
       <div className="grid grid-cols-3 gap-2">
         <Stat
           label="IV ÷ forecast RV"
@@ -78,7 +78,7 @@ export function VolPremiumCard({ exp, kind = "stock" }: { exp: ExpiryBlock; kind
       </div>
 
       <div className="text-[10px] leading-relaxed text-white/55 mt-2.5">{verdict}</div>
-      <div className="text-[9px] text-white/25 mt-1.5 leading-relaxed">
+      <div className="text-[9px] text-white/45 mt-1.5 leading-relaxed">
         Forecast RV is a Yang-Zhang (gap-aware) blend of 20/60/120-day realized vol, matched to this
         expiry{isIndex ? "" : " and inflated for names whose risk arrives overnight"}. IV rank stays
         blank until enough daily history has accrued.

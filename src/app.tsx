@@ -85,10 +85,10 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
         <button onClick={onSwitch} className="flex items-center gap-1.5 active:opacity-70">
           <span className="text-lg font-bold tracking-tight">⚔️</span>
           <span className="text-base font-semibold">{INDEX_META[instrument].label}</span>
-          <span className="text-white/30 text-xs">▾</span>
+          <span className="text-white/45 text-xs">▾</span>
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-[9px] text-white/30 tnum" title="Data age — snapshots rebuild server-side every ~10 min in market hours">
+          <span className="text-[9px] text-white/45 tnum" title="Data age — snapshots rebuild server-side every ~10 min in market hours">
             {snap?.asOf ? timeAgo(snap.asOf) : ""}
             <span className="text-white/15 ml-1">v{__BUILD_ID__}</span>
           </span>
@@ -109,14 +109,14 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
         {dash.error && !snap && (
           <div className="text-center text-white/40 py-16 text-sm">
             No data yet for {INDEX_META[instrument].label}.
-            <div className="text-[10px] mt-2 text-white/25">{dash.error}</div>
+            <div className="text-[10px] mt-2 text-white/45">{dash.error}</div>
           </div>
         )}
         {!snap && !dash.error && <div className="text-center text-white/40 py-16">Loading market data…</div>}
         {snap && !exp && (
           <div className="text-center text-white/40 py-16 text-sm">
             Refreshing {INDEX_META[instrument].label} data…
-            <div className="text-[10px] mt-2 text-white/25">The next data run will populate this shortly.</div>
+            <div className="text-[10px] mt-2 text-white/45">The next data run will populate this shortly.</div>
           </div>
         )}
 
@@ -157,7 +157,7 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
         )}
       </main>
 
-      <footer className="px-4 pb-5 text-[9px] leading-relaxed text-white/25">
+      <footer className="px-4 pb-5 text-[9px] leading-relaxed text-white/45">
         Decision aid, not advice. Index options carry unlimited risk when sold naked — always define risk.
         Data is delayed (~10 min refresh via GitHub Actions) and may be stale outside market hours.
       </footer>

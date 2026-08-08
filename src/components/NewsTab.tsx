@@ -20,7 +20,7 @@ export function NewsTab({ market, index }: { market: MarketData | null; index: I
       {news.map((n) => (
         <NewsRow key={n.url} n={n} />
       ))}
-      <p className="text-[9px] text-white/25 px-1">
+      <p className="text-[9px] text-white/45 px-1">
         Headlines via Google News; impact tags are keyword-based heuristics, not a verified read.
       </p>
     </div>
@@ -60,12 +60,12 @@ function SentimentWidget({ news, index }: { news: NewsItem[]; index: IndexKey })
       <div className="relative h-2 rounded-full mt-2 bg-gradient-to-r from-rose-500/60 via-white/15 to-emerald-500/60">
         <div className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-white shadow -translate-x-1/2" style={{ left: `${pct}%` }} />
       </div>
-      <div className="flex justify-between text-[9px] text-white/30 mt-1">
+      <div className="flex justify-between text-[9px] text-white/45 mt-1">
         <span>bearish</span>
         <span>neutral</span>
         <span>bullish</span>
       </div>
-      <div className="text-[9px] text-white/30 mt-1.5">
+      <div className="text-[9px] text-white/45 mt-1.5">
         Weighted by source trust &amp; recency across the headlines below — a read on the tape's mood, not a forecast.
       </div>
     </Card>
@@ -88,7 +88,7 @@ function NewsRow({ n }: { n: NewsItem }) {
           <div className="flex items-center gap-1.5 mt-1 text-[10px] text-white/40">
             <span className="truncate">{n.source}</span>
             {n.trusted && <Badge>trusted</Badge>}
-            {n.indirect && <span className="text-white/30">· macro</span>}
+            {n.indirect && <span className="text-white/45">· macro</span>}
             <span className="ml-auto shrink-0">{timeAgo(n.publishedAt)}</span>
           </div>
         </div>

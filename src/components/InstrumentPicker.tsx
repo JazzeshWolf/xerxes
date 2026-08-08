@@ -29,7 +29,7 @@ export function InstrumentPicker({ onPick, onPickStocks }: { onPick: (i: IndexKe
               <div className="text-base font-semibold">{INDEX_META[k].label}</div>
               <div className="text-[11px] text-white/45">{INDEX_META[k].blurb}</div>
             </div>
-            <span className="text-white/30 text-lg">→</span>
+            <span className="text-white/45 text-lg">→</span>
           </button>
         ))}
         <button
@@ -40,10 +40,10 @@ export function InstrumentPicker({ onPick, onPickStocks }: { onPick: (i: IndexKe
             <div className="text-base font-semibold">Stocks</div>
             <div className="text-[11px] text-white/45">Single-stock F&amp;O screener · liquidity, structure, candidates</div>
           </div>
-          <span className="text-white/30 text-lg">→</span>
+          <span className="text-white/45 text-lg">→</span>
         </button>
       </div>
-      <p className="text-[9px] text-white/25 text-center mt-6 leading-relaxed">
+      <p className="text-[9px] text-white/45 text-center mt-6 leading-relaxed">
         Decision aid, not advice. Data is delayed (~10 min) and may be stale outside market hours.
       </p>
     </div>

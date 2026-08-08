@@ -665,16 +665,18 @@ export function forecastVol(ohlc, dte = 30) {
   // (Seen live: LICHSGFIN forecast 24.1% against a 28.4% 120-day realized.)
   //
   // But the anchor must not be STALE. When rv120 sits well above rv60 the old
-  // window is describing a regime that has since passed, and anchoring to it
-  // marks everything as cheap by construction — live, the indices ran
-  // rv120/rv60 ≈ 1.34-1.40 and every index option scored VRP < 1 purely from
-  // this. So the anchor is capped at 1.2× the medium-term estimate. Names where
-  // the two windows agree (LICHSGFIN: 1.10) are unaffected, which is exactly
-  // the case the floor was added for.
-  if (rv120 > 0) {
-    const anchor = rv60 > 0 ? Math.min(rv120, 1.2 * rv60) : rv120;
-    sigma = Math.max(sigma, 0.85 * anchor);
-  }
+  // window describes a regime that has since passed, and anchoring to it marks
+  // everything as cheap by construction — live, the indices ran rv120/rv60 ≈
+  // 1.34-1.40 and every index option scored VRP < 1 purely from this.
+  //
+  // So the anchor is the SMALLER of the two long windows. An earlier attempt
+  // capped it at 1.2 × rv60, which was wrong: 0.85 × 1.2 = 1.02, so the floor
+  // became "never forecast below the 60-day realized" and bound on every index
+  // at every expiry. A floor that sits above the central estimate isn't a floor.
+  // At 0.85 × min(rv60, rv120) it goes back to being a backstop that fires only
+  // when the recent window has genuinely collapsed.
+  const longRun = rv60 > 0 && rv120 > 0 ? Math.min(rv60, rv120) : rv120 > 0 ? rv120 : rv60;
+  if (longRun > 0) sigma = Math.max(sigma, 0.85 * longRun);
 
   return {
     sigma: round(sigma, 4),

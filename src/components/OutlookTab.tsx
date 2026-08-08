@@ -45,7 +45,7 @@ function DriversCard({ drivers }: { drivers: Driver[] }) {
           return (
             <div key={d.symbol} className="flex items-center gap-2 text-[11px]">
               <span className="w-20 shrink-0 text-white/85 truncate">{d.symbol}</span>
-              <span className="w-9 shrink-0 text-white/35 tnum text-right">{fmt(d.weight, 1)}%</span>
+              <span className="w-9 shrink-0 text-white/50 tnum text-right">{fmt(d.weight, 1)}%</span>
               <div className="flex-1 relative h-3">
                 <div className="absolute inset-y-0 left-1/2 w-px bg-white/15" />
                 <div
@@ -58,7 +58,7 @@ function DriversCard({ drivers }: { drivers: Driver[] }) {
           );
         })}
       </div>
-      <div className="text-[9px] text-white/25 mt-2">
+      <div className="text-[9px] text-white/45 mt-2">
         Bar = contribution to the index (weight × move). Weights are approximate free-float and refreshed periodically.
       </div>
     </Card>
@@ -74,7 +74,7 @@ function EventRadar({ events, companyEvents, index }: { events: MarketData["even
     <Card title="Event radar">
       {past.length > 0 && (
         <>
-          <div className="text-[9px] uppercase tracking-wider text-white/35 mb-1.5">Recent — how the index reacted</div>
+          <div className="text-[9px] uppercase tracking-wider text-white/50 mb-1.5">Recent — how the index reacted</div>
           <div className="space-y-2 mb-3">
             {past.map((e) => {
               const r = e.realized?.[index];
@@ -89,7 +89,7 @@ function EventRadar({ events, companyEvents, index }: { events: MarketData["even
                           {r >= 0 ? "▲" : "▼"} {fmtPct(Math.abs(r), 2, false)} on the day
                         </span>
                       ) : (
-                        <span className="text-white/35">reaction n/a</span>
+                        <span className="text-white/50">reaction n/a</span>
                       )}
                     </span>
                   </div>
@@ -103,7 +103,7 @@ function EventRadar({ events, companyEvents, index }: { events: MarketData["even
 
       {upcoming.length > 0 && (
         <>
-          <div className="text-[9px] uppercase tracking-wider text-white/35 mb-1.5">Upcoming — macro</div>
+          <div className="text-[9px] uppercase tracking-wider text-white/50 mb-1.5">Upcoming — macro</div>
           <div className="space-y-2">
             {upcoming.map((e) => {
               const days = Math.max(0, Math.round((Date.parse(e.date + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400000));
@@ -112,7 +112,7 @@ function EventRadar({ events, companyEvents, index }: { events: MarketData["even
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-white/85">{e.name}</span>
                     <span className="text-[10px] text-white/45 tnum">
-                      {fmtExpiry(e.date)}{e.approx && <span className="text-white/30"> ~</span>} · {days === 0 ? "today" : `in ${days}d`}
+                      {fmtExpiry(e.date)}{e.approx && <span className="text-white/45"> ~</span>} · {days === 0 ? "today" : `in ${days}d`}
                       {e.weight >= 3 && <span className="ml-1"><Badge tone="warn">high</Badge></span>}
                     </span>
                   </div>
@@ -126,7 +126,7 @@ function EventRadar({ events, companyEvents, index }: { events: MarketData["even
 
       {companyEvents.length > 0 && (
         <>
-          <div className="text-[9px] uppercase tracking-wider text-white/35 mb-1.5 mt-3">Company events — {index} heavyweights</div>
+          <div className="text-[9px] uppercase tracking-wider text-white/50 mb-1.5 mt-3">Company events — {index} heavyweights</div>
           <div className="space-y-2">
             {companyEvents.slice(0, 6).map((a) => {
               const dot = a.impact === "up" ? "bg-emerald-400" : a.impact === "down" ? "bg-rose-400" : "bg-amber-400";
@@ -148,9 +148,9 @@ function EventRadar({ events, companyEvents, index }: { events: MarketData["even
         </>
       )}
 
-      <div className="text-[9px] text-white/25 mt-2">
+      <div className="text-[9px] text-white/45 mt-2">
         Reaction = the index's move on the first session after the event. Company events are news-derived (results, board
-        meetings, payouts); <span className="text-white/30">~</span> marks an unconfirmed date.
+        meetings, payouts); <span className="text-white/45">~</span> marks an unconfirmed date.
       </div>
     </Card>
   );

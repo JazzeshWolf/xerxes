@@ -27,7 +27,7 @@ export function MetricsCard({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock })
   const toggle = (k: string) => setOpen(open === k ? null : k);
 
   return (
-    <Card title="Positioning & vol" right={<span className="text-[9px] text-white/35">tap a block to decode it</span>}>
+    <Card title="Positioning & vol" right={<span className="text-[9px] text-white/50">tap a block to decode it</span>}>
       <div className="grid grid-cols-3 gap-2">
         <Tappable onTap={() => toggle("pcr")} active={open === "pcr"}>
           <Stat
@@ -137,7 +137,7 @@ function ExplainBox({ ex }: { ex: Explain }) {
 function Row({ tag, text }: { tag: string; text: string }) {
   return (
     <div className="text-[10px] leading-relaxed">
-      <span className="uppercase tracking-wide text-[8px] text-white/35 mr-1">{tag}</span>
+      <span className="uppercase tracking-wide text-[8px] text-white/50 mr-1">{tag}</span>
       <span className="text-white/70">{text}</span>
     </div>
   );
