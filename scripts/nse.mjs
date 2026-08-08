@@ -150,6 +150,11 @@ export async function fetchEventCalendar(symbol) {
     if (!res.ok) throw new Error(String(res.status));
     const rows = await res.json();
     if (!Array.isArray(rows)) return [];
+    // NSE returns the company's ENTIRE event history — SBIN's list runs back to
+    // 2005, ~90 entries. Only what's ahead of us (plus the last week, since a
+    // result that just landed still explains today's move) is worth keeping;
+    // storing the rest would bloat every per-stock file and bury the next event.
+    const from = Date.now() - 7 * 86400000;
     const out = [];
     for (const r of rows) {
       // NSE returns dd-MMM-yyyy; purpose is free text ("Quarterly Results").
@@ -157,7 +162,8 @@ export async function fetchEventCalendar(symbol) {
       const d = raw ? new Date(raw) : null;
       const date = d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : null;
       const purpose = String(r?.purpose ?? r?.subject ?? "").trim();
-      if (!purpose) continue;
+      if (!purpose || !date) continue;
+      if (Date.parse(`${date}T00:00:00Z`) < from) continue;
       out.push({
         kind: /result/i.test(purpose) ? "Results" : /board/i.test(purpose) ? "Board meeting" : purpose.slice(0, 40),
         title: purpose,
@@ -166,7 +172,8 @@ export async function fetchEventCalendar(symbol) {
         source: "nse",
       });
     }
-    return out;
+    out.sort((a, b) => (a.date < b.date ? -1 : 1));
+    return out.slice(0, 6);
   } catch (e) {
     console.warn(`nse event calendar ${symbol}: ${e.message}`);
     return [];

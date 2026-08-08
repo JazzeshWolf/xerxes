@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent } from "./stock-news.mjs";
+import { parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 // Fixed reference so "28 Aug" resolves deterministically.
@@ -96,5 +96,38 @@ describe("stocks universe", () => {
   it("has no duplicate symbols", () => {
     const syms = STOCKS.map((r) => r[0]);
     expect(syms.length).toBe(new Set(syms).size);
+  });
+});
+
+describe("ambiguous company names", () => {
+  const ambiguous = ambiguousFirstWords(STOCKS);
+
+  it("derives shared first words from the universe itself", () => {
+    // Multiple Bajaj / Adani / Tata entities are all in F&O, so counting finds them.
+    expect(ambiguous.has("bajaj")).toBe(true);
+    expect(ambiguous.has("adani")).toBe(true);
+    expect(ambiguous.has("tata")).toBe(true);
+    // A one-of-a-kind name is not ambiguous.
+    expect(ambiguous.has("manappuram")).toBe(false);
+    expect(ambiguous.has("hindalco")).toBe(false);
+  });
+
+  it("also covers houses whose other arms are outside the F&O universe", () => {
+    // Only Reliance Industries is in F&O, so counting alone would miss that
+    // "Reliance" identifies nobody — Reliance Power's results matched it live.
+    expect(ambiguous.has("reliance")).toBe(true);
+  });
+
+  it("stops another company's news being filed under a shared prefix", () => {
+    // Seen live: "Reliance Power Q1 Results" was landing on RELIANCE.
+    const other = "Reliance Power Q1 Results: PAT jumps 44%";
+    expect(mentionsCompany(other, "RELIANCE", "Reliance Industries", ambiguous)).toBe(false);
+    // The real thing still matches, by full name or by ticker.
+    expect(mentionsCompany("Reliance Industries posts record profit", "RELIANCE", "Reliance Industries", ambiguous)).toBe(true);
+    expect(mentionsCompany("RELIANCE gains 2% on volumes", "RELIANCE", "Reliance Industries", ambiguous)).toBe(true);
+  });
+
+  it("leaves unambiguous names matching on their distinctive word", () => {
+    expect(mentionsCompany("Manappuram gains 4% after results", "MANAPPURAM", "Manappuram Finance", ambiguous)).toBe(true);
   });
 });

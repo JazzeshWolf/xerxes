@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { getText, stripTags, decodeEntities, tagImpact, isTrusted } from "./market.mjs";
+import { STOCKS } from "./stocks-universe.mjs";
 
 const RSS_HEADERS = {
   "User-Agent": "Mozilla/5.0",
@@ -102,21 +103,75 @@ export function classifyEvent(text) {
   return null;
 }
 
+const NAME_NOISE = /\b(ltd|limited|india|indian|industries|corporation|corp|company|co|the|and|&)\b/g;
+
+export const nameWords = (name) =>
+  String(name || "").toLowerCase().replace(NAME_NOISE, " ").split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+
 /**
- * Does this item actually talk about the company? Google News honours an OR
- * query loosely, so "TITAN" or "TRENT" pull in unrelated results. Require the
- * company name (or a distinctive chunk of it) or the exact ticker to appear.
+ * The name with only truly generic tokens removed — "Reliance Industries Ltd" →
+ * "reliance industries". Used as the qualifier for a shared house name, where
+ * the corporate word is precisely what tells the siblings apart, so it must NOT
+ * be stripped the way `nameWords` strips it.
  */
-export function mentionsCompany(text, symbol, name) {
-  const hay = String(text || "").toLowerCase();
-  if (new RegExp(`\\b${symbol.replace(/[^A-Za-z0-9]/g, "").toLowerCase()}\\b`).test(hay)) return true;
-  const words = String(name || "")
+export const fullNameKey = (name) =>
+  String(name || "")
     .toLowerCase()
-    .replace(/\b(ltd|limited|india|industries|corporation|corp|company|co|the|and|&)\b/g, " ")
-    .split(/[^a-z0-9]+/)
-    .filter((w) => w.length >= 4);
+    .replace(/\b(ltd|limited|the|and|&)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/**
+ * Business-house names whose OTHER listed arms are not in the F&O universe, so
+ * counting universe entries can't discover them. Only Reliance Industries is in
+ * F&O, yet "Reliance Power Q1 results" matched it live — hence this supplement.
+ * Keep it to houses with several listed entities; it costs precision to add a
+ * name that isn't genuinely shared.
+ */
+const HOUSE_NAMES = ["reliance", "birla", "mahindra", "hinduja"];
+
+/**
+ * First words shared by more than one company, so a bare mention of them can't
+ * identify a specific issuer — "adani", "bajaj", "tata", "godrej" fall out of
+ * the universe itself, and HOUSE_NAMES covers the rest. Derived rather than
+ * hardcoded wherever possible, so it stays right as the F&O list changes.
+ */
+export function ambiguousFirstWords(stocks) {
+  const counts = new Map();
+  for (const [, name] of stocks) {
+    const w = nameWords(name)[0];
+    if (w) counts.set(w, (counts.get(w) ?? 0) + 1);
+  }
+  const derived = [...counts.entries()].filter(([, n]) => n > 1).map(([w]) => w);
+  return new Set([...derived, ...HOUSE_NAMES]);
+}
+
+/**
+ * Does this item actually talk about THIS company? Google News honours an OR
+ * query loosely, so the guard matters twice over:
+ *
+ *  - unrelated market chatter that names nobody must be dropped;
+ *  - and a shared first word must not carry another company's news across.
+ *    Matching any distinctive word once filed "Reliance Power Q1 results" under
+ *    RELIANCE. So when the leading word is shared inside the universe, the full
+ *    name or the exact ticker is required.
+ */
+export function mentionsCompany(text, symbol, name, ambiguous = new Set()) {
+  const raw = String(text || "");
+  const hay = raw.toLowerCase();
+  const ticker = symbol.replace(/[^A-Za-z0-9]/g, "");
+  // The ticker is matched CASE-SENSITIVELY. Headlines write tickers in caps
+  // ("RELIANCE gains 2%") and company names in title case ("Reliance Power"),
+  // and for a house name the lowercased ticker IS the ambiguous word — so a
+  // case-insensitive test here would wave through exactly what we're excluding.
+  if (new RegExp(`\\b${ticker}\\b`).test(raw)) return true;
+  const words = nameWords(name);
   if (!words.length) return false;
-  // The distinctive part of the name — "reliance", "manappuram", "adani".
+  if (ambiguous.has(words[0])) {
+    // Needs the qualifier too: "reliance industries", not bare "reliance".
+    const key = fullNameKey(name);
+    return key.includes(" ") ? hay.includes(key) : false;
+  }
   return words.some((w) => hay.includes(w));
 }
 
@@ -191,7 +246,10 @@ function parseRssItems(xml) {
  * trusted-outlet one, so Moneycontrol/ET/Mint coverage is reached without a
  * bespoke scraper for each site.
  */
+let AMBIGUOUS = null; // computed once from the universe, on first use
+
 export async function fetchStockNews(symbol, name, { now = Date.now() } = {}) {
+  AMBIGUOUS ??= ambiguousFirstWords(STOCKS);
   const company = `"${name}" OR "${symbol}"`;
   const queries = [
     `${company} (share OR shares OR stock OR results OR order OR profit OR revenue OR stake OR deal)`,
@@ -208,7 +266,7 @@ export async function fetchStockNews(symbol, name, { now = Date.now() } = {}) {
       for (const r of raw) {
         if (r.pubMs < cutoff) continue;
         const text = `${r.title} ${r.desc}`;
-        if (!mentionsCompany(text, symbol, name)) continue;
+        if (!mentionsCompany(text, symbol, name, AMBIGUOUS)) continue;
         const key = r.title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 50);
         if (seen.has(key)) continue;
         seen.add(key);
