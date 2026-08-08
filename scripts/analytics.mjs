@@ -635,7 +635,7 @@ export function gapProfile(ohlc, n = 60) {
  * what a gappy stock does to a short option, so those names get a forecast that
  * is deliberately less flattering.
  */
-export function forecastVol(ohlc, dte = 30) {
+export function forecastVol(ohlc, dte = 30, { inflateGaps = true } = {}) {
   const bars = cleanOhlc(ohlc);
   const rv20 = yangZhangVol(bars, 20);
   const rv60 = yangZhangVol(bars, 60);
@@ -657,7 +657,14 @@ export function forecastVol(ohlc, dte = 30) {
   sigma = sigma * (1 - lambda) + anchor * lambda;
 
   const gap = gapProfile(bars, 60);
-  if (gap?.gapShare != null) sigma *= 1 + 0.5 * Math.max(0, gap.gapShare - 0.35);
+  // Gap inflation is about IDIOSYNCRATIC jump risk — a stock that leaps on
+  // results or a block deal realizes more than close-to-close statistics admit.
+  // It must not be applied to an index: ~51% of NIFTY's variance arrives
+  // overnight (against ~21% for SBIN) simply because the instrument reprices to
+  // global cues at the open, and Yang-Zhang already counts that overnight
+  // variance inside σ. Inflating anyway double-counts a structural feature as a
+  // hazard — live it was adding a flat ~8% to every index forecast.
+  if (inflateGaps && gap?.gapShare != null) sigma *= 1 + 0.5 * Math.max(0, gap.gapShare - 0.35);
 
   // Asymmetric floor. Vol mean-reverts UP out of quiet stretches, and for a
   // short-premium book underestimating vol is the direction that costs money —

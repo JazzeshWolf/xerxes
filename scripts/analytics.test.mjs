@@ -713,3 +713,17 @@ describe("index options (INDEX_SELL_OPTS)", () => {
     expect(distinct).toBeGreaterThan(2000);
   });
 });
+
+describe("forecastVol gap inflation", () => {
+  const gappy = fixtureOhlc(220, 0.012, 0.9, 23);
+  it("inflates a gap-heavy series by default", () => {
+    expect(A.forecastVol(gappy, 30).sigma).toBeGreaterThan(A.forecastVol(gappy, 30, { inflateGaps: false }).sigma);
+  });
+  it("can be switched off, for instruments where gapping is structural not risk", () => {
+    // An index reprices to overnight global cues; that is how it trades, and
+    // Yang-Zhang already counts the overnight variance. Applying the
+    // single-stock jump-risk inflation on top double-counts it.
+    const smooth = fixtureOhlc(220, 0.012, 0.1, 29);
+    expect(A.forecastVol(smooth, 30, { inflateGaps: false }).sigma).toBeCloseTo(A.forecastVol(smooth, 30).sigma, 6);
+  });
+});

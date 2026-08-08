@@ -262,7 +262,9 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
   // Horizon-matched realized-vol forecast — the yardstick the option's price is
   // judged against. Null when history is short (NSE fallback), and everything
   // downstream degrades to the previous behaviour rather than guessing.
-  const fc = A.forecastVol(ctx.ohlc ?? [], dte);
+  // inflateGaps:false — an index gaps because it reprices to global cues, which
+  // Yang-Zhang already captures; the inflation term is for single-stock jump risk.
+  const fc = A.forecastVol(ctx.ohlc ?? [], dte, { inflateGaps: false });
   const sigmaForecast = fc?.sigma ?? null;
   const candidates = A.sellCandidates(chain, spot, t, expectedMove, {
     maxDelta: 0.25,
@@ -296,6 +298,7 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
       // Unlike single stocks this premium is robustly positive on average (it is
       // compensation for correlation risk), so the question is how big, not whether.
       vrp: atmIv > 0 && sigmaForecast > 0 ? A.round(atmIv / sigmaForecast, 2) : null,
+      gapShare: fc?.gapShare ?? null,
       cpIvSpread: A.cpIvSpread(chain, spot),
       smirk: A.putSmirk(chain, spot),
       termSlope: null, // needs the neighbouring expiry — filled in buildIndex
