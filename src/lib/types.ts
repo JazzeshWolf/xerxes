@@ -183,6 +183,12 @@ export interface Snapshot {
   ivHistory: Point[];
   verdict: Verdict;
   structure: Structure | null;
+  // --- per-stock news layer (absent on indices and on older published files)
+  sector?: string | null;
+  news?: StockNewsItem[];
+  events?: StockEvent[];
+  /** When this stock's news was last fetched — null if never. */
+  newsAsOf?: string | null;
 }
 
 export interface MarketEvent {
@@ -217,6 +223,31 @@ export interface NewsItem {
   impact: "up" | "down" | "twoway";
 }
 
+/** A headline about one specific company. Same shape as the macro `NewsItem`
+ *  minus `indirect`, which only means something for market-wide news. */
+export interface StockNewsItem {
+  title: string;
+  url: string;
+  source: string;
+  trusted: boolean;
+  publishedAt: string;
+  snippet: string;
+  impact: "up" | "down" | "twoway";
+}
+
+/** A scheduled thing that could move the stock before expiry.
+ *  `source` records which of the four feeds produced it, because their
+ *  reliability differs: "nse" is exact, "news" approximate, "options" is a
+ *  window inferred from the IV term structure and never a calendar date. */
+export interface StockEvent {
+  kind: string;
+  title: string;
+  date: string | null;
+  approx: boolean;
+  source: "nse" | "news" | "options";
+  url?: string;
+}
+
 export interface Driver {
   symbol: string;
   weight: number;
@@ -241,6 +272,7 @@ export interface StockRow {
   file: string; // filename slug for public/data/stocks/<file>.json
   spot: number;
   changePct: number | null;
+  sector?: string | null;
   liquidity: { bucket: LiquidityBucket; score: number };
   structure: { label: string; bias: string } | null;
   verdict: { verdict: string; score: number };

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { useStock } from "../state/store";
+import { useStock, useStockScreener } from "../state/store";
 import { SpotStrip } from "./SpotStrip";
 import { VerdictCard } from "./VerdictCard";
 import { HorizonBiasCard } from "./HorizonBiasCard";
@@ -12,17 +12,36 @@ import { VolPremiumCard } from "./VolPremiumCard";
 import { FactorsCard } from "./FactorsCard";
 import { HolisticTab } from "./HolisticTab";
 import { PositionTab } from "./PositionTab";
+import { StockNewsTab } from "./StockNewsTab";
 import { TabBar, type Tab } from "./TabBar";
 import { ThemeToggle } from "./ThemeToggle";
 import { timeAgo } from "../lib/format";
 
-// Stocks get the option-centric subset of the index tabs (no macro Outlook/News).
-const TABS: Tab[] = ["verdict", "chain", "holistic", "position"];
+// Whether a live per-stock rebuild can actually be triggered (needs the worker).
+const HAS_REFRESH_PROXY = Boolean(import.meta.env.VITE_STOCK_REFRESH_URL);
+
+// Stocks get the option-centric subset of the index tabs, plus a News tab that
+// is per-COMPANY (headlines, its own corporate events, its sector) rather than
+// the macro one the indices show.
+const TABS: Tab[] = ["verdict", "chain", "holistic", "news", "position"];
 
 /** Per-stock dashboard — same layout/components as the index Dashboard, fed by
  *  a stock snapshot. The index Dashboard is left untouched. */
-export function StockDashboard({ file, name, onBack }: { file: string; name: string; onBack: () => void }) {
+export function StockDashboard({
+  file,
+  name,
+  onBack,
+  onOpen,
+}: {
+  file: string;
+  name: string;
+  onBack: () => void;
+  onOpen?: (file: string, name: string) => void;
+}) {
   const dash = useStock(file);
+  // The screener index is already loaded/cached by the store and carries every
+  // stock's sector + day move — all the peer panel needs, with no extra fetch.
+  const { screener } = useStockScreener();
   const snap = dash.snap;
   const [selectedExpiry, setSelectedExpiry] = useState<string>("");
   const [tab, setTab] = useState<Tab>("verdict");
@@ -105,6 +124,17 @@ export function StockDashboard({ file, name, onBack }: { file: string; name: str
             )}
 
             {tab === "holistic" && <HolisticTab snap={snap} exp={exp} />}
+            {tab === "news" && (
+              <StockNewsTab
+                snap={snap}
+                peers={(screener?.stocks ?? []).filter((r) => snap.sector && r.sector === snap.sector)}
+                onFetch={dash.hardRefresh}
+                fetching={dash.refreshing}
+                fetchError={dash.refreshError}
+                canFetch={HAS_REFRESH_PROXY}
+                onOpenPeer={(f, n) => onOpen?.(f, n)}
+              />
+            )}
             {tab === "position" && <PositionTab snap={snap} exp={exp} />}
           </>
         )}

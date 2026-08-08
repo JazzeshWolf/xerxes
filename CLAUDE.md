@@ -108,7 +108,9 @@ outside the header band where the toggle was added.
 - **Indices**: tabs Verdict / Chain / Holistic / Outlook / News / Position.
 - **Stocks**: `StockScreenerView` (search + liquidity/structure list + top
   premium-selling candidates) → `StockDashboard` (reuses the index tab components;
-  tabs Verdict / Chain / Holistic / Position — no macro Outlook/News per stock).
+  tabs Verdict / Chain / Holistic / **News** / Position — no macro Outlook).
+  The stock News tab is per-COMPANY, not the macro one: its own headlines, its
+  corporate events, and its sector peers.
 - The index dashboard (`src/app.tsx`) was long **deliberately untouched** by stock
   work, and stock UI duplicates the shell rather than parameterising it. That rule
   was relaxed *once*, deliberately, to give indices the seller analytics: they now
@@ -309,6 +311,46 @@ what `VolPremiumCard`'s `kind="index"` copy says when VRP drops near or below 1.
 - `pkill -f "vite preview"` matches its own shell → exit 144; harmless but noisy.
 - Browser caching hides deploys — verify with a private tab / check the build id
   in the header before concluding a change didn't ship.
+
+### Per-stock news + events (`scripts/stock-news.mjs`)
+
+`market.mjs` answers "what is happening to the market"; this answers "what is
+happening to THIS company". Its RSS primitives (`getText`, `stripTags`,
+`decodeEntities`, `tagImpact`, `isTrusted`) are **exported from market.mjs and
+reused** — don't fork them.
+
+**Four event sources on purpose, because each fails differently:**
+
+| source | gives | reliability |
+|---|---|---|
+| `options` | a WINDOW ("something before 25 Aug"), from `termSlope` | never fails, no network |
+| `nse` | exact dates (`nse.fetchEventCalendar`, reuses `primeCookies`) | Akamai-gated, intermittent |
+| `news` | dates parsed out of headlines | approximate, only sees what got reported |
+| Moneycontrol/ET/Mint | extra coverage via Google News `source:` operators | no bespoke scraper to break |
+
+`mergeEvents` dedupes by (kind, date), preferring dated over undated and NSE over
+news over options. The options-implied entry is **recomputed every run**, so the
+list is never bare even when both scrapes fail.
+
+**How news gets fetched.** One query per symbol × ~157 names × 3 runs/hr would be
+rate-limited, so a full run fetches only the **`NEWS_PER_RUN` stalest names by
+`newsAsOf`** — self-balancing, no cursor to persist, and a never-fetched stock
+sorts first. Cached news survives via the same seed step `ivHistory` relies on.
+The **single-symbol path always fetches**, which is what the in-app "Fetch latest
+news" button drives — but that button only truly refreshes once the Cloudflare
+Worker is deployed (`STOCK_REFRESH_URL` unset ⇒ it just re-pulls, and the tab
+says so).
+
+`mentionsCompany` is load-bearing: Google honours an OR query loosely, so without
+it a ticker like TITAN or TRENT drags in unrelated headlines.
+
+### Sector tags
+
+`stocks-universe.mjs` rows are `[symbol, name, sector]` — a **trading** grouping,
+not GICS (PSU and private banks sit together because they trade together). Peers
+are computed client-side from `index.json`, so the panel costs zero requests. A
+missing tag silently drops a name from its peer group, so a test asserts every
+row has one.
 
 ## Backlog (not started)
 

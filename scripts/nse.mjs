@@ -134,3 +134,41 @@ export async function yahooHistory(symbol, range = "1y") {
     return [];
   }
 }
+
+/**
+ * Upcoming corporate events for one symbol from NSE's event calendar —
+ * board meetings, results, dividends, with EXACT dates, which none of the other
+ * sources can give. Behind the same Akamai protection as the chain endpoints and
+ * about as reliable from a runner, so it fails soft to [] and is treated as one
+ * of several event sources rather than the truth.
+ */
+export async function fetchEventCalendar(symbol) {
+  const cookie = await primeCookies();
+  const url = `https://www.nseindia.com/api/event-calendar?symbol=${encodeURIComponent(symbol)}`;
+  try {
+    const res = await fetch(url, { headers: cookie ? { ...HEADERS, Cookie: cookie } : HEADERS });
+    if (!res.ok) throw new Error(String(res.status));
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return [];
+    const out = [];
+    for (const r of rows) {
+      // NSE returns dd-MMM-yyyy; purpose is free text ("Quarterly Results").
+      const raw = String(r?.date ?? r?.eventDate ?? "").trim();
+      const d = raw ? new Date(raw) : null;
+      const date = d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : null;
+      const purpose = String(r?.purpose ?? r?.subject ?? "").trim();
+      if (!purpose) continue;
+      out.push({
+        kind: /result/i.test(purpose) ? "Results" : /board/i.test(purpose) ? "Board meeting" : purpose.slice(0, 40),
+        title: purpose,
+        date,
+        approx: false,
+        source: "nse",
+      });
+    }
+    return out;
+  } catch (e) {
+    console.warn(`nse event calendar ${symbol}: ${e.message}`);
+    return [];
+  }
+}

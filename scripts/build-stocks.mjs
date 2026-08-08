@@ -23,7 +23,9 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as upstox from "./upstox.mjs";
+import * as nse from "./nse.mjs";
 import * as A from "./analytics.mjs";
+import { fetchStockNews, mergeEvents, impliedEvent } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -45,6 +47,14 @@ const EXPIRY_SLOTS = ["current", "next"]; // ordered[0], ordered[1]
 const TRADEABLE_BUCKETS = ["Medium", "Medium-High", "High"];
 const MIN_STRIKE_OI = 250; // hard floor: below this the strike is a quote, not a market
 const THIN_EXPIRY_CANDIDATES = 8; // fewer than this in a slot → warn the user loudly
+// Per-stock news is fetched for the STALEST few names each full run, not all of
+// them — one Google News query per symbol across the universe every 20 minutes
+// would be rate-limited into uselessness. Picking by staleness means the
+// universe cycles on its own with no counter to keep, and cached news survives
+// because the workflow seeds public/data/stocks from the published branch on
+// every run (the same mechanism ivHistory relies on). The single-symbol refresh
+// path always fetches, so the in-app "Fetch latest news" button is immediate.
+const NEWS_PER_RUN = 15;
 // One name's strike ladder is a handful of near-identical trades, and without a
 // cap a single high-VRP stock crowds out the whole cross-universe list.
 const MAX_PER_SYMBOL = 2;
@@ -330,7 +340,7 @@ function appendIvPoint(prev, t, iv) {
     .slice(-IV_HISTORY_DAYS);
 }
 
-function buildStock(name, raw, vix, prevIvHistory = []) {
+function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
   const spot = raw.spot;
   const expiries = {};
   const ordered = raw.orderedExpiries.filter((e) => raw.chainsByExpiry[e]);
@@ -449,6 +459,18 @@ function buildStock(name, raw, vix, prevIvHistory = []) {
     ivHistory,
     gap,
     term,
+    sector: raw.sector ?? null,
+    // Merged from every source that answered. News-derived and NSE events only
+    // exist on a run that fetched them, but the options-implied window is
+    // recomputed every run from the term structure, so the list is never bare
+    // even when both scrapes fail.
+    events: mergeEvents(
+      newsBundle?.events ?? raw.prevEvents?.filter((e) => e.source !== "options") ?? [],
+      newsBundle?.nseEvents ?? [],
+      [impliedEvent(term?.slopePts ?? null, defaultExpiry)].filter(Boolean),
+    ),
+    news: newsBundle?.news ?? raw.prevNews ?? [],
+    newsAsOf: newsBundle ? new Date().toISOString() : raw.prevNewsAsOf ?? null,
     verdict,
     structure,
   };
@@ -468,17 +490,35 @@ const topCandidateRow = (c) => ({
 });
 
 /**
- * The stock's previously published ATM-IV history, read from the seeded copy of
- * the `stocks-data` branch. Missing file (first ever run, or a seed failure) is
- * not an error — history simply restarts.
+ * The stock's previously published state, read from the seeded copy of the
+ * `stocks-data` branch: ATM-IV history plus cached news/events. A missing file
+ * (first ever run, or a seed failure) is not an error — it simply restarts.
  */
-async function readPrevIvHistory(slug) {
+async function readPrevStock(slug) {
   try {
     const j = JSON.parse(await readFile(resolve(STOCKS_DIR, `${slug}.json`), "utf8"));
-    return Array.isArray(j?.ivHistory) ? j.ivHistory : [];
+    return {
+      ivHistory: Array.isArray(j?.ivHistory) ? j.ivHistory : [],
+      news: Array.isArray(j?.news) ? j.news : [],
+      events: Array.isArray(j?.events) ? j.events : [],
+      newsAsOf: typeof j?.newsAsOf === "string" ? j.newsAsOf : null,
+    };
   } catch {
-    return [];
+    return { ivHistory: [], news: [], events: [], newsAsOf: null };
   }
+}
+
+/**
+ * News + corporate events for one symbol. Google News and the NSE calendar are
+ * independent and both flaky, so they're settled separately — one failing must
+ * not cost us the other.
+ */
+async function fetchNewsBundle(symbol, name) {
+  const [feed, nseEvents] = await Promise.all([
+    fetchStockNews(symbol, name).catch(() => ({ news: [], events: [] })),
+    nse.fetchEventCalendar(symbol).catch(() => []),
+  ]);
+  return { news: feed.news, events: feed.events, nseEvents };
 }
 
 /** Shared India VIX (market-wide) — one quote + one history call. */
@@ -501,15 +541,22 @@ async function fetchVix(token) {
  * carries its own timestamp for the detail view. candidates.json is left to the
  * next full cron.
  */
-async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys, vix) {
+async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys, vix, sectorBySym = {}) {
   const name = nameBySym[symbol] ?? symbol;
   const raw = await fetchStock(token, symbol, instruments, equityKeys[symbol]);
+  if (raw) raw.sector = sectorBySym[symbol] ?? null;
   if (!raw) {
     console.error(`single: ${symbol} could not be built (no chain?) — leaving published data as-is.`);
     process.exit(0);
   }
   const slug = fileSlug(symbol);
-  const { snap } = buildStock(name, raw, vix, await readPrevIvHistory(slug));
+  const prev = await readPrevStock(slug);
+  // The on-demand path ALWAYS fetches — this is the "Fetch latest news" button.
+  const newsBundle = await fetchNewsBundle(symbol, name);
+  raw.prevNews = prev.news;
+  raw.prevEvents = prev.events;
+  raw.prevNewsAsOf = prev.newsAsOf;
+  const { snap } = buildStock(name, raw, vix, prev.ivHistory, newsBundle);
   await writeFile(resolve(STOCKS_DIR, `${slug}.json`), JSON.stringify(snap));
 
   const idxPath = resolve(STOCKS_DIR, "index.json");
@@ -527,6 +574,7 @@ async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys,
     file: slug,
     spot: snap.spot.price,
     changePct: snap.spot.changePct,
+    sector: snap.sector ?? existing?.sector ?? null,
     liquidity: existing?.liquidity ?? { bucket: "None", score: 0 },
     structure: snap.structure ? { label: snap.structure.label, bias: snap.structure.bias } : null,
     verdict: { verdict: snap.verdict.verdict, score: snap.verdict.score },
@@ -556,23 +604,45 @@ async function main() {
     process.exit(0);
   }
   const symbols = STOCKS.map(([s]) => s);
-  const nameBySym = Object.fromEntries(STOCKS);
+  const nameBySym = Object.fromEntries(STOCKS.map(([s, n]) => [s, n]));
+  const sectorBySym = Object.fromEntries(STOCKS.map(([s, , sec]) => [s, sec ?? null]));
   const equityKeys = upstox.pickEquityKeys(instruments, symbols);
   const vix = await fetchVix(token);
 
   // On-demand single-stock refresh path.
   if (ONLY_SYMBOL) {
-    await buildOneSymbol(token, ONLY_SYMBOL, instruments, nameBySym, equityKeys, vix);
+    await buildOneSymbol(token, ONLY_SYMBOL, instruments, nameBySym, equityKeys, vix, sectorBySym);
     return;
   }
 
-  const built = await pool(STOCKS, CONCURRENCY, async ([symbol, name]) => {
+  // Read every previous file up front, because the news slice is chosen from
+  // them: the STALEST names by `newsAsOf`. That cycles the universe with no
+  // cursor to persist, and a stock that has never been fetched (no newsAsOf)
+  // sorts first, so new listings fill in immediately.
+  const prevBySlug = Object.fromEntries(
+    await Promise.all(STOCKS.map(async ([sym]) => [fileSlug(sym), await readPrevStock(fileSlug(sym))])),
+  );
+  const newsQueue = new Set(
+    [...STOCKS]
+      .sort((a, b) =>
+        (prevBySlug[fileSlug(a[0])].newsAsOf ?? "") < (prevBySlug[fileSlug(b[0])].newsAsOf ?? "") ? -1 : 1,
+      )
+      .slice(0, NEWS_PER_RUN)
+      .map(([sym]) => sym),
+  );
+
+  const built = await pool(STOCKS, CONCURRENCY, async ([symbol, name, sector]) => {
     const slug = fileSlug(symbol);
     // Read BEFORE writing — the seeded file is the previous run's published copy.
-    const prevIv = await readPrevIvHistory(slug);
+    const prev = prevBySlug[slug];
     const raw = await fetchStock(token, symbol, instruments, equityKeys[symbol]);
     if (!raw) return { symbol, name, ok: false };
-    const { snap, liquidityRaw, liquidityByExpiry, dfltMetrics } = buildStock(name, raw, vix, prevIv);
+    raw.sector = sector ?? null;
+    raw.prevNews = prev.news;
+    raw.prevEvents = prev.events;
+    raw.prevNewsAsOf = prev.newsAsOf;
+    const newsBundle = newsQueue.has(symbol) ? await fetchNewsBundle(symbol, name) : null;
+    const { snap, liquidityRaw, liquidityByExpiry, dfltMetrics } = buildStock(name, raw, vix, prev.ivHistory, newsBundle);
     await writeFile(resolve(STOCKS_DIR, `${slug}.json`), JSON.stringify(snap));
     return { symbol, name, ok: true, snap, liquidityRaw, liquidityByExpiry, dfltMetrics };
   });
@@ -594,6 +664,7 @@ async function main() {
         file: fileSlug(b.symbol),
         spot: b.snap.spot.price,
         changePct: b.snap.spot.changePct,
+        sector: b.snap.sector ?? null,
         liquidity: { bucket, score: A.round(rank * 100, 0) },
         structure: b.snap.structure ? { label: b.snap.structure.label, bias: b.snap.structure.bias } : null,
         verdict: { verdict: b.snap.verdict.verdict, score: b.snap.verdict.score },
@@ -685,7 +756,7 @@ async function main() {
   );
 
   console.log(
-    `stocks: built ${ok.length}/${STOCKS.length}; ` +
+    `stocks: built ${ok.length}/${STOCKS.length}; news refreshed for ${[...newsQueue].join(",")}; ` +
       expiryBlocks.map((e) => `${e.slot} ${e.date} ${e.candidates.length} cand${e.thin ? " (thin)" : ""}`).join("; ") +
       `; vix=${vix.value}`,
   );

@@ -50,7 +50,15 @@ export function App() {
   };
 
   // Stocks section (kept entirely separate from the index route).
-  if (stock) return <StockDashboard file={stock.file} name={stock.name} onBack={() => setStock(null)} />;
+  if (stock)
+    return (
+      <StockDashboard
+        file={stock.file}
+        name={stock.name}
+        onBack={() => setStock(null)}
+        onOpen={(file, name) => setStock({ file, name })}
+      />
+    );
   if (stocksOpen)
     return <StockScreenerView onOpen={(file, name) => setStock({ file, name })} onBack={() => setStocksOpen(false)} />;
 
