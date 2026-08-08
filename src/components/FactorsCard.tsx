@@ -30,8 +30,8 @@ export function FactorsCard({ v, snap, exp }: { v: Verdict; snap: Snapshot; exp:
                   </span>
                   <span className="text-white/40 tnum">{f.reading}</span>
                 </div>
-                <div className="relative h-1.5 mt-0.5 rounded-full bg-white/[0.06]">
-                  <div className="absolute inset-y-0 left-1/2 w-px bg-white/20" />
+                <div className="relative h-1.5 mt-0.5 rounded-full bg-white/[0.10]">
+                  <div className="absolute inset-y-0 left-1/2 w-px bg-white/35" /> {/* zero line: this axis is bipolar (−1…+1), so the midpoint is meaningful */}
                   <div
                     className={`absolute inset-y-0 rounded-full ${s >= 0 ? "bg-emerald-400/80" : "bg-rose-400/80"}`}
                     style={s >= 0 ? { left: "50%", width: `${w}%` } : { right: "50%", width: `${w}%` }}

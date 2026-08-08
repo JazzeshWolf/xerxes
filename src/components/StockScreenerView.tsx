@@ -350,20 +350,30 @@ function CandidateRow({ c, onOpen }: { c: StockCandidate; onOpen: (file: string,
             <div className="space-y-1">
               {factors.map((f) => (
                 <div key={f.key}>
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-white/70">{f.label}</span>
-                    <span className="text-white/40 tnum truncate ml-2">{f.reading}</span>
+                  <div className="flex justify-between gap-2 text-[10px]">
+                    <span className="text-white/70 shrink-0">
+                      {f.label}
+                      {/* Weight as TEXT, not a mark on the bar. An earlier version
+                          drew a tick at `left: weight%`, but the bar's axis is the
+                          factor's score — putting weight on it plotted two
+                          unrelated quantities on one scale. */}
+                      <span className="ml-1 text-white/45 tnum">{Math.round(f.weight * 100)}%</span>
+                    </span>
+                    <span className="text-white/45 tnum truncate">{f.reading}</span>
                   </div>
-                  <div className="relative h-1.5 mt-0.5 rounded-full bg-white/[0.06]">
+                  <div className="relative h-1.5 mt-0.5 rounded-full bg-white/[0.08]">
                     <div
-                      className="absolute inset-y-0 left-0 rounded-full bg-sky-400/70"
+                      className="absolute inset-y-0 left-0 rounded-full bg-sky-400/80"
                       style={{ width: `${Math.round((f.s ?? 0) * 100)}%` }}
                     />
-                    {/* weight tick: how much this factor is worth in the blend */}
-                    <div className="absolute -bottom-px h-2 w-px bg-white/25" style={{ left: `${Math.round(f.weight * 100)}%` }} />
                   </div>
                 </div>
               ))}
+              <div className="text-[9px] text-white/45 leading-relaxed pt-0.5">
+                Bar = how well this candidate scores on the factor. The % after each
+                label is its share of the blend — shares are redistributed when a
+                factor has no data, so they always total 100.
+              </div>
             </div>
           )}
 
