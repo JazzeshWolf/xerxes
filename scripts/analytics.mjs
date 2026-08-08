@@ -661,9 +661,20 @@ export function forecastVol(ohlc, dte = 30) {
 
   // Asymmetric floor. Vol mean-reverts UP out of quiet stretches, and for a
   // short-premium book underestimating vol is the direction that costs money —
-  // so the forecast is never allowed far below the name's own long-run level.
+  // so the forecast is never allowed far below the underlying's long-run level.
   // (Seen live: LICHSGFIN forecast 24.1% against a 28.4% 120-day realized.)
-  if (rv120 > 0) sigma = Math.max(sigma, 0.85 * rv120);
+  //
+  // But the anchor must not be STALE. When rv120 sits well above rv60 the old
+  // window is describing a regime that has since passed, and anchoring to it
+  // marks everything as cheap by construction — live, the indices ran
+  // rv120/rv60 ≈ 1.34-1.40 and every index option scored VRP < 1 purely from
+  // this. So the anchor is capped at 1.2× the medium-term estimate. Names where
+  // the two windows agree (LICHSGFIN: 1.10) are unaffected, which is exactly
+  // the case the floor was added for.
+  if (rv120 > 0) {
+    const anchor = rv60 > 0 ? Math.min(rv120, 1.2 * rv60) : rv120;
+    sigma = Math.max(sigma, 0.85 * anchor);
+  }
 
   return {
     sigma: round(sigma, 4),

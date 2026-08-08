@@ -595,12 +595,24 @@ describe("riskMetrics", () => {
 });
 
 describe("forecastVol conservatism floor", () => {
-  it("never forecasts far below the name's own long-run realized vol", () => {
-    // A stretch of calm at the end of a volatile history: the naive blend would
-    // extrapolate the quiet window, which is the dangerous direction for a seller.
-    const calmTail = [...fixtureOhlc(140, 0.03, 0.3, 5), ...fixtureOhlc(60, 0.004, 0.3, 9)];
+  it("never forecasts far below a long-run level the medium window agrees with", () => {
+    // A short calm patch inside an otherwise steady history: the naive blend
+    // would extrapolate the quiet window, the dangerous direction for a seller.
+    const calmTail = [...fixtureOhlc(180, 0.02, 0.3, 5), ...fixtureOhlc(25, 0.012, 0.3, 9)];
     const f = A.forecastVol(calmTail, 53);
-    expect(f.sigma).toBeGreaterThanOrEqual(0.85 * f.rv120 - 1e-9);
+    const anchor = Math.min(f.rv120, 1.2 * f.rv60);
+    expect(f.sigma).toBeGreaterThanOrEqual(0.85 * anchor - 1e-9);
+  });
+
+  it("does not anchor to a STALE long window after a regime shift", () => {
+    // Live indices ran rv120/rv60 ~1.34-1.40 — the 120-day window described a
+    // regime that had passed, and anchoring to it marked every index option
+    // cheap by construction. The anchor is capped at 1.2x the medium estimate.
+    const shifted = [...fixtureOhlc(130, 0.035, 0.3, 3), ...fixtureOhlc(75, 0.008, 0.3, 11)];
+    const f = A.forecastVol(shifted, 17);
+    expect(f.rv120 / f.rv60).toBeGreaterThan(1.2); // regime really did shift
+    expect(f.sigma).toBeLessThan(0.85 * f.rv120); // so the stale anchor is NOT used
+    expect(f.sigma).toBeGreaterThanOrEqual(0.85 * Math.min(f.rv120, 1.2 * f.rv60) - 1e-9);
   });
 });
 
