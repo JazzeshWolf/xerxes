@@ -347,6 +347,22 @@ news" button drives — but that button only truly refreshes once the Cloudflare
 Worker is deployed (`STOCK_REFRESH_URL` unset ⇒ it just re-pulls, and the tab
 says so).
 
+**⚠️ The rotation must only ever see names that RESOLVED to a chain.** The queue
+lives in `pickNewsQueue` and is fed from the *fetch pass*, not from `STOCKS` —
+`build-stocks.mjs` therefore runs two passes (fetch chains → pick queue → score),
+which is the only reason for that split. Feed it the raw universe and the ~33
+symbols with no live F&O contracts (delisted or renamed: ZOMATO→ETERNAL,
+LTIM→LTM, TATAMOTORS→TMPV …) win the staleness sort **permanently**: they never
+write a file, so their `newsAsOf` is null on every future run too.
+
+That is not theoretical — it ran in production for days. The same 15 dead
+tickers were fetched every 20 minutes while **48 live names, DELHIVERY among
+them, never got news at all**, and both the News and What's Coming panels sat
+empty for them. It hid because the build log cheerfully listed 15 refreshed
+names every run; what it never said was that the same 15 came back next time.
+The log now also prints how many live names are still awaiting a first fetch —
+that number must trend to 0, and a run where it doesn't is the tell.
+
 `mentionsCompany` is load-bearing: Google honours an OR query loosely, so without
 it a ticker like TITAN or TRENT drags in unrelated headlines.
 
