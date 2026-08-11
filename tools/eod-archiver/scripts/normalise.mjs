@@ -37,6 +37,24 @@ export function tradeDateOf(isoTs) {
   return new Date(isoTs).toISOString().slice(0, 10);
 }
 
+/** Resolve the trade date to capture, given a raw TRADE_DATE override.
+ *
+ * Lives here rather than in archive.mjs so it is importable by tests without
+ * executing the capture. The empty-string case is the one that matters: GitHub
+ * Actions renders an unset workflow input as '', and a `schedule` event has no
+ * inputs at all, so the override arrives as '' rather than undefined. Treating
+ * that as a real value produced a blank trade date and broke every scheduled
+ * run. A malformed override throws rather than silently archiving to a junk
+ * directory name. */
+export function resolveTradeDate(raw, now = new Date()) {
+  const v = raw === undefined || raw === null ? '' : String(raw).trim();
+  if (v === '') return now.toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    throw new Error(`TRADE_DATE must be YYYY-MM-DD, got '${raw}'`);
+  }
+  return v;
+}
+
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const int = (v) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null);
 const bool = (v) => (typeof v === 'boolean' ? (v ? 1 : 0) : null);

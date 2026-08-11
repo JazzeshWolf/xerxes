@@ -19,33 +19,46 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, makeInserter, recordMissedDay, recordRun, hasSnapshot } from './db.mjs';
-import { flattenSnapshot, tradeDateOf } from './normalise.mjs';
+import { flattenSnapshot, tradeDateOf, resolveTradeDate } from './normalise.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+// Read an env var, treating EMPTY STRING as unset.
+//
+// This is not pedantry. GitHub Actions renders an unset workflow input as an
+// empty string, not as an absent variable — and on a `schedule` event there are
+// no inputs at all, so `${{ inputs.trade_date }}` also renders empty. Using
+// `??` here silently produced a blank trade date on every scheduled run, which
+// made the freshness check compare against '' and fail as STALE_UPSTREAM
+// forever. Caught in production on the very first run; do not revert to `??`.
+const env = (name, fallback) => {
+  const v = process.env[name];
+  return v === undefined || v === '' ? fallback : v;
+};
+
 const CFG = {
-  sourceRepo: process.env.SOURCE_REPO ?? 'https://github.com/JazzeshWolf/xerxes.git',
-  stocksBranch: process.env.STOCKS_BRANCH ?? 'stocks-data',
+  sourceRepo: env('SOURCE_REPO', 'https://github.com/JazzeshWolf/xerxes.git'),
+  stocksBranch: env('STOCKS_BRANCH', 'stocks-data'),
   // NOTE: the task brief said indices live on `main`. They do not — the
   // upstream repo has NO main branch. Its de-facto trunk (Pages deploys and
   // data commits both target it) is the branch below. Verified with
   // `git ls-remote --heads`. Fallbacks are tried in order if it ever moves.
-  indicesBranch: process.env.INDICES_BRANCH ?? 'claude/nifty-option-screener-93xv0y',
+  indicesBranch: env('INDICES_BRANCH', 'claude/nifty-option-screener-93xv0y'),
   indicesFallbacks: ['main', 'master'],
   indexFiles: ['nifty', 'banknifty', 'sensex'],
-  retries: Number(process.env.RETRIES ?? 6),          // attempts AFTER the first
-  retryMinutes: Number(process.env.RETRY_MINUTES ?? 5),
+  retries: Number(env('RETRIES', 6)),                 // attempts AFTER the first
+  retryMinutes: Number(env('RETRY_MINUTES', 5)),
   // Earliest upstream asOf time-of-day (UTC) accepted as an end-of-day
   // snapshot. 10:00 UTC is the 15:30 IST close. Guards the archive's core
   // invariant: one POST-CLOSE snapshot per trading day. Without it, a manual
   // dispatch at lunchtime would capture mid-session prices, and idempotency
   // would then lock that in as the day's close forever.
   // FORCE_INTRADAY=1 overrides, deliberately and per-run.
-  minAsOfUtc: process.env.MIN_ASOF_UTC ?? '10:00',
+  minAsOfUtc: env('MIN_ASOF_UTC', '10:00'),
   forceIntraday: process.env.FORCE_INTRADAY === '1',
-  archiveDir: process.env.ARCHIVE_DIR ?? path.join(ROOT, 'archive'),
-  dbPath: process.env.DB_PATH ?? path.join(ROOT, 'xerxes.db'),
-  workDir: process.env.WORK_DIR ?? path.join(ROOT, '.work'),
+  archiveDir: env('ARCHIVE_DIR', path.join(ROOT, 'archive')),
+  dbPath: env('DB_PATH', path.join(ROOT, 'xerxes.db')),
+  workDir: env('WORK_DIR', path.join(ROOT, '.work')),
   dryRun: process.env.DRY_RUN === '1',
 };
 
@@ -55,9 +68,10 @@ const sh = (cmd, args, opts = {}) =>
 
 /** Today's trade date. Uses UTC because every upstream build lands between
  *  03:00 and 11:00 UTC, so the UTC date and the IST trade date always agree —
- *  no midnight straddle to get wrong. TRADE_DATE overrides it for backfills. */
+ *  no midnight straddle to get wrong. TRADE_DATE overrides it for catch-up runs
+ *  (see resolveTradeDate for why an empty override is not an override). */
 function todayUtc() {
-  return process.env.TRADE_DATE ?? new Date().toISOString().slice(0, 10);
+  return resolveTradeDate(process.env.TRADE_DATE);
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

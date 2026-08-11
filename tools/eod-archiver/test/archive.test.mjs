@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { openDb, makeInserter, recordMissedDay, recordRun, hasSnapshot } from '../scripts/db.mjs';
-import { flattenSnapshot, tradeDateOf } from '../scripts/normalise.mjs';
+import { flattenSnapshot, tradeDateOf, resolveTradeDate } from '../scripts/normalise.mjs';
 import { backfillRows } from '../scripts/backfill.mjs';
 
 const tmpDb = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'xeod-')), 'test.db');
@@ -46,6 +46,28 @@ test('tradeDateOf takes the UTC date', () => {
   assert.equal(tradeDateOf('2026-08-11T07:15:45.014Z'), '2026-08-11');
   // Late-evening IST is still the same UTC date for this data's build window.
   assert.equal(tradeDateOf('2026-08-07T13:44:00Z'), '2026-08-07');
+});
+
+// REGRESSION (found on the first production run): GitHub Actions renders an
+// unset workflow input as an EMPTY STRING, and a `schedule` event has no inputs
+// at all, so TRADE_DATE arrived as '' rather than undefined. `??` let it
+// through, the trade date came out blank, and the freshness check compared
+// asOf against '' — so every scheduled run would have failed as STALE_UPSTREAM
+// and archived nothing, permanently.
+test('an empty TRADE_DATE is not an override', () => {
+  const now = new Date('2026-08-11T10:35:00Z');
+  assert.equal(resolveTradeDate('', now), '2026-08-11');
+  assert.equal(resolveTradeDate(undefined, now), '2026-08-11');
+  assert.equal(resolveTradeDate(null, now), '2026-08-11');
+  assert.equal(resolveTradeDate('   ', now), '2026-08-11', 'whitespace is not a date either');
+});
+
+test('a real TRADE_DATE overrides, a malformed one throws', () => {
+  const now = new Date('2026-08-11T10:35:00Z');
+  assert.equal(resolveTradeDate('2026-08-07', now), '2026-08-07');
+  // Fail loudly rather than archiving into a junk directory name.
+  assert.throws(() => resolveTradeDate('yesterday', now), /YYYY-MM-DD/);
+  assert.throws(() => resolveTradeDate('11-08-2026', now), /YYYY-MM-DD/);
 });
 
 test('flattenSnapshot uses the chain as the row source', () => {
