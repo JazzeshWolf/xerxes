@@ -1,0 +1,14 @@
+# Kronos inference only. Installed by the workflow's Kronos job, never needed by
+# the test suite -- `ranker.engines.get_engine("kronos")` is the single lazy
+# import boundary that keeps torch out of everything else.
+#
+# CPU wheels: the runner has no GPU, and the CUDA build is a ~2.5GB download
+# that would dominate the job. Install with
+#   pip install -r requirements-kronos.txt --extra-index-url https://download.pytorch.org/whl/cpu
+-r requirements.txt
+torch>=2.2
+pandas>=2.0
+huggingface_hub>=0.24
+safetensors>=0.4
+einops>=0.7
+tqdm>=4.66

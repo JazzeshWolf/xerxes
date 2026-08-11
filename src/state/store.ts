@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { IndexKey, Snapshot, MarketData, StockScreener, StockCandidates } from "../lib/types";
 import { INDEX_META } from "../lib/types";
+import { rawUrl, pagesUrl, rawStockUrl } from "../lib/dataSource";
 
 export interface Dash {
   snap: Snapshot | null;
@@ -14,20 +15,14 @@ export interface Market {
   refresh: () => void;
 }
 
-const BRANCH = "claude/nifty-option-screener-93xv0y";
-// Primary: raw.githubusercontent — sees each data commit within minutes, no
-// Pages redeploy needed (data commits are [skip ci]). Fallback: the copy
-// bundled into the Pages deploy (may lag until the next code push).
-const rawUrl = (file: string) =>
-  `https://raw.githubusercontent.com/JazzeshWolf/xerxes/${BRANCH}/public/data/${file}.json`;
-const pagesUrl = (file: string) => `${import.meta.env.BASE_URL}data/${file}.json`;
-
-// Stock data lives on a dedicated, force-pushed branch (no history growth), with
-// the JSON at the branch root. Primary source is that branch via raw; the Pages
-// copy is only a local-dev fallback (production always resolves raw first).
-const STOCKS_BRANCH = "stocks-data";
-const rawStockUrl = (file: string) =>
-  `https://raw.githubusercontent.com/JazzeshWolf/xerxes/${STOCKS_BRANCH}/${file}.json`;
+// URL builders now live in lib/dataSource.ts so the repo path and the branch
+// names are declared once (the ranker needs the same repo on its own branch).
+// Behaviour is unchanged:
+//  - rawUrl: raw.githubusercontent, which sees each data commit within minutes
+//    with no Pages redeploy (data commits are [skip ci]);
+//  - pagesUrl: the copy bundled into the Pages deploy (may lag a code push);
+//  - rawStockUrl: the dedicated, force-pushed stocks branch (no history growth),
+//    with the JSON at the branch root. Production always resolves raw first.
 
 export function useDashboard(index: IndexKey): Dash {
   const [snap, setSnap] = useState<Snapshot | null>(null);

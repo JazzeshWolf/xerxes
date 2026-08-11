@@ -1,0 +1,136 @@
+name: Kronos ranker — walk-forward validation
+
+# The expensive half, deliberately on its own cadence.
+#
+# `daily` forecasts the universe once. This re-forecasts it at EVERY historical
+# rebalance date, so with Kronos it costs roughly (number of rebalances) times a
+# daily run — 30–60x. Running it on the daily schedule would burn the Actions
+# budget to re-measure a number that moves by one data point a month.
+#
+# It writes skill.json, which is what the Kronos tab is GATED on: until this job
+# has run and the measured ICIR clears the bar in ranker/config.py, the tab
+# labels its ranks UNVALIDATED. That gate is the point — the page must never
+# look more confident than the numbers justify.
+on:
+  schedule:
+    # 20:00 UTC Saturday — off-market, no contention with the daily job.
+    - cron: "0 20 * * 6"
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: "Engine to validate"
+        required: false
+        default: "kronos"
+        type: choice
+        options: ["kronos", "bootstrap"]
+      limit:
+        description: "Truncate the universe (smoke test only)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nse-ranker-validate
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Same reasoning as the daily job: universe-snapshots/ is the only record
+      # of point-in-time F&O membership, and the backtest reads it to avoid
+      # survivorship bias. The orphan republish would otherwise wipe it.
+      - name: Seed from ranker-data
+        run: |
+          mkdir -p public/data/ranker
+          if git clone --depth 1 --branch ranker-data \
+              "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" _seed 2>/dev/null; then
+            cp -r _seed/. public/data/ranker/ 2>/dev/null || true
+            rm -rf public/data/ranker/.git
+            rm -rf _seed
+            echo "Seeded $(find public/data/ranker -name '*.json' | wc -l) files."
+          else
+            echo "No ranker-data branch yet."
+          fi
+
+      - name: Install core deps
+        run: pip install -r nse-ranker/requirements.txt
+
+      - name: Unit tests
+        working-directory: nse-ranker
+        run: python -m pytest
+
+      - name: Vendor Kronos
+        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        run: |
+          COMMIT=$(python3 -c "import sys;sys.path.insert(0,'nse-ranker');from ranker import config;print(config.KRONOS_COMMIT)")
+          git clone https://github.com/shiyu-coder/Kronos.git nse-ranker/vendor/Kronos
+          git -C nse-ranker/vendor/Kronos checkout "$COMMIT"
+
+      - name: Install Kronos deps (CPU wheels)
+        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        run: |
+          pip install -r nse-ranker/requirements-kronos.txt \
+            --extra-index-url https://download.pytorch.org/whl/cpu
+
+      - name: Cache HuggingFace weights
+        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-kronos-small-v1
+
+      - name: Walk-forward validation
+        env:
+          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
+          PYTHONPATH: nse-ranker:nse-ranker/vendor/Kronos
+          OMP_NUM_THREADS: "2"
+          MKL_NUM_THREADS: "2"
+        working-directory: nse-ranker
+        run: |
+          ARGS="--engine ${{ github.event.inputs.engine || 'kronos' }}"
+          if [ -n "${{ github.event.inputs.limit }}" ]; then
+            ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
+          fi
+          python -m ranker.cli validate $ARGS --out ../public/data/ranker
+
+      # Surface the headline in the run summary so the result is readable
+      # without downloading a JSON file.
+      - name: Report to run summary
+        if: always()
+        run: |
+          if [ -f public/data/ranker/REPORT.md ]; then
+            cat public/data/ranker/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report produced — the validation step failed." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Guard — was a skill report produced?
+        id: check
+        run: |
+          if [ -f public/data/ranker/skill.json ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No skill.json — leaving ranker-data untouched."
+          fi
+
+      - name: Publish to ranker-data branch
+        if: steps.check.outputs.ok == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public/data/ranker
+          publish_branch: ranker-data
+          force_orphan: true
+          commit_message: "ranker skill report (force-pushed, no history) [skip ci]"

@@ -9,7 +9,7 @@ Pages deploys and data commits both target it).
 
 ---
 
-## The three moving parts
+## The four moving parts
 
 1. **Indices** (NIFTY / BANKNIFTY / SENSEX) — `scripts/build-data.mjs` →
    `public/data/{nifty,banknifty,sensex,market}.json`, committed to the code
@@ -17,8 +17,14 @@ Pages deploys and data commits both target it).
 2. **Stocks** (~157 NSE F&O names) — `scripts/build-stocks.mjs` →
    published to the **`stocks-data` branch** (NOT the code branch) by
    `.github/workflows/stocks.yml`.
-3. **Frontend** — Preact/Vite, deployed to `gh-pages` by `deploy.yml`, reads data
-   from raw.githubusercontent (per-branch) with a Pages copy as fallback.
+3. **Kronos ranker** (~190 NSE F&O names, cross-sectional) — `nse-ranker/`
+   (Python) → published to the **`ranker-data` branch** by `ranker.yml` (daily
+   ranks) and `ranker-validate.yml` (weekly walk-forward). Shares no script,
+   data file or branch with 1 or 2. See `nse-ranker/README.md`.
+4. **Frontend** — Preact/Vite, deployed to `gh-pages` by `deploy.yml`, reads data
+   from raw.githubusercontent (per-branch) with a Pages copy as fallback. URL
+   builders and the branch names now live in `src/lib/dataSource.ts` rather than
+   inline in `state/store.ts`.
 
 ### Why stocks data lives on its own branch
 ~157 per-stock JSONs get rewritten every run. Committing those to the code branch
@@ -351,6 +357,42 @@ not GICS (PSU and private banks sit together because they trade together). Peers
 are computed client-side from `index.json`, so the panel costs zero requests. A
 missing tag silently drops a name from its peer group, so a test asserts every
 row has one.
+
+---
+
+## The Kronos ranker (`nse-ranker/`, `ranker-data` branch)
+
+Ranks the F&O universe into deciles so you know **which side of a name's chain to
+sell**. Top decile → sell puts, bottom → sell calls. Reached from
+`InstrumentPicker` as its own top-level route (`KronosView`), NOT as a `TabBar`
+tab — TabBar holds per-instrument tabs, and a ranking across 190 names is a
+sibling of the stock screener, not a seventh view of NIFTY. `TabBar.tsx` and
+every index component are untouched by it.
+
+**It ships gated shut, deliberately.** The tab's default is "skill not yet
+measured": lean column muted, every implication prefixed *Unproven*. It unlocks
+only when a real `skill.json` reports ICIR ≥ `MIN_ICIR` **and** beating 12-1
+momentum. Read `nse-ranker/README.md` before changing anything here — the honest
+statement of what was and was not measured lives there, and the gate is the whole
+point of the design.
+
+Things that will bite:
+- **The seed step carries `universe-snapshots/` forward.** Same trap as
+  `ivHistory`: `ranker-data` is a force-pushed orphan branch, so seeding is the
+  only thing preserving point-in-time F&O membership. Break it and survivorship
+  bias silently returns to the backtest.
+- **Validation is a separate workflow because it costs 30–60× a daily run** — it
+  re-forecasts the universe at every historical rebalance date. Never merge it
+  into `ranker.yml`.
+- **Never cut the universe to save runner time.** Breadth is the edge
+  (`IR ≈ IC × √breadth`). The ladder is: reduce `SAMPLE_COUNT` → switch to
+  Kronos-mini → shard the job.
+- **The bootstrap engine is a drift/momentum baseline, not a null.** The true
+  null is the `random` benchmark. Both are reported; don't conflate them.
+- Kronos was **never executed during the build** (huggingface.co is blocked by
+  egress policy in the build sandbox). Its first real run is CI.
+- Kronos is vendored at a pinned commit by the workflow; `nse-ranker/vendor/` is
+  gitignored.
 
 ## Backlog (not started)
 

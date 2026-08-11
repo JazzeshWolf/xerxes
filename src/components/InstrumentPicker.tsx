@@ -5,7 +5,15 @@ import { ThemeToggle } from "./ThemeToggle";
 const ORDER: IndexKey[] = ["NIFTY", "BANKNIFTY", "SENSEX"];
 
 /** Landing chooser — pick which market to analyse. Persisted by the caller. */
-export function InstrumentPicker({ onPick, onPickStocks }: { onPick: (i: IndexKey) => void; onPickStocks: () => void }) {
+export function InstrumentPicker({
+  onPick,
+  onPickStocks,
+  onPickKronos,
+}: {
+  onPick: (i: IndexKey) => void;
+  onPickStocks: () => void;
+  onPickKronos: () => void;
+}) {
   return (
     <div className="flex flex-col min-h-[100dvh] px-5 justify-center">
       {/* The whole block is vertically centred, so the toggle rides alongside
@@ -39,6 +47,18 @@ export function InstrumentPicker({ onPick, onPickStocks }: { onPick: (i: IndexKe
           <div>
             <div className="text-base font-semibold">Stocks</div>
             <div className="text-[11px] text-white/45">Single-stock F&amp;O screener · liquidity, structure, candidates</div>
+          </div>
+          <span className="text-white/45 text-lg">→</span>
+        </button>
+        <button
+          onClick={onPickKronos}
+          className="w-full flex items-center justify-between rounded-xl bg-white/[0.05] border border-white/[0.08] px-4 py-3.5 active:bg-white/[0.09] text-left"
+        >
+          <div>
+            <div className="text-base font-semibold">Kronos</div>
+            <div className="text-[11px] text-white/45">
+              Cross-sectional F&amp;O ranking · which side to sell, by decile
+            </div>
           </div>
           <span className="text-white/45 text-lg">→</span>
         </button>

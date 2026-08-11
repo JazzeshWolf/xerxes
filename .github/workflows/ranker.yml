@@ -1,0 +1,163 @@
+name: Kronos NSE F&O ranker
+
+# Cross-sectional ranker for the NSE F&O single-stock universe. Entirely
+# separate from data.yml (indices) and stocks.yml (stock screener) — it shares
+# no script, no data file and no branch with either, so a failure here cannot
+# affect the screener.
+#
+# Output goes to the force-pushed `ranker-data` branch, mirroring what
+# stocks.yml does with `stocks-data`: the branch is replaced by a single orphan
+# commit each run, so history never grows despite a full payload rewrite daily.
+on:
+  schedule:
+    # 10:30 UTC = 16:00 IST, Mon–Fri — half an hour after the 15:30 close, so
+    # the settlement bar is in. Off the top of the hour because GitHub drops or
+    # delays runs that land on :00.
+    - cron: "30 10 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: "Forecast engine: kronos (real) or bootstrap (baseline)"
+        required: false
+        default: "kronos"
+        type: choice
+        options: ["kronos", "bootstrap"]
+      limit:
+        description: "Truncate the universe (SMOKE TESTS ONLY — cutting breadth trades away the edge)"
+        required: false
+        default: ""
+
+# NOTE: as documented in CLAUDE.md, GitHub's `schedule:` is best-effort and in
+# this repo has been unreliable. This job is daily rather than intraday, so a
+# 20–40 min slip is harmless and no external cron entry is required. If it ever
+# needs to be punctual, add a cron-job.org job POSTing to
+#   /repos/jazzeshwolf/xerxes/actions/workflows/ranker.yml/dispatches
+# with body {"ref":"claude/nifty-option-screener-93xv0y"} — the same pattern the
+# other two jobs already use.
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nse-ranker
+  cancel-in-progress: false
+
+jobs:
+  rank:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330 # CPU inference over ~190 names is slow; well inside the 6h cap
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Seed from the published branch on EVERY run. Two things depend on this
+      # and both fail silently if it breaks:
+      #  - universe-snapshots/ is the point-in-time membership record. It is the
+      #    ONLY defence against survivorship bias in the backtest, it can only
+      #    accumulate forward, and the orphan republish below would wipe it.
+      #  - skill.json is written by the (separate, weekly) validation job. The
+      #    daily run reads it to stamp `validated` onto its output, so losing it
+      #    would silently un-validate the tab.
+      # This is the same trap stocks.yml documents for ivHistory.
+      - name: Seed from ranker-data
+        run: |
+          mkdir -p public/data/ranker
+          if git clone --depth 1 --branch ranker-data \
+              "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" _seed 2>/dev/null; then
+            cp -r _seed/. public/data/ranker/ 2>/dev/null || true
+            rm -rf public/data/ranker/.git
+            rm -rf _seed
+            echo "Seeded $(find public/data/ranker -name '*.json' | wc -l) files."
+          else
+            echo "No ranker-data branch yet — first run."
+          fi
+
+      - name: Record seeded timestamp
+        id: pre
+        run: |
+          if [ -f public/data/ranker/index.json ]; then
+            echo "asof=$(python3 -c "import json;print(json.load(open('public/data/ranker/index.json'))['asOf'])")" >> "$GITHUB_OUTPUT"
+          else
+            echo "asof=none" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install core deps
+        run: pip install -r nse-ranker/requirements.txt
+
+      # Kronos is not on PyPI: `from model import ...` needs the repo itself on
+      # PYTHONPATH. Pinned by commit so an upstream push cannot silently change
+      # what the forecasts mean.
+      - name: Vendor Kronos
+        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        run: |
+          COMMIT=$(python3 -c "import sys;sys.path.insert(0,'nse-ranker');from ranker import config;print(config.KRONOS_COMMIT)")
+          git clone https://github.com/shiyu-coder/Kronos.git nse-ranker/vendor/Kronos
+          git -C nse-ranker/vendor/Kronos checkout "$COMMIT"
+          echo "Kronos at $(git -C nse-ranker/vendor/Kronos rev-parse HEAD)"
+
+      - name: Install Kronos deps (CPU wheels)
+        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        run: |
+          pip install -r nse-ranker/requirements-kronos.txt \
+            --extra-index-url https://download.pytorch.org/whl/cpu
+
+      # The weights are ~100MB and unchanged between runs; downloading them
+      # every day would dominate the job.
+      - name: Cache HuggingFace weights
+        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-kronos-small-v1
+
+      - name: Build ranks
+        env:
+          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
+          PYTHONPATH: nse-ranker:nse-ranker/vendor/Kronos
+          # CPU inference: cap threads to the runner's real core count. Letting
+          # torch spawn more threads than cores makes it slower, not faster.
+          OMP_NUM_THREADS: "2"
+          MKL_NUM_THREADS: "2"
+        working-directory: nse-ranker
+        run: |
+          ARGS="--engine ${{ github.event.inputs.engine || 'kronos' }}"
+          if [ -n "${{ github.event.inputs.limit }}" ]; then
+            ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
+            echo "::warning::Universe truncated — smoke test only, not a publishable ranking."
+          fi
+          python -m ranker.cli daily $ARGS --out ../public/data/ranker
+
+      # A green run does not prove fresh data: seeding happens first, so an
+      # aborted build leaves the SEEDED files on disk and a bare file-exists
+      # check would force-push stale data as a success. Compare the timestamp.
+      # (This is the guard stocks.yml learned the hard way — never weaken it.)
+      - name: Guard — did the build produce FRESH data?
+        id: check
+        run: |
+          if [ ! -f public/data/ranker/index.json ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No ranker data built — leaving ranker-data untouched."
+            exit 0
+          fi
+          NOW=$(python3 -c "import json;print(json.load(open('public/data/ranker/index.json'))['asOf'])")
+          if [ "$NOW" = "${{ steps.pre.outputs.asof }}" ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Build did not refresh the data (asOf still $NOW) — upstream fetch likely failed. Leaving ranker-data untouched."
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "Refreshed: ${{ steps.pre.outputs.asof }} -> $NOW"
+          fi
+
+      - name: Publish to ranker-data branch
+        if: steps.check.outputs.ok == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public/data/ranker
+          publish_branch: ranker-data
+          force_orphan: true
+          commit_message: "ranker data (force-pushed, no history) [skip ci]"

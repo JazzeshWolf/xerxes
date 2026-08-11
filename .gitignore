@@ -9,3 +9,13 @@ dist/
 # Stock screener data is published to the force-pushed `stocks-data` branch,
 # never committed to the code branch (would bloat history ~150 files/run).
 public/data/stocks/
+
+# Same rule for the Kronos ranker: published to the force-pushed `ranker-data`
+# branch (~190 rewritten files per run), never to the code branch.
+public/data/ranker/
+
+# Kronos is vendored at a pinned commit by the workflow, not committed here.
+nse-ranker/vendor/
+__pycache__/
+*.pyc
+.pytest_cache/
