@@ -80,8 +80,26 @@ def fetch_history(
 
     bars: dict[str, list] = {}
     ca: dict[str, dict] = {}
+    empty_streak = 0
     for n, m in enumerate(members, 1):
         raw = daily_candles(token, m.equity_key, frm, to)
+
+        # A dead token or a blocked client fails EVERY call identically. Without
+        # this, the run makes 190 doomed requests and then reports "0 names",
+        # which reads like a data problem rather than an auth one.
+        if not raw:
+            empty_streak += 1
+            if empty_streak >= C.MAX_CONSECUTIVE_EMPTY:
+                raise RuntimeError(
+                    f"{empty_streak} consecutive symbols returned no candles — "
+                    "this is a systemic failure, not thin data. Check the error "
+                    "printed above: an expired/revoked UPSTOX_ACCESS_TOKEN and a "
+                    "rejected request look different there. Aborting rather than "
+                    f"issuing {len(members) - n} more doomed requests."
+                )
+        else:
+            empty_streak = 0
+
         if len(raw) < C.MIN_BARS:
             print(f"  skip {m.symbol}: {len(raw)} bars (< {C.MIN_BARS})")
             continue
@@ -89,8 +107,7 @@ def fetch_history(
         bars[m.symbol] = cleaned
         ca[m.symbol] = info
         if n % 25 == 0:
-            print(f"  history {n}/{len(members)}")
-        time.sleep(C.FETCH_SPACING_SEC)
+            print(f"  history {n}/{len(members)} ({len(bars)} usable)")
     return bars, ca
 
 

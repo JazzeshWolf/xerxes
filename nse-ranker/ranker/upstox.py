@@ -19,9 +19,11 @@ runner and the pure-math modules stay importable without any third-party stack.
 
 from __future__ import annotations
 
+import datetime as dt
 import gzip
 import json
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -55,10 +57,23 @@ class UpstoxError(RuntimeError):
 
 def _get(url: str, headers: dict, timeout: float = 60.0) -> bytes:
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=timeout) as res:
-        if res.status != 200:
-            raise UpstoxError(f"{url} -> {res.status}")
-        return res.read()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
+            if res.status != 200:
+                raise UpstoxError(f"{url} -> {res.status}")
+            return res.read()
+    except urllib.error.HTTPError as exc:
+        # Upstox answers errors with a structured body
+        # ({"errors":[{"errorCode":"UDAPI…","message":…}]}). Swallowing it turns
+        # "your token expired" and "your date range is too wide" into the same
+        # useless "403", which is exactly what made the first live run
+        # ambiguous. Surface it.
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8", "replace")[:400]
+        except Exception:  # noqa: BLE001 - the status still matters if the body doesn't read
+            pass
+        raise UpstoxError(f"HTTP {exc.code} — {detail or exc.reason}") from exc
 
 
 def fetch_instruments() -> list[dict]:
@@ -90,23 +105,24 @@ def fetch_instruments() -> list[dict]:
     return []
 
 
-def daily_candles(token: str, instrument_key: str, from_iso: str, to_iso: str) -> list[Bar]:
-    """Daily OHLCV, oldest-first.
+def _auth_headers(token: str) -> dict:
+    # The default urllib User-Agent is a common thing for API edges to reject,
+    # and the instrument-master fetch (which sends a browser UA) succeeds on the
+    # same run where these calls 403. Cheap to send, and it removes one variable.
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "User-Agent": _BROWSERISH["User-Agent"],
+    }
 
-    Upstox returns candles newest-first as
-    ``[timestamp, open, high, low, close, volume, oi]``; we reverse and drop any
-    bar that is not internally consistent (non-positive price, high < low).
-    """
+
+def _candles_window(token: str, instrument_key: str, from_iso: str, to_iso: str) -> list[Bar]:
+    """One historical-candle request. Raises on transport/HTTP failure."""
     url = (
         f"{C.UPSTOX_BASE}/historical-candle/"
         f"{urllib.parse.quote(instrument_key, safe='')}/day/{to_iso}/{from_iso}"
     )
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-    try:
-        payload = json.loads(_get(url, headers))
-    except Exception as exc:  # noqa: BLE001 - one dead symbol must not abort the run
-        print(f"upstox candles {instrument_key}: {exc}")
-        return []
+    payload = json.loads(_get(url, _auth_headers(token)))
 
     out: list[Bar] = []
     for row in payload.get("data", {}).get("candles", []) or []:
@@ -119,8 +135,50 @@ def daily_candles(token: str, instrument_key: str, from_iso: str, to_iso: str) -
         if min(o, h, l, c) <= 0 or h < l:
             continue
         out.append(Bar(t=t, o=o, h=h, l=l, c=c, v=v))
-    out.reverse()
     return out
+
+
+def daily_candles(token: str, instrument_key: str, from_iso: str, to_iso: str) -> list[Bar]:
+    """Daily OHLCV over an arbitrary span, oldest-first.
+
+    **Stitched from chunks.** Upstox caps how wide a single historical-candle
+    request may be, and this service needs ~2.5 years to fill Kronos's 512-bar
+    context — far past that cap. The screener's Node pipeline never hit this
+    because it only ever asks for 260 days in one call.
+
+    Upstox returns candles newest-first as
+    ``[timestamp, open, high, low, close, volume, oi]``; bars are de-duplicated
+    by date across chunk boundaries and returned oldest-first. Any bar that is
+    not internally consistent (non-positive price, high < low) is dropped.
+
+    Fails soft to whatever was collected: one dead window should cost a bit of
+    history, not the whole symbol, and one dead symbol must not abort a run.
+    """
+    try:
+        start = dt.date.fromisoformat(from_iso[:10])
+        end = dt.date.fromisoformat(to_iso[:10])
+    except ValueError:
+        print(f"upstox candles {instrument_key}: bad date range {from_iso}..{to_iso}")
+        return []
+
+    by_date: dict[str, Bar] = {}
+    step = dt.timedelta(days=C.HISTORY_CHUNK_DAYS)
+    cursor = start
+    while cursor <= end:
+        chunk_end = min(cursor + step, end)
+        try:
+            for bar in _candles_window(token, instrument_key, cursor.isoformat(), chunk_end.isoformat()):
+                by_date[bar.t] = bar
+        except Exception as exc:  # noqa: BLE001
+            print(f"upstox candles {instrument_key} [{cursor}..{chunk_end}]: {exc}")
+            # A window that fails for a structural reason (bad token, blocked
+            # client) will fail for every other window too; bail out of this
+            # symbol rather than repeating the same error a dozen times.
+            break
+        cursor = chunk_end + dt.timedelta(days=1)
+        time.sleep(C.FETCH_SPACING_SEC)
+
+    return [by_date[d] for d in sorted(by_date)]
 
 
 def measure_history_depth(token: str, instrument_key: str, years: int = 12) -> dict:
