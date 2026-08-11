@@ -57,11 +57,30 @@ jobs:
       # run, a build that aborts (expired token, upstream 403) would otherwise
       # leave the seeded files in place, satisfy the guard below and republish
       # stale data as a green run — a failure that looks like a success.
+      # Which file carries this run's freshness signal. A FULL run stamps
+      # index.json; a SINGLE-SYMBOL run deliberately does NOT (index.json's
+      # `asOf` means "last full run", and buildOneSymbol must not forge it), so
+      # for those we watch the per-stock file, which carries its own timestamp.
+      #
+      # Getting this wrong is silent: the guard below saw an unchanged
+      # index.json on every single-symbol run and skipped the publish, so the
+      # rebuild happened, wrote the file, and threw it away. Every on-demand
+      # refresh — i.e. the in-app "Fetch latest news" button — was a no-op that
+      # reported success.
+      - name: Resolve freshness target
+        id: target
+        env:
+          SYMBOL: ${{ github.event.inputs.symbol }}
+          # `fileSlug` in scripts/build-stocks.mjs — keep the two in step.
+        run: |
+          echo "file=$(node -e "const s=(process.env.SYMBOL||'').toUpperCase(); console.log(s ? s.replace(/[^A-Za-z0-9]/g,'_') + '.json' : 'index.json')")" >> "$GITHUB_OUTPUT"
+
       - name: Record seeded timestamp
         id: pre
         run: |
-          if [ -f public/data/stocks/index.json ]; then
-            echo "asof=$(node -p "require('./public/data/stocks/index.json').asOf")" >> "$GITHUB_OUTPUT"
+          F="public/data/stocks/${{ steps.target.outputs.file }}"
+          if [ -f "$F" ]; then
+            echo "asof=$(node -p "require('./$F').asOf")" >> "$GITHUB_OUTPUT"
           else
             echo "asof=none" >> "$GITHUB_OUTPUT"
           fi
@@ -81,12 +100,13 @@ jobs:
       - name: Guard — did the build produce FRESH data?
         id: check
         run: |
-          if [ ! -f public/data/stocks/index.json ]; then
+          F="public/data/stocks/${{ steps.target.outputs.file }}"
+          if [ ! -f "$F" ]; then
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No stock data built — leaving stocks-data untouched."
+            echo "::warning::No stock data built ($F missing) — leaving stocks-data untouched."
             exit 0
           fi
-          NOW=$(node -p "require('./public/data/stocks/index.json').asOf")
+          NOW=$(node -p "require('./$F').asOf")
           if [ "$NOW" = "${{ steps.pre.outputs.asof }}" ]; then
             echo "ok=false" >> "$GITHUB_OUTPUT"
             echo "::warning::Build did not refresh the data (asOf still $NOW) — upstream fetch likely failed. Leaving stocks-data untouched."
