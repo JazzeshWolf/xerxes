@@ -465,6 +465,53 @@ describe("sellConviction", () => {
     expect(far.deliveryRisk).toBe(false);
   });
 
+  it("states what each modifier costs, in conviction points", () => {
+    // Three identically-styled warnings previously read as equally serious when
+    // they were worth 1, 5 and 8 points (a live RVNL candidate).
+    const c = A.sellConviction({
+      ...base,
+      gap: { gapShare: 0.7, maxAbsMove: 0.01 },
+      term: { slopePts: 5, regime: "backwardation" },
+    });
+    const gapNote = c.notes.find((n) => n.includes("gap risk"));
+    const termNote = c.notes.find((n) => n.includes("backwardation"));
+    expect(gapNote).toMatch(/\(−\d+\)$/);
+    expect(termNote).toMatch(/\(−\d+\)$/);
+    // The bigger cut must carry the bigger number.
+    const pts = (n) => Number(n.match(/(\d+)\)$/)[1]);
+    expect(pts(gapNote)).toBeGreaterThan(pts(termNote));
+  });
+
+  it("declares the contango BONUS, not only the penalties", () => {
+    const c = A.sellConviction({ ...base, term: { slopePts: -5, regime: "contango" } });
+    const note = c.notes.find((n) => n.includes("contango"));
+    expect(note).toMatch(/\(\+\d+\)$/);
+  });
+
+  it("says nothing about a modifier that changed nothing", () => {
+    // gapShare a hair over the 0.35 threshold: the cut is real but rounds to
+    // zero points, so printing it would be noise. This is the suppression rule —
+    // no second cutoff to tune, it falls out of the displayed unit.
+    const c = A.sellConviction({ ...base, gap: { gapShare: 0.355, maxAbsMove: 0.01 } });
+    expect(c.notes.find((n) => n.includes("gap risk"))).toBeUndefined();
+    // …while a genuinely gappy name still says so.
+    const gappy = A.sellConviction({ ...base, gap: { gapShare: 0.8, maxAbsMove: 0.01 } });
+    expect(gappy.notes.find((n) => n.includes("gap risk"))).toBeDefined();
+  });
+
+  it("the costs add up to the gap between the raw blend and the score", () => {
+    // The property that makes the numbers trustworthy rather than decorative.
+    const inp = {
+      ...base,
+      gap: { gapShare: 0.6, maxAbsMove: 0.01 },
+      term: { slopePts: 4, regime: "backwardation" },
+    };
+    const c = A.sellConviction(inp);
+    const bare = A.sellConviction({ ...inp, gap: null, term: null });
+    const summed = c.notes.reduce((a, n) => a + Number(n.match(/(\d+)\)$/)[1]), 0);
+    expect(Math.abs(summed - (bare.conviction - c.conviction))).toBeLessThanOrEqual(2);
+  });
+
   it("returns null on unusable inputs instead of a fabricated score", () => {
     expect(A.sellConviction(null)).toBeNull();
     expect(A.sellConviction({ ...base, spot: 0 })).toBeNull();

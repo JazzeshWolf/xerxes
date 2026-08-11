@@ -1123,37 +1123,46 @@ export function sellConviction(inp) {
   });
 
   // --- modifiers ------------------------------------------------------------
-  const notes = [];
+  // Each one records what it did as { text, cut } rather than pushing a bare
+  // string, so the note can state its own price once `conviction` is known.
+  // Without that, three identically-styled warnings read as equally serious when
+  // they can be worth 1, 5 and 8 points — which is what a live RVNL candidate
+  // looked like.
+  const mods = [];
+  const add = (text, cut) => {
+    if (cut) mods.push({ text, cut });
+  };
   let mult = 1;
 
   // Gap-risk haircut. The names that blow up short premium held to expiry are the
   // ones whose risk arrives overnight, where no stop and no adjustment reaches.
   if (gap?.gapShare != null) {
     const cut = clamp((gap.gapShare - 0.35) / 0.4, 0, 1) * 0.35;
-    if (cut > 0) {
-      mult *= 1 - cut;
-      notes.push(`gap risk: ${round(gap.gapShare * 100, 0)}% of variance arrives overnight`);
-    }
+    mult *= 1 - cut;
+    add(`gap risk: ${round(gap.gapShare * 100, 0)}% of variance arrives overnight`, cut);
   }
   if (gap?.maxAbsMove != null && sf > 0) {
     const dailySigma = sf / Math.sqrt(252);
     if (dailySigma > 0 && gap.maxAbsMove > 3.5 * dailySigma) {
       mult *= 0.85;
-      notes.push(`recent ${round(gap.maxAbsMove * 100, 1)}% single-day move`);
+      add(`recent ${round(gap.maxAbsMove * 100, 1)}% single-day move`, 0.15);
     }
   }
 
   // Term structure: front bid over back = near-term event/stress priced in.
+  // A negative cut is a BONUS (contango — the front month is cheap to the back),
+  // and it is worth saying so for the same reason the penalties are.
   if (term?.slopePts != null) {
-    mult *= 1 - clamp(term.slopePts / 6, -1, 1) * 0.08;
-    if (term.regime === "backwardation") notes.push(`backwardation ${term.slopePts} vol pts`);
+    const cut = clamp(term.slopePts / 6, -1, 1) * 0.08;
+    mult *= 1 - cut;
+    add(cut > 0 ? `backwardation ${term.slopePts} vol pts` : `contango ${Math.abs(term.slopePts)} vol pts`, cut);
   }
 
   // A steep crash smirk argues specifically against selling this name's puts.
   if (smirk != null && type === "PE" && smirk > 0) {
     const cut = clamp(smirk / 10, 0, 1) * 0.1;
     mult *= 1 - cut;
-    if (cut > 0.03) notes.push(`put smirk ${smirk} vol pts`);
+    add(`put smirk ${smirk} vol pts`, cut);
   }
 
   // Tail reliance. When the modelled fair value is a sliver of the premium, the
@@ -1165,10 +1174,21 @@ export function sellConviction(inp) {
   if (tailReliance != null && tailReliance > 0.7) {
     const cut = clamp((tailReliance - 0.7) / 0.3, 0, 1) * 0.45;
     mult *= 1 - cut;
-    notes.push(`${round(tailReliance * 100, 0)}% of the premium is tail-risk compensation — thin real cushion`);
+    add(`${round(tailReliance * 100, 0)}% of the premium is tail-risk compensation — thin real cushion`, cut);
   }
 
   const conviction = round(clamp(score * mult, 0, 1) * 100, 0);
+
+  // Price each modifier in the unit actually on screen: what conviction would
+  // have been without it, minus what it is. Exact under compounding, so the
+  // costs sum to the gap between the raw blend and the final score.
+  // A modifier whose cost rounds to zero changed nothing, so it isn't shown —
+  // that is what silences a threshold that has only just been crossed, with no
+  // second cutoff to tune.
+  const notes = mods
+    .map(({ text, cut }) => ({ text, pts: Math.round((conviction * cut) / (1 - cut)) }))
+    .filter((n) => n.pts !== 0)
+    .map((n) => `${n.text} (${n.pts > 0 ? "−" : "+"}${Math.abs(n.pts)})`);
   // One distribution for value and probability: the bootstrap when we have it,
   // the lognormal only as a fallback.
   const pProfit = sim ? sim.pOtm : sf > 0 ? pMeasureProb(S, K, t, sf, mu, type) : null;
