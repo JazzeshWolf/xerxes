@@ -291,6 +291,18 @@ FETCH_SPACING_SEC = 0.12
 #: at run time and written into the report -- this is only the ask.
 HISTORY_YEARS = 6
 
+#: Days per historical-candle request. The API caps the span of a single call,
+#: so a multi-year ask must be stitched from windows rather than requested in
+#: one go -- and we need ~2.5 years to fill Kronos's 512-bar context. The
+#: screener's own pipeline only ever asks for 260 days in one call
+#: (`CANDLE_LOOKBACK_DAYS` in build-stocks.mjs), which is why it never hit this.
+HISTORY_CHUNK_DAYS = 300
+
+#: Consecutive symbols allowed to come back empty before the run aborts. A dead
+#: token or a blocked client 403s *every* call, and hammering the API 190 times
+#: to discover that wastes the run and buries the real error in noise.
+MAX_CONSECUTIVE_EMPTY = 8
+
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
