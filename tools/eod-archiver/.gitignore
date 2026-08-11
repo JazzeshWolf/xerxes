@@ -1,0 +1,12 @@
+# Transient clones of the upstream branches.
+.work/
+
+# SQLite sidecars. journal_mode=DELETE means these should never persist, but if
+# a run is killed mid-transaction they must not be committed.
+xerxes.db-journal
+xerxes.db-wal
+xerxes.db-shm
+
+node_modules/
+
+# NOTE: archive/ and xerxes.db are COMMITTED on purpose. They are the product.

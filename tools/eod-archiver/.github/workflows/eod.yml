@@ -1,0 +1,69 @@
+name: EOD archive
+
+# Runs 16:05 IST (10:35 UTC), Mon-Fri.
+#
+# Timing rationale — do not "tidy" this without re-reading it:
+#   * Upstream stocks.yml runs "15 4-10 * * 1-5", so its LAST build of the day
+#     is 10:15 UTC = 15:45 IST — 15 minutes after the 15:30 IST close, which is
+#     what makes it carry closing prices. That is the snapshot worth keeping.
+#   * We fire 20 minutes later, at 10:35 UTC, so we are never racing the
+#     publish. Moving this earlier risks capturing a half-published branch;
+#     moving it much later risks colliding with nothing in particular but buys
+#     no accuracy.
+#   * GitHub's scheduler is best-effort and routinely fires 10-30 min late.
+#     That is tolerable here precisely because we sit 20 min behind the source
+#     and retry for another 30 — but it is why the job verifies asOf rather
+#     than trusting the clock.
+on:
+  schedule:
+    - cron: '35 10 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      trade_date:
+        description: 'Override trade date (YYYY-MM-DD). Only useful for catch-up runs.'
+        required: false
+      dry_run:
+        description: 'Capture and normalise but do not commit'
+        type: boolean
+        default: false
+
+# Never let two runs write the DB at once. Queue rather than cancel: a
+# cancelled run is a lost day, and lost days are unrecoverable.
+concurrency:
+  group: eod-archive
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    # 6 retries x 5 min = up to 30 min of waiting, plus clone and normalise.
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: this repo appends forever and must never be
+          # shallow-pushed. persist-credentials (default true) provides the
+          # push token.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'   # node:sqlite ships unflagged from 22.13
+
+      - name: Configure git
+        run: |
+          git config user.name  "xerxes-eod-archiver[bot]"
+          git config user.email "xerxes-eod-archiver@users.noreply.github.com"
+
+      - name: Capture EOD snapshot
+        env:
+          TRADE_DATE: ${{ inputs.trade_date }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: node scripts/archive.mjs
+
+      - name: Coverage summary
+        if: always()
+        run: node scripts/report.mjs >> "$GITHUB_STEP_SUMMARY"
