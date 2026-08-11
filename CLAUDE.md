@@ -358,6 +358,20 @@ are computed client-side from `index.json`, so the panel costs zero requests. A
 missing tag silently drops a name from its peer group, so a test asserts every
 row has one.
 
+**The file grew 190 → 241 rows** when the Kronos ranker derived the *live* F&O
+list from the instrument master and found 51 of 206 underlyings unmapped (newer
+entrants plus renames: ZOMATO→ETERNAL, Tata Motors' demerger→TMPV, LTIM→LTM).
+Two consequences worth knowing:
+
+- **The stock screener's universe grew with it**, ~157 → ~206 names, so
+  `stocks.yml` does ~30% more chain calls per run. That is a real runtime cost,
+  and also a fix: the screener had been silently missing 49 live F&O names.
+- 35 older rows no longer have F&O contracts. They resolve to nothing and drop
+  out on their own — harmless, and deliberately left in place.
+
+Refresh this whenever SEBI/NSE revise the F&O list. The tell is
+`sector == "UNMAPPED"` in the ranker's `index.json`.
+
 ---
 
 ## The Kronos ranker (`nse-ranker/`, `ranker-data` branch)

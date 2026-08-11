@@ -181,6 +181,73 @@ def daily_candles(token: str, instrument_key: str, from_iso: str, to_iso: str) -
     return [by_date[d] for d in sorted(by_date)]
 
 
+def quotes(token: str, instrument_keys: list[str]) -> dict[str, dict]:
+    """Live quotes keyed by instrument key.
+
+    Batched, because 206 keys in one URL would be several KB of query string.
+    Note Upstox's quote `ohlc.close` is the PREVIOUS close while `last_price` is
+    the current one — the same reading `scripts/upstox.mjs` relies on.
+    """
+    out: dict[str, dict] = {}
+    for i in range(0, len(instrument_keys), C.QUOTES_BATCH):
+        batch = instrument_keys[i: i + C.QUOTES_BATCH]
+        url = (
+            f"{C.UPSTOX_BASE}/market-quote/quotes?instrument_key="
+            f"{urllib.parse.quote(','.join(batch), safe=',|')}"
+        )
+        try:
+            payload = json.loads(_get(url, _auth_headers(token)))
+        except Exception as exc:  # noqa: BLE001 - a missing batch costs freshness, not the run
+            print(f"upstox quotes batch {i // C.QUOTES_BATCH}: {exc}")
+            continue
+        for v in (payload.get("data") or {}).values():
+            key = v.get("instrument_token") or v.get("instrument_key")
+            if not key:
+                continue
+            ohlc = v.get("ohlc") or {}
+            out[key] = {
+                "last_price": _f(v.get("last_price")),
+                "open": _f(ohlc.get("open")),
+                "high": _f(ohlc.get("high")),
+                "low": _f(ohlc.get("low")),
+                "prev_close": _f(ohlc.get("close")),
+                "volume": _f(v.get("volume")) or 0.0,
+            }
+        time.sleep(C.FETCH_SPACING_SEC)
+    return out
+
+
+def _f(x) -> float | None:
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
+
+
+def bar_from_quote(date_iso: str, q: dict) -> Bar | None:
+    """Build today's daily bar from a live quote.
+
+    Upstox's historical-candle endpoint does not include the running session, so
+    a job scheduled after the close would otherwise rank on the PREVIOUS day's
+    data. `scripts/build-data.mjs` solves this by merging the live quote into
+    its history (see its `mergeByDate(..., [{t: today, v: spot}])`); this is the
+    same move, kept honest by only being called after the close.
+
+    Falls back to the last price for any missing OHLC leg, so a thin quote still
+    yields a usable close rather than nothing.
+    """
+    last = q.get("last_price")
+    if last is None:
+        return None
+    o = q.get("open") or last
+    h = q.get("high") or last
+    l = q.get("low") or last
+    h = max(h, o, last)
+    l = min(l, o, last)
+    return Bar(t=date_iso, o=o, h=h, l=l, c=last, v=q.get("volume") or 0.0)
+
+
 def measure_history_depth(token: str, instrument_key: str, years: int = 12) -> dict:
     """Ask for far more history than we need and report what actually came back.
 

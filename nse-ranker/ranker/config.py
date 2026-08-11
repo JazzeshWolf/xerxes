@@ -298,6 +298,28 @@ HISTORY_YEARS = 6
 #: (`CANDLE_LOOKBACK_DAYS` in build-stocks.mjs), which is why it never hit this.
 HISTORY_CHUNK_DAYS = 300
 
+#: Instrument keys per market-quote/quotes call. 206 keys in one URL would be
+#: several KB of query string.
+QUOTES_BATCH = 40
+
+#: Upstox's historical-candle endpoint does NOT include the running session, so
+#: a job scheduled after the close still reads yesterday's last bar. When the
+#: run happens after this IST time, today's close is taken from the live quote
+#: and appended -- the same merge `build-data.mjs` already does for spot history.
+#: Before it, the "close" would really be an intraday price, so we leave it off
+#: and the ranking is honestly T-1. NSE closes 15:30; the buffer lets the
+#: settlement print land.
+APPEND_LIVE_CLOSE_AFTER_IST = (15, 40)
+IST_OFFSET_MINUTES = 330
+
+#: Share of the universe whose live price must differ from its last candle
+#: before we believe a session actually happened. On a holiday the quote
+#: endpoint still answers -- with yesterday's price -- so without this check the
+#: run would append a fabricated flat bar to all ~200 names and corrupt every
+#: return series. Even a dead-quiet session moves nearly every name a paisa, so
+#: half is a very safe floor.
+MIN_MOVED_FRACTION = 0.5
+
 #: Consecutive symbols allowed to come back empty before the run aborts. A dead
 #: token or a blocked client 403s *every* call, and hammering the API 190 times
 #: to discover that wastes the run and buries the real error in noise.

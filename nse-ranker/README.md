@@ -28,7 +28,7 @@ otherwise would make every number below meaningless.
 | Is Kronos's ICIR above the bar? | **Not measured.** No weights, no data, no walk-forward result. |
 | Does it beat 12-1 momentum? | **Not measured.** |
 | How far back do Upstox daily candles go? | **Not measured here — measured at run time** and written into `skill.json → dataDepth`. |
-| Are Upstox candles corporate-action adjusted? | **Not measured here — detected at run time** and reported in `corporateActions`. |
+| Are Upstox candles corporate-action adjusted? | **Yes — measured on the first live run.** 1 detection across 206 names; an unadjusted feed would show dozens. The detector stays on as a regression guard. |
 | Does the pipeline work end to end? | **Yes**, verified on synthetic data (`python -m ranker.cli demo`). |
 | Does the validation harness measure skill correctly? | **Yes**, and this is tested directly — see below. |
 
@@ -180,6 +180,24 @@ would be single-stock futures with a different cost stack. The spread exists to
 say whether the ranking underneath the lean is worth anything. The product is the
 lean.
 
+### Today's close comes from the quote, not the candle
+
+Upstox's historical-candle endpoint **excludes the running session**. The first
+live run exposed this: it published a 2026-08-10 ranking at 21:52 IST on 08-11 —
+forty minutes *after* the index pipeline had already recorded an 08-11 bar. A job
+scheduled for "16:00 IST, after the close" was ranking the previous day.
+
+`build-data.mjs` already solves this by merging the live quote into its spot
+history, and `append_todays_close` does the same. Two guards on it:
+
+* **A clock gate.** Before 15:40 IST the "close" would be an intraday print, so
+  nothing is appended and the ranking is honestly T-1.
+* **A universe-level movement check.** The quote endpoint answers on holidays
+  too, echoing yesterday's price. Appending that would put a fabricated flat bar
+  on ~200 names and corrupt every return series — silently, and looking exactly
+  like data. So a session is only believed when at least
+  `MIN_MOVED_FRACTION` of the universe has moved off its last close.
+
 ### Kronos's `sample_count` averages
 
 `predict(..., sample_count=N)` averages its N sampled paths and returns one
@@ -193,6 +211,11 @@ median line and the headline forecast cannot disagree.
 
 ## Known gaps
 
+- **The sector map needs refreshing when NSE revises the F&O list.** The first
+  live run derived 206 underlyings and found 51 with no sector — a quarter of
+  the universe pooled into one `OTHER` bucket, which is not sector-neutralisation
+  in any useful sense. Those are now mapped (coverage 206/206), but the same drift
+  will recur: check `sector == "UNMAPPED"` in `index.json` after any F&O revision.
 - **Survivorship bias is present on early runs.** `universe-snapshots/` can only
   accumulate going forward, so until it has history the backtest uses today's
   F&O list for past dates. The report counts point-in-time vs fallback dates

@@ -40,7 +40,7 @@ from .universe import (
     load_snapshots,
     save_snapshot,
 )
-from .upstox import daily_candles, fetch_instruments
+from .upstox import bar_from_quote, daily_candles, fetch_instruments, quotes
 
 ISO = "%Y-%m-%dT%H:%M:%S.000Z"
 
@@ -108,7 +108,75 @@ def fetch_history(
         ca[m.symbol] = info
         if n % 25 == 0:
             print(f"  history {n}/{len(members)} ({len(bars)} usable)")
+
+    append_todays_close(token, members, bars)
     return bars, ca
+
+
+def ist_now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=C.IST_OFFSET_MINUTES)
+
+
+def append_todays_close(token: str, members: list[Member], bars: dict[str, list]) -> bool:
+    """Add today's session to each series from the live quote, after the close.
+
+    Upstox's historical-candle endpoint excludes the running session, so without
+    this a job scheduled for 16:00 IST -- explicitly "after the close" -- still
+    ranks on the PREVIOUS day's data. `build-data.mjs` already merges the live
+    quote into its spot history for exactly this reason.
+
+    Deliberately gated on the clock: before the close the "close" would be an
+    intraday price, and silently ranking on a half-formed session is worse than
+    honestly ranking on yesterday. Returns whether anything was appended.
+    """
+    now = ist_now()
+    cutoff_h, cutoff_m = C.APPEND_LIVE_CLOSE_AFTER_IST
+    if (now.hour, now.minute) < (cutoff_h, cutoff_m):
+        print(f"[history] {now:%H:%M} IST is before the close — not appending a "
+              "live bar; the ranking is on the previous session.")
+        return False
+
+    today = now.date().isoformat()
+    by_key = {m.equity_key: m.symbol for m in members if m.equity_key}
+    pending = {k: s for k, s in by_key.items()
+               if s in bars and bars[s] and bars[s][-1].t < today}
+    if not pending:
+        print("[history] candles already include today — nothing to append.")
+        return False
+
+    q = quotes(token, list(pending))
+
+    # Build the candidate bars first, then decide as a UNIVERSE whether a
+    # session actually happened. On a holiday the quote endpoint still answers,
+    # with yesterday's price — appending that would add a fabricated flat bar to
+    # every name and quietly corrupt the return series the whole ranking is
+    # built on. A real session moves nearly everything.
+    candidates: dict[str, "Bar"] = {}
+    moved = 0
+    for key, symbol in pending.items():
+        bar = bar_from_quote(today, q.get(key) or {})
+        if bar is None:
+            continue
+        candidates[symbol] = bar
+        if bar.c != bars[symbol][-1].c:
+            moved += 1
+
+    if not candidates:
+        print("[history] no usable quotes — leaving the ranking on the previous session.")
+        return False
+
+    frac = moved / len(candidates)
+    if frac < C.MIN_MOVED_FRACTION:
+        print(f"[history] only {frac:.0%} of names moved off their last close — "
+              "this looks like a non-trading day, not a session. Appending "
+              "nothing; the ranking stays on the previous session.")
+        return False
+
+    for symbol, bar in candidates.items():
+        bars[symbol].append(bar)
+    print(f"[history] appended today's ({today}) close to {len(candidates)}/"
+          f"{len(pending)} names ({frac:.0%} moved).")
+    return True
 
 
 # ---------------------------------------------------------------------------

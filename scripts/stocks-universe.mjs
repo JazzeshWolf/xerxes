@@ -207,4 +207,74 @@ export const STOCKS = [
   ["OIL", "Oil India", "Energy & Oil"],
   ["HINDPETRO", "HPCL", "Energy & Oil"],
   ["ABFRL", "Aditya Birla Fashion", "Retail"],
+
+  // ---------------------------------------------------------------------
+  // Added after the Kronos ranker derived the LIVE F&O list from the Upstox
+  // instrument master and found 51 of 206 underlyings had no sector here.
+  //
+  // That gap was invisible to the screener (an unmapped name just shows up
+  // without a peer group) but not to the ranker: sector-neutralisation pools
+  // every unmapped name into one OTHER bucket, so a quarter of the universe
+  // was being "sector-neutralised" against a junk drawer.
+  //
+  // Mostly newer F&O entrants plus renames/demergers the old list predates:
+  // ZOMATO -> ETERNAL, and Tata Motors' demerger -> TMPV. Sectors follow the
+  // conventions already in this file (grid/defence/EMS equipment sits in
+  // Infra & Capital Goods alongside ABB/BEL/CGPOWER; appliance makers sit in
+  // Consumer Durables alongside HAVELLS/POLYCAB).
+  // ---------------------------------------------------------------------
+  ["SHRIRAMFIN", "Shriram Finance", "NBFC & Financials"],
+  ["LTF", "L&T Finance", "NBFC & Financials"],
+  ["PNBHOUSING", "PNB Housing Finance", "NBFC & Financials"],
+  ["IREDA", "IREDA", "NBFC & Financials"],
+  ["BAJAJHLDNG", "Bajaj Holdings", "Conglomerate"],
+  ["UNIONBANK", "Union Bank of India", "Banks"],
+  ["INDIANB", "Indian Bank", "Banks"],
+  ["BANKINDIA", "Bank of India", "Banks"],
+  ["YESBANK", "Yes Bank", "Banks"],
+  ["LICI", "LIC of India", "Insurance"],
+  ["MFSL", "Max Financial Services", "Insurance"],
+  ["MOTILALOFS", "Motilal Oswal Fin Svcs", "Capital Markets"],
+  ["NAM-INDIA", "Nippon Life India AMC", "Capital Markets"],
+  ["360ONE", "360 ONE WAM", "Capital Markets"],
+  ["KFINTECH", "KFin Technologies", "Capital Markets"],
+  ["HYUNDAI", "Hyundai Motor India", "Auto"],
+  ["TMPV", "Tata Motors Pass. Vehicles", "Auto"],
+  ["FORCEMOT", "Force Motors", "Auto"],
+  ["UNOMINDA", "Uno Minda", "Auto Ancillary"],
+  ["SONACOMS", "Sona BLW Precision", "Auto Ancillary"],
+  ["POWERINDIA", "Hitachi Energy India", "Infra & Capital Goods"],
+  ["GVT&D", "GE Vernova T&D India", "Infra & Capital Goods"],
+  ["KEI", "KEI Industries", "Infra & Capital Goods"],
+  ["KAYNES", "Kaynes Technology", "Infra & Capital Goods"],
+  ["BDL", "Bharat Dynamics", "Infra & Capital Goods"],
+  ["COCHINSHIP", "Cochin Shipyard", "Infra & Capital Goods"],
+  ["NBCC", "NBCC India", "Infra & Capital Goods"],
+  ["ADANIPOWER", "Adani Power", "Power"],
+  ["SUZLON", "Suzlon Energy", "Power"],
+  ["INOXWIND", "Inox Wind", "Power"],
+  ["PREMIERENE", "Premier Energies", "Power"],
+  ["WAAREEENER", "Waaree Energies", "Power"],
+  ["AMBER", "Amber Enterprises", "Consumer Durables"],
+  ["BLUESTARCO", "Blue Star", "Consumer Durables"],
+  ["PGEL", "PG Electroplast", "Consumer Durables"],
+  ["ETERNAL", "Eternal (Zomato)", "Internet"],
+  ["SWIGGY", "Swiggy", "Internet"],
+  ["KPITTECH", "KPIT Technologies", "IT"],
+  // LTIM and LTTS both left the F&O list as LTM entered it, at a comparable
+  // price — the L&T tech entity under its current symbol, whatever the exact
+  // corporate history. IT is right either way.
+  ["LTM", "LTIMindtree", "IT"],
+  ["KALYANKJIL", "Kalyan Jewellers", "Retail"],
+  ["VMM", "Vishal Mega Mart", "Retail"],
+  ["PATANJALI", "Patanjali Foods", "FMCG"],
+  ["RADICO", "Radico Khaitan", "FMCG"],
+  ["UNITDSPR", "United Spirits", "FMCG"],
+  ["GODFRYPHLP", "Godfrey Phillips", "FMCG"],
+  ["SOLARINDS", "Solar Industries", "Chemicals"],
+  ["DALBHARAT", "Dalmia Bharat", "Cement"],
+  ["HINDZINC", "Hindustan Zinc", "Metals & Mining"],
+  ["FORTIS", "Fortis Healthcare", "Healthcare"],
+  ["PHOENIXLTD", "Phoenix Mills", "Realty"],
+  ["GMRAIRPORT", "GMR Airports", "Transport & Logistics"],
 ];
