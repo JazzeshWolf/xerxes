@@ -54,7 +54,7 @@ const THIN_EXPIRY_CANDIDATES = 8; // fewer than this in a slot → warn the user
 // because the workflow seeds public/data/stocks from the published branch on
 // every run (the same mechanism ivHistory relies on). The single-symbol refresh
 // path always fetches, so the in-app "Fetch latest news" button is immediate.
-const NEWS_PER_RUN = 15;
+const NEWS_PER_RUN = 25;
 // One name's strike ladder is a handful of near-identical trades, and without a
 // cap a single high-VRP stock crowds out the whole cross-universe list.
 const MAX_PER_SYMBOL = 2;
@@ -265,7 +265,11 @@ async function pool(items, n, fn) {
       try {
         results[idx] = await fn(items[idx], idx);
       } catch (e) {
-        console.warn(`stock ${items[idx]?.[0]}: ${e.message}`);
+        // Items are `[symbol, …]` tuples in the fetch pass and `{symbol, …}`
+        // objects in the scoring pass — label either, so a thrown error names
+        // the stock instead of logging "stock undefined".
+        const it = items[idx];
+        console.warn(`stock ${(Array.isArray(it) ? it[0] : it?.symbol) ?? "?"}: ${e.message}`);
         results[idx] = null;
       }
     }
@@ -516,6 +520,33 @@ async function readPrevStock(slug) {
 }
 
 /**
+ * Which names get their news re-fetched this run: the `limit` stalest by
+ * `newsAsOf`, a stock that has never been fetched sorting first.
+ *
+ * ⚠️ `symbols` must be the names that ACTUALLY RESOLVED to a chain this run,
+ * never the raw universe. A symbol with no live F&O contracts (delisted,
+ * renamed — ZOMATO→ETERNAL, LTIM→LTM, and ~33 others in the shipped list)
+ * never writes a per-stock file, so its `newsAsOf` is null on every future run
+ * too. Feed the universe in and those dead names win the staleness sort
+ * *permanently*, taking every slot on every build.
+ *
+ * That is not hypothetical — it is what production did. The same 15 dead
+ * tickers were fetched every 20 minutes for days while 48 live names,
+ * DELHIVERY among them, never got news at all. The queue looked busy in the
+ * logs, which is exactly why it went unnoticed.
+ */
+export function pickNewsQueue(symbols, newsAsOfBySymbol, limit) {
+  return new Set(
+    [...symbols]
+      // Ties must compare equal: a comparator that returns ±1 for equal keys is
+      // inconsistent, and with every never-fetched name tying at "" that is
+      // most of the list.
+      .sort((a, b) => String(newsAsOfBySymbol[a] ?? "").localeCompare(String(newsAsOfBySymbol[b] ?? "")))
+      .slice(0, limit),
+  );
+}
+
+/**
  * News + corporate events for one symbol. Google News and the NSE calendar are
  * independent and both flaky, so they're settled separately — one failing must
  * not cost us the other.
@@ -622,29 +653,34 @@ async function main() {
     return;
   }
 
-  // Read every previous file up front, because the news slice is chosen from
-  // them: the STALEST names by `newsAsOf`. That cycles the universe with no
-  // cursor to persist, and a stock that has never been fetched (no newsAsOf)
-  // sorts first, so new listings fill in immediately.
+  // Read every previous file up front: it carries each name's ivHistory, its
+  // cached news/events, and the `newsAsOf` the news rotation is ordered by.
   const prevBySlug = Object.fromEntries(
     await Promise.all(STOCKS.map(async ([sym]) => [fileSlug(sym), await readPrevStock(fileSlug(sym))])),
   );
-  const newsQueue = new Set(
-    [...STOCKS]
-      .sort((a, b) =>
-        (prevBySlug[fileSlug(a[0])].newsAsOf ?? "") < (prevBySlug[fileSlug(b[0])].newsAsOf ?? "") ? -1 : 1,
-      )
-      .slice(0, NEWS_PER_RUN)
-      .map(([sym]) => sym),
+  // Pass 1 — chains only. The news slice deliberately cannot be chosen yet:
+  // picking it before we know which symbols resolved is what let dead tickers
+  // monopolise the queue forever (see `pickNewsQueue`).
+  const fetched = await pool(STOCKS, CONCURRENCY, async ([symbol, name, sector]) => {
+    const raw = await fetchStock(token, symbol, instruments, equityKeys[symbol]);
+    if (!raw) return null;
+    raw.sector = sector ?? null;
+    return { symbol, name, raw };
+  });
+  const live = fetched.filter(Boolean);
+
+  // Pass 2 — news for the stalest few names that actually have a chain, then
+  // score. Only ~NEWS_PER_RUN of these do any network work; the rest is CPU.
+  const newsQueue = pickNewsQueue(
+    live.map((s) => s.symbol),
+    Object.fromEntries(live.map((s) => [s.symbol, prevBySlug[fileSlug(s.symbol)].newsAsOf])),
+    NEWS_PER_RUN,
   );
 
-  const built = await pool(STOCKS, CONCURRENCY, async ([symbol, name, sector]) => {
+  const built = await pool(live, CONCURRENCY, async ({ symbol, name, raw }) => {
     const slug = fileSlug(symbol);
     // Read BEFORE writing — the seeded file is the previous run's published copy.
     const prev = prevBySlug[slug];
-    const raw = await fetchStock(token, symbol, instruments, equityKeys[symbol]);
-    if (!raw) return { symbol, name, ok: false };
-    raw.sector = sector ?? null;
     raw.prevNews = prev.news;
     raw.prevEvents = prev.events;
     raw.prevNewsAsOf = prev.newsAsOf;
@@ -762,8 +798,16 @@ async function main() {
     JSON.stringify({ asOf, expiries: expiryBlocks, candidates: expiryBlocks[0]?.candidates ?? [] }),
   );
 
+  // Report the news backlog, not just who was fetched. The starved-queue bug
+  // was invisible because the log happily listed 15 names every run; what it
+  // never said was that the same 15 came back next time and nobody else moved.
+  const neverFetched = live.filter(
+    (s) => !newsQueue.has(s.symbol) && !prevBySlug[fileSlug(s.symbol)].newsAsOf,
+  ).length;
+
   console.log(
-    `stocks: built ${ok.length}/${STOCKS.length}; news refreshed for ${[...newsQueue].join(",")}; ` +
+    `stocks: built ${ok.length}/${STOCKS.length}; news refreshed for ${[...newsQueue].join(",")} ` +
+      `(${neverFetched} live names still awaiting first fetch); ` +
       expiryBlocks.map((e) => `${e.slot} ${e.date} ${e.candidates.length} cand${e.thin ? " (thin)" : ""}`).join("; ") +
       `; vix=${vix.value}`,
   );
