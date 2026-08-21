@@ -358,3 +358,34 @@ row has one.
 - Build-time warning when the Upstox token is near expiry.
 - Optional: deploy the Cloudflare Worker (`worker/`) to enable true on-demand
   in-app refresh (steps in `worker/README.md`).
+
+---
+
+## External references worth keeping
+
+### `public-apis/public-apis` — curated free-API directory
+<https://github.com/public-apis/public-apis> (README.md is the whole thing, ~236 KB,
+~50 categories). Scanned 2026-08-20 for anything that helps Xerxes. Verdict: the
+list is overwhelmingly **US-centric and mostly irrelevant here** — but two things
+are worth remembering, and one absence is worth knowing.
+
+**The one real candidate — `MarketAux`** (<https://www.marketaux.com/>, apiKey,
+free tier): "live stock market news with **tagged tickers** + sentiment". Tagged
+tickers is the interesting part: `stock-news.mjs` currently identifies a company
+by *text matching* on the headline, which is why `mentionsCompany` exists and why
+short tickers collide with foreign listings (Flanigan's `NYSEAMERICAN:BDL` vs
+Bharat Dynamics). A feed that tags the ticker at source sidesteps that class of
+bug entirely. Measured collision rate on 2026-08-20 was only **12 of 1,936
+headlines (0.6%)** across 10 symbols, so this is a *nice-to-have*, not a fix
+worth a migration — check India coverage before taking it seriously, since the
+free tiers of these aggregators are usually thin on NSE names.
+
+**Nothing here replaces Upstox.** No NSE/BSE **option chain** source in the whole
+directory. The India entries are `Indian Mutual Fund` (mfapi.in) and
+`Razorpay IFSC` (bank codes) — neither is F&O. The equity APIs (Alpha Vantage,
+Finnhub, Polygon, Marketstack, IEX, Alpaca) are US equities/ETFs. So the
+Upstox-token-expiry risk in the credentials table above has **no drop-in
+alternative from this list**; do not go looking for one here.
+
+Other categories (`Currency Exchange`, `Cryptocurrency`, `Government`) exist if
+the project ever widens beyond NSE F&O.
