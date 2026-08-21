@@ -430,3 +430,90 @@ Things that will bite:
 - Build-time warning when the Upstox token is near expiry.
 - Optional: deploy the Cloudflare Worker (`worker/`) to enable true on-demand
   in-app refresh (steps in `worker/README.md`).
+
+---
+
+## The EOD archive — a fourth moving part (separate PRIVATE repo)
+
+**`JazzeshWolf/xerxes-eod-archive`** (private, deployed 2026-08-11).
+
+It exists because `stocks.yml` publishes with `force_orphan: true`: `stocks-data`
+holds **exactly one commit**, so every build destroys the previous snapshot.
+Nothing else on earth keeps that history — that repo is the only copy. Two rules
+follow, and both are load-bearing:
+
+- **A missed day is unrecoverable.** There is no backfill source to go back to.
+- **Never force-push and never `force_orphan` there.** Reproducing this repo's
+  own history-destroying bug on the only surviving copy of the data is the worst
+  available outcome; a test fails its build if either string appears in its
+  scripts or workflow.
+
+How it works:
+
+- Cron `35 10 * * 1-5` (16:05 IST) — 20 min after the last stock build of the day
+  (10:15 UTC = 15:45 IST), which is the one carrying closing prices.
+- It **verifies `index.json.asOf`** is today's date AND at/after 10:00 UTC rather
+  than trusting the clock. Both checks earn their keep: a failed upstream build
+  leaves the *previous* day's files in place looking perfectly valid, and a
+  manual dispatch at lunchtime would otherwise be filed as the day's close and
+  then locked in by the idempotency check.
+- Failure writes a `missed_days` row and exits **0**. A market holiday is an
+  expected outcome, not a job failure — a red X every holiday just trains
+  everyone to ignore the alerts that matter.
+- Stores `archive/YYYY-MM-DD/{stocks,indices}/*.json.gz` (~2.6 MB/day,
+  write-once) plus a normalised SQLite `xerxes.db` keyed
+  `(trade_date, symbol, expiry, strike, type)`. Rows come from the **chain**, not
+  the candidate list, so a strike keeps an unbroken price path on days it drops
+  off the ranking.
+
+**Do not keep a second copy of the archiver in this repo** — it cannot run from
+here and only rots. As of 2026-08-20: 8 trading days, 149k rows, 37 MB total.
+
+### GitHub's scheduler, again
+
+Same lesson as the `schedule:` blocks above, with a twist. The archive's cron
+**does** fire, but 20–50 min late. That is harmless *there* only because upstream
+stops rebuilding after the close, so the day's final snapshot sits on
+`stocks-data` until the next morning — roughly a 16-hour window, not a 25-minute
+one. Do not copy that tolerance back to `data.yml`/`stocks.yml`, where lateness
+during market hours is exactly the problem cron-job.org was brought in to solve.
+
+### What the archive has already measured
+
+It is a measurement instrument now, not just a backup — these came out of
+querying it, and they correct assumptions that are easy to make from the code:
+
+- **News is far fresher than `NEWS_PER_RUN` suggests.** With 25 names per build
+  and builds landing roughly every 15 min, the ~208-name universe completes a
+  full lap in **~2 hours**. Measured on 2026-08-20: **208 of 208** stocks
+  refreshed that day, median news age at the 16:15 IST snapshot **42 min**, worst
+  case **1.7 h**. A stock showing "fetched 8h ago" is simply being viewed after
+  hours, when builds have stopped — not a stuck rotation.
+- **The `mentionsCompany` ticker collision is real but small.** Foreign listings
+  sharing a ticker (Flanigan's `NYSEAMERICAN:BDL`, `CPI FIM (BDL:ORCL)` vs
+  Bharat Dynamics) leaked **12 of 1,936 headlines — 0.6%**, across 10 symbols,
+  and cleared themselves within a week as they aged out. Short/generic tickers
+  are the exposure: `OIL`, `ABB`, `CAMS`, `SAIL`, `KEI`. If it is ever worth
+  fixing, the shape is to reject a ticker match sitting inside an
+  exchange-qualified symbol (`EXCH:TICKER`) while still matching a bare
+  capitalised ticker in prose.
+
+## External references worth keeping
+
+### `public-apis/public-apis` — curated free-API directory
+<https://github.com/public-apis/public-apis> (the README *is* the project,
+~236 KB, ~50 categories). Scanned 2026-08-20 for anything that helps Xerxes.
+
+**The useful finding is an absence: there is no NSE/BSE option chain source in
+it.** The India entries are `Indian Mutual Fund` (mfapi.in) and `Razorpay IFSC`
+(bank codes); every equity API in the list (Alpha Vantage, Finnhub, Polygon,
+Marketstack, IEX, Alpaca) is US equities/ETFs. So the Upstox-token-expiry risk in
+the credentials table above has **no drop-in alternative here** — don't go
+looking.
+
+One candidate worth remembering: **MarketAux** (<https://www.marketaux.com/>,
+apiKey, free tier) serves market news with **tagged tickers**, which sidesteps
+headline text-matching — the whole class of bug `mentionsCompany` guards against.
+At a measured 0.6% collision rate it is not worth a migration; and check NSE
+coverage first, since these aggregators are usually thin on Indian mid-caps,
+which is most of this universe.
