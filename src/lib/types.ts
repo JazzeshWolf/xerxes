@@ -81,6 +81,52 @@ export interface ConvictionFactor {
 
 export type ConvictionBand = "HIGH" | "MEDIUM" | "LOW";
 
+/**
+ * The subset of a sell candidate that `CandidateRow` renders — nothing more.
+ *
+ * Two separate interfaces satisfy it structurally, and deliberately stay
+ * separate: `SellCandidate` below is what `build-data.mjs` writes into an index
+ * snapshot; `StockCandidate` further down is what `build-stocks.mjs` writes into
+ * `candidates.json`. They differ in nullability (`SellCandidate` has non-null
+ * `delta`/`iv`/`oi`, `StockCandidate` allows null) and in identity (only stocks
+ * carry symbol/name/file/expiry/dte). Everything is therefore widened or
+ * optional here, which is what lets one row component render both with no cast.
+ */
+export interface CandidateRowData {
+  strike: number;
+  type: "CE" | "PE";
+  ltp: number;
+  probProfit: number;
+  delta?: number | null;
+  iv?: number | null;
+  oi?: number | null;
+  distancePct?: number | null;
+  cushionSigma?: number | null;
+  probTouch?: number | null;
+  // Identity — stocks only; an index card already knows its instrument.
+  symbol?: string;
+  name?: string;
+  file?: string;
+  expiry?: string;
+  dte?: number;
+  // Predictive layer — on both, absent on pre-upgrade published files.
+  conviction?: number;
+  band?: ConvictionBand;
+  edgePct?: number | null;
+  fair?: number | null;
+  pProfit?: number | null;
+  cushionSigmaF?: number | null;
+  probTouchF?: number | null;
+  deliveryRisk?: boolean | null;
+  tailReliance?: number | null;
+  cvar?: number | null;
+  worst?: number | null;
+  vrp?: number | null;
+  ivRank?: number | null;
+  factors?: ConvictionFactor[];
+  notes?: string[];
+}
+
 export interface SellCandidate {
   strike: number;
   type: "CE" | "PE";
@@ -312,6 +358,8 @@ export interface StockCandidate {
   cushionSigma: number | null;
   probProfit: number;
   probTouch: number | null;
+  /** Present via the spread in `build-stocks.mjs`; declared so the UI may read it. */
+  oi?: number | null;
   creditPerLot: number | null;
   liquidity: string | null;
   // --- predictive layer (optional so a cached older candidates.json still renders)

@@ -119,11 +119,49 @@ outside the header band where the toggle was added.
   corporate events, and its sector peers.
 - The index dashboard (`src/app.tsx`) was long **deliberately untouched** by stock
   work, and stock UI duplicates the shell rather than parameterising it. That rule
-  was relaxed *once*, deliberately, to give indices the seller analytics: they now
-  share `SellTable` (which grows its Conv/Edge columns only when `conviction` is
-  present, so nothing changed for a snapshot without it) and `VolPremiumCard`
-  (`kind="index" | "stock"`). Everything else about the index layout is unchanged
-  — keep it that way absent another explicit decision.
+  has now been relaxed **twice**, both times deliberately:
+  1. To give indices the seller analytics: they share `VolPremiumCard`
+     (`kind="index" | "stock"`) and `SellTable` (which grows its Conv/Edge columns
+     only when `conviction` is present, so nothing changed for a snapshot without
+     it).
+  2. To put the sell candidates **first** on the index Verdict tab, in the stock
+     screener's shape. See the next bullet.
+  Everything else about the index layout is unchanged — keep it that way absent
+  another explicit decision.
+- **The index Verdict tab leads with `SellCandidatesCard`**, not with the direction
+  read: order is Sell candidates → Direction across horizons → Direction verdict →
+  Market structure → Volatility premium → Why. Selling premium is what the app is
+  for, so the candidates lead the way they do on the stocks screener.
+  - It renders through `CandidateRow` (`kind="index" | "stock"`), the screener's
+    row renderer **extracted** from `StockScreenerView` and now shared — the third
+    parameterised component after `SellTable` and `VolPremiumCard`. `BAND_TONE`
+    moved with it and is re-imported by `StockScreenerView`, which still uses it
+    for the stock-list row. `kind="stock"` is the default and its output is
+    byte-identical to the pre-extraction render (verified by screenshot hash in
+    both themes, row collapsed and expanded); `kind="index"` only drops what an
+    index has no data for (symbol, company name, physical settlement) and adds
+    back the Δ / OI figures the old table carried in columns.
+  - The card **states** the expiry, it does not choose it. `ExpiryChooser` in
+    `SpotStrip` owns selection for the whole page and every card keys off the same
+    block, so a second selector here would fight it.
+  - It reads `exp.verdict ?? snap.verdict` for the favoured side. `SellTable.tsx:37`
+    still reads `snap.verdict` alone — which `build-data.mjs` writes as the
+    *nearest* expiry's verdict — so on a non-default expiry the stock dashboard can
+    badge a favoured side computed from a different horizon than the strikes under
+    it. Left alone here to keep the stock dashboard untouched; see the backlog.
+  - `SellTable` survives as the **per-stock dashboard's** card
+    (`StockDashboard.tsx:108`), deliberately left in its old fifth position. The
+    two dashboards therefore differ now; that was an explicit call, not drift.
+  - Expect an **all-LOW** index list and a negative-edge banner much of the time.
+    That is the data, not a scoring artifact: measured 2026-08-22, VRP (ATM IV ÷
+    forecast RV) was **0.64-0.80 on every index and every expiry**, so `edgePct`
+    was negative on 118 of 127 candidates. `INDEX_SELL_OPTS.marginPct` (0.08) already
+    normalises against stocks' 0.15, so index scores are not structurally depressed.
+    Don't "fix" the scorer for this.
+  - Short and lopsided lists are also correct — `sellCandidates` filters on Δ ≤ 0.25
+    and a minimum premium, so NIFTY had 5 candidates at 4d vs 24 at 67d, and 0 CE /
+    24 PE at 39d. Hence the counts on the All | Puts | Calls chips: without them a
+    tap on "Calls" lands on an empty list with no explanation.
 - `Snapshot.index` is `string` (IndexKey for indices, NSE symbol for stocks). Only
   `PositionTab` reads it (localStorage key); nothing does `INDEX_META[snap.index]`.
 - **Expiry selection** is `ExpiryChooser` (in `SpotStrip`): cadence tabs
@@ -427,6 +465,16 @@ Things that will bite:
 ## Backlog (not started)
 
 - Chain tab: tap-a-strike tooltip + IV-smile overlay.
+- `SellTable.tsx:37` derives the favoured side from `snap.verdict` (the NEAREST
+  expiry's) rather than `exp.verdict`, so the per-stock dashboard mislabels it on a
+  non-default expiry. `SellCandidatesCard` already does this correctly.
+- Index sell conviction passes `ivRank: null` into the scorer
+  (`build-data.mjs:434`) even though `metrics.ivRank`/`ivPercentile` ARE computed
+  and written for display. So an index score is a 6-factor blend (weights
+  renormalised to .267/.200/.167/.144/.111/.111) while a mature stock score is the
+  full 7. The other four index overrides are each documented in `INDEX_SELL_OPTS`;
+  this one is not, and no test pins it. Decide whether it's intentional and then
+  either comment it or pass the real value.
 - Build-time warning when the Upstox token is near expiry.
 - Optional: deploy the Cloudflare Worker (`worker/`) to enable true on-demand
   in-app refresh (steps in `worker/README.md`).

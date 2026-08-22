@@ -13,7 +13,7 @@ import { MarketStructureCard } from "./components/MarketStructureCard";
 import { OiProfile } from "./components/OiProfile";
 import { LevelsCard } from "./components/LevelsCard";
 import { MetricsCard } from "./components/MetricsCard";
-import { SellTable } from "./components/SellTable";
+import { SellCandidatesCard } from "./components/SellCandidatesCard";
 import { VolPremiumCard } from "./components/VolPremiumCard";
 import { FactorsCard } from "./components/FactorsCard";
 import { HolisticTab } from "./components/HolisticTab";
@@ -151,11 +151,14 @@ function Dashboard({ instrument, onSwitch }: { instrument: IndexKey; onSwitch: (
 
             {tab === "verdict" && (
               <>
+                {/* Selling premium is what this screen is for, so the candidates
+                    lead the tab the way they lead the stocks screener. The
+                    expiry chooser in SpotStrip still sits above and drives it. */}
+                <SellCandidatesCard snap={snap} exp={exp} />
                 <HorizonBiasCard snap={snap} selected={exp.date} onSelect={setSelectedExpiry} />
                 <VerdictCard v={exp.verdict ?? snap.verdict} dte={exp.dte} />
                 <MarketStructureCard structure={snap.structure} exp={exp} />
                 <VolPremiumCard exp={exp} kind="index" />
-                <SellTable snap={snap} exp={exp} />
                 <FactorsCard v={exp.verdict ?? snap.verdict} snap={snap} exp={exp} />
               </>
             )}
