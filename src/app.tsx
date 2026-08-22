@@ -35,7 +35,7 @@ export function App() {
   });
 
   const [stocksOpen, setStocksOpen] = useState(false);
-  const [stock, setStock] = useState<{ file: string; name: string } | null>(null);
+  const [stock, setStock] = useState<{ file: string; name: string; expiry?: string } | null>(null);
   const [kronosOpen, setKronosOpen] = useState(false);
 
   const pick = (i: IndexKey) => {
@@ -70,12 +70,13 @@ export function App() {
       <StockDashboard
         file={stock.file}
         name={stock.name}
+        initialExpiry={stock.expiry}
         onBack={() => setStock(null)}
-        onOpen={(file, name) => setStock({ file, name })}
+        onOpen={(file, name, expiry) => setStock({ file, name, expiry })}
       />
     );
   if (stocksOpen)
-    return <StockScreenerView onOpen={(file, name) => setStock({ file, name })} onBack={() => setStocksOpen(false)} />;
+    return <StockScreenerView onOpen={(file, name, expiry) => setStock({ file, name, expiry })} onBack={() => setStocksOpen(false)} />;
 
   if (!instrument)
     return <InstrumentPicker onPick={pick} onPickStocks={openStocks} onPickKronos={openKronos} />;

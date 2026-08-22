@@ -27,7 +27,8 @@ export function CandidateRow({
   c: CandidateRowData;
   creditPerLot: number | null;
   kind?: "stock" | "index";
-  onOpen?: (file: string, name: string) => void;
+  /** Opens the instrument ON THIS CANDIDATE'S EXPIRY — see `openInstrument`. */
+  onOpen?: (file: string, name: string, expiry?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const band = c.band ?? null;
@@ -40,7 +41,11 @@ export function CandidateRow({
   // Narrowed by destructuring rather than asserted — an index candidate has no
   // file or name to open, so there is nothing to navigate to.
   const { file, name, symbol } = c;
-  const openInstrument = onOpen && file && name ? () => onOpen(file, name) : null;
+  // The expiry travels with the tap. A screener candidate is a specific strike
+  // on a specific expiry, and the near and next lists are entirely different
+  // trades — opening the stock on its default expiry showed a different strike
+  // than the row that was tapped.
+  const openInstrument = onOpen && file && name ? () => onOpen(file, name, c.expiry) : null;
   const credit = <>₹{fmt(creditPerLot)}</>;
 
   return (

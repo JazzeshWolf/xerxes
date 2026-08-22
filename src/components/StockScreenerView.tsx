@@ -42,7 +42,7 @@ const sortVal = (r: StockRow, f: SortField): number =>
 
 /** Stocks landing: search, the liquidity + market-structure list, and the
  *  cross-universe top premium-selling candidates. Tapping a row opens the stock. */
-export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, name: string) => void; onBack: () => void }) {
+export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, name: string, expiry?: string) => void; onBack: () => void }) {
   const { screener, candidates, loading, error, hardRefresh, refreshing, refreshError } = useStockScreener();
   const [q, setQ] = useState("");
   const [field, setField] = useState<SortField>("conviction");

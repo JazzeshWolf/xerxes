@@ -34,8 +34,14 @@ function Th({ children, tip, right }: { children: ComponentChildren; tip: string
  * premium. The verdict's preferred side is pre-selected and badged.
  */
 export function SellTable({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
+  // THIS expiry's verdict, not `snap.verdict` — build-data.mjs writes the
+  // top-level one as the NEAREST expiry's, so on any other selection it would
+  // badge a favoured side computed from a different horizon than the strikes
+  // listed below it. Reachable in normal use now that opening a screener
+  // candidate lands on its own expiry rather than the default.
+  const v = exp.verdict ?? snap.verdict;
   const favored: "PE" | "CE" | null =
-    snap.verdict.verdict === "BULLISH" ? "PE" : snap.verdict.verdict === "BEARISH" ? "CE" : null;
+    v.verdict === "BULLISH" ? "PE" : v.verdict === "BEARISH" ? "CE" : null;
   const [side, setSide] = useState<"PE" | "CE">(favored ?? "PE");
   const rows = exp.candidates.filter((c) => c.type === side).slice(0, 8);
   const lot = snap.lotSize;

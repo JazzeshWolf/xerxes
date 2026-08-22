@@ -144,11 +144,10 @@ outside the header band where the toggle was added.
   - The card **states** the expiry, it does not choose it. `ExpiryChooser` in
     `SpotStrip` owns selection for the whole page and every card keys off the same
     block, so a second selector here would fight it.
-  - It reads `exp.verdict ?? snap.verdict` for the favoured side. `SellTable.tsx:37`
-    still reads `snap.verdict` alone — which `build-data.mjs` writes as the
-    *nearest* expiry's verdict — so on a non-default expiry the stock dashboard can
-    badge a favoured side computed from a different horizon than the strikes under
-    it. Left alone here to keep the stock dashboard untouched; see the backlog.
+  - It reads `exp.verdict ?? snap.verdict` for the favoured side. `SellTable` now
+    does the same — `snap.verdict` is the *nearest* expiry's, so on any other
+    selection it badged a side computed from a different horizon than the strikes
+    under it.
   - `SellTable` survives as the **per-stock dashboard's** card
     (`StockDashboard.tsx:108`), deliberately left in its old fifth position. The
     two dashboards therefore differ now; that was an explicit call, not drift.
@@ -162,6 +161,18 @@ outside the header band where the toggle was added.
     and a minimum premium, so NIFTY had 5 candidates at 4d vs 24 at 67d, and 0 CE /
     24 PE at 39d. Hence the counts on the All | Puts | Calls chips: without them a
     tap on "Calls" lands on an empty list with no explanation.
+- **Opening a stock from a screener candidate carries that candidate's EXPIRY.**
+  `CandidateRow`'s `onOpen(file, name, expiry)` → `app.tsx` stock route state →
+  `StockDashboard`'s `initialExpiry`, which seeds `selectedExpiry` instead of
+  always forcing `snap.defaultExpiry`. Without it, tapping a Next-expiry idea
+  (say a 39d put at conviction 70) landed on the 4d chain and showed a different
+  strike entirely — the near and next lists are different trades, not a reordering
+  of the same one. Falls back to `defaultExpiry` when that expiry isn't in the
+  stock's file, which is what a stale `candidates.json` against a fresh snapshot
+  looks like. `StockRowItem` (the plain A-Z list) passes no expiry and still opens
+  on the default, correctly — there is no candidate context there.
+  `SellTable` is keyed on `exp.date` so its Puts/Calls tab re-seeds from the new
+  expiry's verdict rather than keeping one picked from the previous horizon.
 - `Snapshot.index` is `string` (IndexKey for indices, NSE symbol for stocks). Only
   `PositionTab` reads it (localStorage key); nothing does `INDEX_META[snap.index]`.
 - **Expiry selection** is `ExpiryChooser` (in `SpotStrip`): cadence tabs
@@ -465,9 +476,6 @@ Things that will bite:
 ## Backlog (not started)
 
 - Chain tab: tap-a-strike tooltip + IV-smile overlay.
-- `SellTable.tsx:37` derives the favoured side from `snap.verdict` (the NEAREST
-  expiry's) rather than `exp.verdict`, so the per-stock dashboard mislabels it on a
-  non-default expiry. `SellCandidatesCard` already does this correctly.
 - Index sell conviction passes `ivRank: null` into the scorer
   (`build-data.mjs:434`) even though `metrics.ivRank`/`ivPercentile` ARE computed
   and written for display. So an index score is a 6-factor blend (weights

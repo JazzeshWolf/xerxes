@@ -30,13 +30,16 @@ const TABS: Tab[] = ["verdict", "chain", "holistic", "news", "position"];
 export function StockDashboard({
   file,
   name,
+  initialExpiry,
   onBack,
   onOpen,
 }: {
   file: string;
   name: string;
+  /** Expiry to open on — the one the tapped screener candidate belongs to. */
+  initialExpiry?: string;
   onBack: () => void;
-  onOpen?: (file: string, name: string) => void;
+  onOpen?: (file: string, name: string, expiry?: string) => void;
 }) {
   const dash = useStock(file);
   // The screener index is already loaded/cached by the store and carries every
@@ -47,8 +50,16 @@ export function StockDashboard({
   const [tab, setTab] = useState<Tab>("verdict");
 
   useEffect(() => {
-    if (snap) setSelectedExpiry(snap.defaultExpiry);
-  }, [snap?.defaultExpiry, snap?.index]);
+    if (!snap) return;
+    // Land on the expiry the candidate came from, not blindly on the nearest
+    // one. The screener's current and next lists are different trades entirely
+    // — tapping a 39d put and arriving on the 4d chain showed a strike the user
+    // never chose. Falls back when that expiry isn't in this stock's file,
+    // which is what a stale candidates.json against a fresh snapshot looks like.
+    setSelectedExpiry(
+      initialExpiry && snap.expiries?.[initialExpiry] ? initialExpiry : snap.defaultExpiry,
+    );
+  }, [snap?.defaultExpiry, snap?.index, initialExpiry]);
 
   const exp = snap?.expiries ? snap.expiries[selectedExpiry] ?? snap.expiries[snap.defaultExpiry] : null;
   const onDefaultHorizon = !snap || !exp || exp.date === snap.defaultExpiry;
@@ -105,7 +116,7 @@ export function StockDashboard({
                 <VerdictCard v={exp.verdict ?? snap.verdict} dte={exp.dte} />
                 <MarketStructureCard structure={snap.structure} exp={exp} />
                 <VolPremiumCard exp={exp} kind="stock" />
-                <SellTable snap={snap} exp={exp} />
+                <SellTable key={exp.date} snap={snap} exp={exp} />
                 <FactorsCard v={exp.verdict ?? snap.verdict} snap={snap} exp={exp} />
               </>
             )}
