@@ -162,6 +162,22 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Native <select> popups are painted by the platform, not by our utilities.
+ * An <option> inherits the select's near-white ink, but the popup canvas is the
+ * OS default and our `bg-white/[0.06]` is only 6% opaque — composited over it
+ * that is white, so the options rendered white-on-white and were legible only
+ * under the hover highlight. Alpha utilities can't fix this by construction,
+ * since they blend into whatever the platform draws underneath: options need an
+ * OPAQUE ground and ink of their own. Theme tokens, so both palettes work.
+ *
+ * Covers both selects in the app (the screener's sort field and PositionTab's
+ * strike picker) and any added later. Platforms that draw the popup as a true
+ * native menu (Safari on macOS, mobile pickers) ignore this and are unaffected. */
+option {
+  background-color: var(--x-page);
+  color: var(--x-body);
+}
+
 /* Numeric alignment for price tables */
 .tnum {
   font-variant-numeric: tabular-nums;
