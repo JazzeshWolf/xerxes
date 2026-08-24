@@ -1,5 +1,5 @@
 {
-  "asOf": "2026-08-22T13:09:59.320Z",
+  "asOf": "2026-08-24T02:30:28.345Z",
   "stale": false,
   "source": "upstox",
   "index": "BANKNIFTY",
@@ -1202,6 +1202,10 @@
       {
         "t": "2026-08-22",
         "v": 57761.95
+      },
+      {
+        "t": "2026-08-24",
+        "v": 57761.95
       }
     ]
   },
@@ -2399,6 +2403,10 @@
       {
         "t": "2026-08-22",
         "v": 11.2
+      },
+      {
+        "t": "2026-08-24",
+        "v": 11.2
       }
     ]
   },
@@ -2412,17 +2420,17 @@
   "horizons": {
     "1W": {
       "date": "2026-08-25",
-      "dte": 3,
-      "fallback": false
+      "dte": 1,
+      "fallback": true
     },
     "1M": {
       "date": "2026-09-29",
-      "dte": 38,
+      "dte": 36,
       "fallback": false
     },
     "2M": {
       "date": "2026-10-27",
-      "dte": 66,
+      "dte": 64,
       "fallback": false
     }
   },
@@ -2430,8 +2438,8 @@
     "2026-08-25": {
       "label": "monthly",
       "date": "2026-08-25",
-      "dte": 3,
-      "tYears": 0.00786,
+      "dte": 1,
+      "tYears": 0.00359,
       "metrics": {
         "pcrOi": 0.87,
         "pcrVolume": 0.85,
@@ -2475,12 +2483,12 @@
         "atmStrike": 57800,
         "atmIv": 0.0991,
         "ivRank": 0,
-        "ivPercentile": 7.4,
-        "rv20": 0.0857,
+        "ivPercentile": 10.7,
+        "rv20": 0.0856,
         "rv60": 0.137,
         "rv120": 0.2032,
-        "sigmaForecast": 0.1183,
-        "vrp": 0.84,
+        "sigmaForecast": 0.1165,
+        "vrp": 0.85,
         "gapShare": 0.299,
         "cpIvSpread": 0.25,
         "smirk": 26.96,
@@ -2489,98 +2497,13 @@
         "expectedMove": 493,
         "skew": 0.0053,
         "gex": {
-          "netPct": 18,
-          "regime": "balanced",
+          "netPct": 20,
+          "regime": "pinning",
           "pinStrike": 58000,
           "coverage": 231
         }
       },
       "candidates": [
-        {
-          "strike": 56800,
-          "type": "PE",
-          "ltp": 27.35,
-          "iv": 0.1129,
-          "oi": 348390,
-          "delta": -0.091,
-          "distancePct": 1.67,
-          "cushionSigma": 1.95,
-          "probTouch": 0.093,
-          "probProfit": 0.909,
-          "conviction": 38,
-          "band": "LOW",
-          "edge": 6.5,
-          "edgePct": 0.0014,
-          "fair": 20.85,
-          "pProfit": 0.951,
-          "cushionSigmaF": 1.59,
-          "probTouchF": 0.109,
-          "tailReliance": 0.24,
-          "empirical": true,
-          "cvar": -389.55,
-          "worst": -1718.07,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0.03,
-              "weight": 0.267,
-              "reading": "0.14% of margin (fair ₹20.85)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0,
-              "weight": 0.2,
-              "reading": "IV 11.3% vs forecast RV 11.8% (0.95×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.59,
-              "weight": 0.167,
-              "reading": "NEUTRAL +2.1 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 0.79,
-              "weight": 0.144,
-              "reading": "1.59σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.85,
-              "weight": 0.111,
-              "reading": "P(touch) 11% · 22% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.89,
-              "weight": 0.111,
-              "reading": "OI +3.5L · vol +17.6L",
-              "present": true
-            }
-          ],
-          "notes": [
-            "put smirk 26.96 vol pts (−4)"
-          ]
-        },
         {
           "strike": 57000,
           "type": "PE",
@@ -2590,27 +2513,27 @@
           "delta": -0.14,
           "distancePct": 1.32,
           "cushionSigma": 1.54,
-          "probTouch": 0.167,
+          "probTouch": 0.041,
           "probProfit": 0.86,
-          "conviction": 37,
+          "conviction": 45,
           "band": "LOW",
-          "edge": 13.92,
-          "edgePct": 0.003,
-          "fair": 32.58,
-          "pProfit": 0.927,
-          "cushionSigmaF": 1.26,
-          "probTouchF": 0.205,
-          "tailReliance": 0.3,
+          "edge": 32.69,
+          "edgePct": 0.0071,
+          "fair": 13.81,
+          "pProfit": 0.963,
+          "cushionSigmaF": 1.89,
+          "probTouchF": 0.057,
+          "tailReliance": 0.7,
           "empirical": true,
-          "cvar": -569.8,
-          "worst": -1898.92,
+          "cvar": -229.7,
+          "worst": -780.13,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.08,
+              "s": 0.18,
               "weight": 0.267,
-              "reading": "0.3% of margin (fair ₹32.58)",
+              "reading": "0.71% of margin (fair ₹13.81)",
               "present": true
             },
             {
@@ -2618,31 +2541,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 10.9% vs forecast RV 11.8% (0.92×)",
+              "reading": "IV 10.9% vs forecast RV 11.7% (0.93×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.59,
+              "s": 0.6,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.1 · sell PE",
+              "reading": "NEUTRAL +2.3 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.63,
+              "s": 0.94,
               "weight": 0.144,
-              "reading": "1.26σ away on forecast vol",
+              "reading": "1.89σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.74,
+              "s": 0.91,
               "weight": 0.111,
-              "reading": "P(touch) 21% · 33% stressed",
+              "reading": "P(touch) 6% · 14% stressed",
               "present": true
             },
             {
@@ -2663,92 +2586,8 @@
             }
           ],
           "notes": [
-            "put smirk 26.96 vol pts (−4)"
-          ]
-        },
-        {
-          "strike": 56900,
-          "type": "PE",
-          "ltp": 35.1,
-          "iv": 0.1105,
-          "oi": 267480,
-          "delta": -0.112,
-          "distancePct": 1.49,
-          "cushionSigma": 1.75,
-          "probTouch": 0.125,
-          "probProfit": 0.888,
-          "conviction": 37,
-          "band": "LOW",
-          "edge": 8.65,
-          "edgePct": 0.0019,
-          "fair": 26.45,
-          "pProfit": 0.94,
-          "cushionSigmaF": 1.42,
-          "probTouchF": 0.152,
-          "tailReliance": 0.25,
-          "empirical": true,
-          "cvar": -481.2,
-          "worst": -1810.32,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0.05,
-              "weight": 0.267,
-              "reading": "0.19% of margin (fair ₹26.45)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0,
-              "weight": 0.2,
-              "reading": "IV 11.1% vs forecast RV 11.8% (0.93×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.59,
-              "weight": 0.167,
-              "reading": "NEUTRAL +2.1 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 0.71,
-              "weight": 0.144,
-              "reading": "1.42σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.8,
-              "weight": 0.111,
-              "reading": "P(touch) 15% · 27% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.89,
-              "weight": 0.111,
-              "reading": "OI +2.7L · vol +14.6L",
-              "present": true
-            }
-          ],
-          "notes": [
-            "put smirk 26.96 vol pts (−4)"
+            "contango 0.87 vol pts (+1)",
+            "put smirk 26.96 vol pts (−5)"
           ]
         },
         {
@@ -2760,27 +2599,27 @@
           "delta": -0.171,
           "distancePct": 1.15,
           "cushionSigma": 1.34,
-          "probTouch": 0.219,
+          "probTouch": 0.069,
           "probProfit": 0.829,
-          "conviction": 35,
+          "conviction": 44,
           "band": "LOW",
-          "edge": 20.08,
-          "edgePct": 0.0043,
-          "fair": 40.57,
-          "pProfit": 0.909,
-          "cushionSigmaF": 1.09,
-          "probTouchF": 0.272,
-          "tailReliance": 0.33,
+          "edge": 42.79,
+          "edgePct": 0.0093,
+          "fair": 17.86,
+          "pProfit": 0.956,
+          "cushionSigmaF": 1.64,
+          "probTouchF": 0.099,
+          "tailReliance": 0.71,
           "empirical": true,
-          "cvar": -655.65,
-          "worst": -1984.77,
+          "cvar": -296.65,
+          "worst": -865.98,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.11,
+              "s": 0.23,
               "weight": 0.267,
-              "reading": "0.43% of margin (fair ₹40.57)",
+              "reading": "0.93% of margin (fair ₹17.86)",
               "present": true
             },
             {
@@ -2788,31 +2627,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 10.6% vs forecast RV 11.8% (0.89×)",
+              "reading": "IV 10.6% vs forecast RV 11.7% (0.91×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.59,
+              "s": 0.6,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.1 · sell PE",
+              "reading": "NEUTRAL +2.3 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.55,
+              "s": 0.82,
               "weight": 0.144,
-              "reading": "1.09σ away on forecast vol",
+              "reading": "1.64σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.68,
+              "s": 0.86,
               "weight": 0.111,
-              "reading": "P(touch) 27% · 40% stressed",
+              "reading": "P(touch) 10% · 20% stressed",
               "present": true
             },
             {
@@ -2833,7 +2672,179 @@
             }
           ],
           "notes": [
-            "put smirk 26.96 vol pts (−4)"
+            "contango 0.87 vol pts (+1)",
+            "put smirk 26.96 vol pts (−5)"
+          ]
+        },
+        {
+          "strike": 57200,
+          "type": "PE",
+          "ltp": 75.4,
+          "iv": 0.1048,
+          "oi": 375270,
+          "delta": -0.212,
+          "distancePct": 0.97,
+          "cushionSigma": 1.14,
+          "probTouch": 0.12,
+          "probProfit": 0.788,
+          "conviction": 43,
+          "band": "LOW",
+          "edge": 52.15,
+          "edgePct": 0.0113,
+          "fair": 23.25,
+          "pProfit": 0.943,
+          "cushionSigmaF": 1.39,
+          "probTouchF": 0.162,
+          "tailReliance": 0.69,
+          "empirical": true,
+          "cvar": -380.87,
+          "worst": -951.23,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0.28,
+              "weight": 0.267,
+              "reading": "1.13% of margin (fair ₹23.25)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0,
+              "weight": 0.2,
+              "reading": "IV 10.5% vs forecast RV 11.7% (0.9×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.6,
+              "weight": 0.167,
+              "reading": "NEUTRAL +2.3 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 0.7,
+              "weight": 0.144,
+              "reading": "1.39σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.79,
+              "weight": 0.111,
+              "reading": "P(touch) 16% · 28% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.99,
+              "weight": 0.111,
+              "reading": "OI +3.8L · vol +29.9L",
+              "present": true
+            }
+          ],
+          "notes": [
+            "put smirk 26.96 vol pts (−5)"
+          ]
+        },
+        {
+          "strike": 56900,
+          "type": "PE",
+          "ltp": 35.1,
+          "iv": 0.1105,
+          "oi": 267480,
+          "delta": -0.112,
+          "distancePct": 1.49,
+          "cushionSigma": 1.75,
+          "probTouch": 0.023,
+          "probProfit": 0.888,
+          "conviction": 43,
+          "band": "LOW",
+          "edge": 24.92,
+          "edgePct": 0.0054,
+          "fair": 10.18,
+          "pProfit": 0.966,
+          "cushionSigmaF": 2.14,
+          "probTouchF": 0.031,
+          "tailReliance": 0.71,
+          "empirical": true,
+          "cvar": -168.4,
+          "worst": -691.53,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0.14,
+              "weight": 0.267,
+              "reading": "0.54% of margin (fair ₹10.18)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0,
+              "weight": 0.2,
+              "reading": "IV 11.1% vs forecast RV 11.7% (0.95×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.6,
+              "weight": 0.167,
+              "reading": "NEUTRAL +2.3 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 1,
+              "weight": 0.144,
+              "reading": "2.14σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.94,
+              "weight": 0.111,
+              "reading": "P(touch) 3% · 10% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.89,
+              "weight": 0.111,
+              "reading": "OI +2.7L · vol +14.6L",
+              "present": true
+            }
+          ],
+          "notes": [
+            "put smirk 26.96 vol pts (−5)",
+            "71% of the premium is tail-risk compensation — thin real cushion (−1)"
           ]
         },
         {
@@ -2845,27 +2856,27 @@
           "delta": 0.097,
           "distancePct": 1.28,
           "cushionSigma": 1.5,
-          "probTouch": 0.156,
+          "probTouch": 0.036,
           "probProfit": 0.903,
-          "conviction": 35,
+          "conviction": 43,
           "band": "LOW",
-          "edge": 0.04,
-          "edgePct": 0,
-          "fair": 27.96,
-          "pProfit": 0.933,
-          "cushionSigmaF": 1.22,
-          "probTouchF": 0.226,
-          "tailReliance": 0,
+          "edge": 14.06,
+          "edgePct": 0.003,
+          "fair": 13.94,
+          "pProfit": 0.958,
+          "cushionSigmaF": 1.83,
+          "probTouchF": 0.069,
+          "tailReliance": 0.5,
           "empirical": true,
-          "cvar": -509.46,
-          "worst": -1677.96,
+          "cvar": -250.76,
+          "worst": -1557.69,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0,
+              "s": 0.08,
               "weight": 0.267,
-              "reading": "0% of margin (fair ₹27.96)",
+              "reading": "0.3% of margin (fair ₹13.94)",
               "present": true
             },
             {
@@ -2873,31 +2884,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 10.1% vs forecast RV 11.8% (0.85×)",
+              "reading": "IV 10.1% vs forecast RV 11.7% (0.87×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.41,
+              "s": 0.4,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.1 · sell CE",
+              "reading": "NEUTRAL +2.3 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.61,
+              "s": 0.91,
               "weight": 0.144,
-              "reading": "1.22σ away on forecast vol",
+              "reading": "1.83σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.72,
+              "s": 0.89,
               "weight": 0.111,
-              "reading": "P(touch) 23% · 35% stressed",
+              "reading": "P(touch) 7% · 16% stressed",
               "present": true
             },
             {
@@ -2920,35 +2931,35 @@
           "notes": []
         },
         {
-          "strike": 57200,
+          "strike": 56800,
           "type": "PE",
-          "ltp": 75.4,
-          "iv": 0.1048,
-          "oi": 375270,
-          "delta": -0.212,
-          "distancePct": 0.97,
-          "cushionSigma": 1.14,
-          "probTouch": 0.293,
-          "probProfit": 0.788,
-          "conviction": 34,
+          "ltp": 27.35,
+          "iv": 0.1129,
+          "oi": 348390,
+          "delta": -0.091,
+          "distancePct": 1.67,
+          "cushionSigma": 1.95,
+          "probTouch": 0.013,
+          "probProfit": 0.909,
+          "conviction": 42,
           "band": "LOW",
-          "edge": 24.07,
-          "edgePct": 0.0052,
-          "fair": 51.33,
-          "pProfit": 0.884,
-          "cushionSigmaF": 0.93,
-          "probTouchF": 0.351,
-          "tailReliance": 0.32,
+          "edge": 19.96,
+          "edgePct": 0.0043,
+          "fair": 7.39,
+          "pProfit": 0.974,
+          "cushionSigmaF": 2.38,
+          "probTouchF": 0.016,
+          "tailReliance": 0.73,
           "empirical": true,
-          "cvar": -740.9,
-          "worst": -2070.02,
+          "cvar": -120.42,
+          "worst": -599.28,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.13,
+              "s": 0.11,
               "weight": 0.267,
-              "reading": "0.52% of margin (fair ₹51.33)",
+              "reading": "0.43% of margin (fair ₹7.39)",
               "present": true
             },
             {
@@ -2956,31 +2967,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 10.5% vs forecast RV 11.8% (0.89×)",
+              "reading": "IV 11.3% vs forecast RV 11.7% (0.97×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.59,
+              "s": 0.6,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.1 · sell PE",
+              "reading": "NEUTRAL +2.3 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.46,
+              "s": 1,
               "weight": 0.144,
-              "reading": "0.93σ away on forecast vol",
+              "reading": "2.38σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.6,
+              "s": 0.96,
               "weight": 0.111,
-              "reading": "P(touch) 35% · 47% stressed",
+              "reading": "P(touch) 2% · 6% stressed",
               "present": true
             },
             {
@@ -2994,14 +3005,15 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.99,
+              "s": 0.89,
               "weight": 0.111,
-              "reading": "OI +3.8L · vol +29.9L",
+              "reading": "OI +3.5L · vol +17.6L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 26.96 vol pts (−4)"
+            "put smirk 26.96 vol pts (−5)",
+            "73% of the premium is tail-risk compensation — thin real cushion (−2)"
           ]
         },
         {
@@ -3013,27 +3025,27 @@
           "delta": 0.125,
           "distancePct": 1.1,
           "cushionSigma": 1.29,
-          "probTouch": 0.215,
+          "probTouch": 0.067,
           "probProfit": 0.875,
-          "conviction": 33,
+          "conviction": 41,
           "band": "LOW",
-          "edge": 3.43,
-          "edgePct": 0.0007,
-          "fair": 36.07,
-          "pProfit": 0.902,
-          "cushionSigmaF": 1.05,
-          "probTouchF": 0.295,
-          "tailReliance": 0.09,
+          "edge": 20.48,
+          "edgePct": 0.0044,
+          "fair": 19.02,
+          "pProfit": 0.941,
+          "cushionSigmaF": 1.58,
+          "probTouchF": 0.116,
+          "tailReliance": 0.52,
           "empirical": true,
-          "cvar": -597.96,
-          "worst": -1766.46,
+          "cvar": -333.65,
+          "worst": -1646.19,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.02,
+              "s": 0.11,
               "weight": 0.267,
-              "reading": "0.07% of margin (fair ₹36.07)",
+              "reading": "0.44% of margin (fair ₹19.02)",
               "present": true
             },
             {
@@ -3041,31 +3053,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 10% vs forecast RV 11.8% (0.84×)",
+              "reading": "IV 10% vs forecast RV 11.7% (0.86×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.41,
+              "s": 0.4,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.1 · sell CE",
+              "reading": "NEUTRAL +2.3 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.53,
+              "s": 0.79,
               "weight": 0.144,
-              "reading": "1.05σ away on forecast vol",
+              "reading": "1.58σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.65,
+              "s": 0.84,
               "weight": 0.111,
-              "reading": "P(touch) 29% · 42% stressed",
+              "reading": "P(touch) 12% · 23% stressed",
               "present": true
             },
             {
@@ -3096,27 +3108,27 @@
           "delta": 0.161,
           "distancePct": 0.93,
           "cushionSigma": 1.09,
-          "probTouch": 0.293,
+          "probTouch": 0.12,
           "probProfit": 0.839,
-          "conviction": 31,
+          "conviction": 40,
           "band": "LOW",
-          "edge": 6.97,
-          "edgePct": 0.0015,
-          "fair": 46.63,
-          "pProfit": 0.884,
-          "cushionSigmaF": 0.89,
-          "probTouchF": 0.377,
-          "tailReliance": 0.13,
+          "edge": 28.4,
+          "edgePct": 0.0061,
+          "fair": 25.2,
+          "pProfit": 0.933,
+          "cushionSigmaF": 1.33,
+          "probTouchF": 0.184,
+          "tailReliance": 0.53,
           "empirical": true,
-          "cvar": -683.86,
-          "worst": -1852.36,
+          "cvar": -419.55,
+          "worst": -1732.09,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.04,
+              "s": 0.15,
               "weight": 0.267,
-              "reading": "0.15% of margin (fair ₹46.63)",
+              "reading": "0.61% of margin (fair ₹25.2)",
               "present": true
             },
             {
@@ -3124,31 +3136,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 9.9% vs forecast RV 11.8% (0.84×)",
+              "reading": "IV 9.9% vs forecast RV 11.7% (0.85×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.41,
+              "s": 0.4,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.1 · sell CE",
+              "reading": "NEUTRAL +2.3 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.44,
+              "s": 0.67,
               "weight": 0.144,
-              "reading": "0.89σ away on forecast vol",
+              "reading": "1.33σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.58,
+              "s": 0.77,
               "weight": 0.111,
-              "reading": "P(touch) 38% · 50% stressed",
+              "reading": "P(touch) 18% · 31% stressed",
               "present": true
             },
             {
@@ -3179,27 +3191,27 @@
           "delta": 0.204,
           "distancePct": 0.76,
           "cushionSigma": 0.89,
-          "probTouch": 0.389,
+          "probTouch": 0.203,
           "probProfit": 0.796,
-          "conviction": 30,
+          "conviction": 38,
           "band": "LOW",
-          "edge": 9.49,
-          "edgePct": 0.0021,
-          "fair": 59.81,
-          "pProfit": 0.841,
-          "cushionSigmaF": 0.72,
-          "probTouchF": 0.471,
-          "tailReliance": 0.14,
+          "edge": 35.35,
+          "edgePct": 0.0076,
+          "fair": 33.95,
+          "pProfit": 0.903,
+          "cushionSigmaF": 1.09,
+          "probTouchF": 0.279,
+          "tailReliance": 0.51,
           "empirical": true,
-          "cvar": -768.16,
-          "worst": -1936.66,
+          "cvar": -503.85,
+          "worst": -1816.39,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.05,
+              "s": 0.19,
               "weight": 0.267,
-              "reading": "0.21% of margin (fair ₹59.81)",
+              "reading": "0.76% of margin (fair ₹33.95)",
               "present": true
             },
             {
@@ -3207,31 +3219,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 9.9% vs forecast RV 11.8% (0.84×)",
+              "reading": "IV 9.9% vs forecast RV 11.7% (0.85×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.41,
+              "s": 0.4,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.1 · sell CE",
+              "reading": "NEUTRAL +2.3 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.36,
+              "s": 0.54,
               "weight": 0.144,
-              "reading": "0.72σ away on forecast vol",
+              "reading": "1.09σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.49,
+              "s": 0.67,
               "weight": 0.111,
-              "reading": "P(touch) 47% · 58% stressed",
+              "reading": "P(touch) 28% · 41% stressed",
               "present": true
             },
             {
@@ -5927,7 +5939,7 @@
         }
       ],
       "verdict": {
-        "score": 2.1,
+        "score": 2.3,
         "confidence": 0.84,
         "verdict": "NEUTRAL",
         "structure": "Iron condor / short strangle (defined-risk)",
@@ -5935,17 +5947,17 @@
           {
             "key": "trend",
             "label": "Price vs 20/50-EMA",
-            "s": 0.38,
+            "s": 0.36,
             "weight": 0.2,
-            "reading": "20-EMA 57558 · 50-EMA 57269",
+            "reading": "20-EMA 57578 · 50-EMA 57288",
             "present": true
           },
           {
             "key": "momentum",
             "label": "Momentum (5d/20d)",
-            "s": 0.28,
+            "s": 0.46,
             "weight": 0.15,
-            "reading": "5d 0.5% · 20d 1%",
+            "reading": "5d 0.9% · 20d 1.1%",
             "present": true
           },
           {
@@ -5983,9 +5995,9 @@
           {
             "key": "vixSig",
             "label": "VIX trend (inverse)",
-            "s": 0.08,
+            "s": 0.11,
             "weight": 0.1,
-            "reading": "VIX 5d -1.1%",
+            "reading": "VIX 5d -1.7%",
             "present": true
           },
           {
@@ -6002,8 +6014,8 @@
     "2026-09-29": {
       "label": "monthly",
       "date": "2026-09-29",
-      "dte": 38,
-      "tYears": 0.10375,
+      "dte": 36,
+      "tYears": 0.09949,
       "metrics": {
         "pcrOi": 1.37,
         "pcrVolume": 1.31,
@@ -6051,8 +6063,8 @@
         "rv20": 0.0978,
         "rv60": 0.137,
         "rv120": 0.2032,
-        "sigmaForecast": 0.1535,
-        "vrp": 0.7,
+        "sigmaForecast": 0.1517,
+        "vrp": 0.71,
         "gapShare": 0.299,
         "cpIvSpread": 0.1,
         "smirk": 6.62,
@@ -6069,92 +6081,6 @@
       },
       "candidates": [
         {
-          "strike": 50500,
-          "type": "PE",
-          "ltp": 23.5,
-          "iv": 0.2026,
-          "oi": 840,
-          "delta": -0.017,
-          "distancePct": 12.57,
-          "cushionSigma": 4.44,
-          "probTouch": 0.04,
-          "probProfit": 0.983,
-          "conviction": 47,
-          "band": "LOW",
-          "edge": 15.78,
-          "edgePct": 0.0034,
-          "fair": 7.72,
-          "pProfit": 0.992,
-          "cushionSigmaF": 2.54,
-          "probTouchF": 0.007,
-          "tailReliance": 0.67,
-          "empirical": true,
-          "cvar": -130.94,
-          "worst": -3041.6,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0.09,
-              "weight": 0.267,
-              "reading": "0.34% of margin (fair ₹7.72)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0.64,
-              "weight": 0.2,
-              "reading": "IV 20.3% vs forecast RV 15.4% (1.32×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.58,
-              "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 1,
-              "weight": 0.144,
-              "reading": "2.54σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.98,
-              "weight": 0.111,
-              "reading": "P(touch) 1% · 4% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.01,
-              "weight": 0.111,
-              "reading": "OI +840 · vol +180",
-              "present": true
-            }
-          ],
-          "notes": [
-            "contango 0.87 vol pts (+1)",
-            "put smirk 6.62 vol pts (−3)"
-          ]
-        },
-        {
           "strike": 62500,
           "type": "CE",
           "ltp": 161.45,
@@ -6163,35 +6089,35 @@
           "delta": 0.104,
           "distancePct": 8.2,
           "cushionSigma": 2.89,
-          "probTouch": 0.165,
+          "probTouch": 0.156,
           "probProfit": 0.896,
-          "conviction": 47,
-          "band": "LOW",
-          "edge": 82.11,
-          "edgePct": 0.0178,
-          "fair": 79.34,
-          "pProfit": 0.95,
-          "cushionSigmaF": 1.66,
-          "probTouchF": 0.111,
-          "tailReliance": 0.51,
+          "conviction": 50,
+          "band": "MEDIUM",
+          "edge": 98.68,
+          "edgePct": 0.0214,
+          "fair": 62.77,
+          "pProfit": 0.954,
+          "cushionSigmaF": 1.71,
+          "probTouchF": 0.099,
+          "tailReliance": 0.61,
           "empirical": true,
-          "cvar": -1425.2,
-          "worst": -8913.37,
+          "cvar": -1093.86,
+          "worst": -6513.88,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.45,
+              "s": 0.53,
               "weight": 0.267,
-              "reading": "1.78% of margin (fair ₹79.34)",
+              "reading": "2.14% of margin (fair ₹62.77)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.3,
+              "s": 0.32,
               "weight": 0.2,
-              "reading": "IV 17.6% vs forecast RV 15.4% (1.15×)",
+              "reading": "IV 17.6% vs forecast RV 15.2% (1.16×)",
               "present": true
             },
             {
@@ -6199,23 +6125,23 @@
               "label": "Direction alignment",
               "s": 0.42,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell CE",
+              "reading": "NEUTRAL +2 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.83,
+              "s": 0.86,
               "weight": 0.144,
-              "reading": "1.66σ away on forecast vol",
+              "reading": "1.71σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.85,
+              "s": 0.86,
               "weight": 0.111,
-              "reading": "P(touch) 11% · 22% stressed",
+              "reading": "P(touch) 10% · 21% stressed",
               "present": true
             },
             {
@@ -6248,43 +6174,43 @@
           "delta": -0.025,
           "distancePct": 9.98,
           "cushionSigma": 3.52,
-          "probTouch": 0.061,
+          "probTouch": 0.056,
           "probProfit": 0.975,
-          "conviction": 46,
+          "conviction": 48,
           "band": "LOW",
-          "edge": -0.8,
-          "edgePct": -0.0002,
-          "fair": 29.9,
-          "pProfit": 0.978,
-          "cushionSigmaF": 2.02,
-          "probTouchF": 0.034,
-          "tailReliance": 0,
+          "edge": 8.95,
+          "edgePct": 0.0019,
+          "fair": 20.15,
+          "pProfit": 0.982,
+          "cushionSigmaF": 2.08,
+          "probTouchF": 0.028,
+          "tailReliance": 0.31,
           "empirical": true,
-          "cvar": -568.96,
-          "worst": -4536,
+          "cvar": -373.83,
+          "worst": -5141.01,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0,
+              "s": 0.05,
               "weight": 0.267,
-              "reading": "-0.02% of margin (fair ₹29.9)",
+              "reading": "0.19% of margin (fair ₹20.15)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.27,
+              "s": 0.29,
               "weight": 0.2,
-              "reading": "IV 17.4% vs forecast RV 15.4% (1.13×)",
+              "reading": "IV 17.4% vs forecast RV 15.2% (1.15×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
@@ -6292,15 +6218,15 @@
               "label": "Cushion (forecast σ)",
               "s": 1,
               "weight": 0.144,
-              "reading": "2.02σ away on forecast vol",
+              "reading": "2.08σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.94,
+              "s": 0.95,
               "weight": 0.111,
-              "reading": "P(touch) 3% · 10% stressed",
+              "reading": "P(touch) 3% · 9% stressed",
               "present": true
             },
             {
@@ -6326,6 +6252,93 @@
           ]
         },
         {
+          "strike": 50500,
+          "type": "PE",
+          "ltp": 23.5,
+          "iv": 0.2026,
+          "oi": 840,
+          "delta": -0.017,
+          "distancePct": 12.57,
+          "cushionSigma": 4.44,
+          "probTouch": 0.036,
+          "probProfit": 0.983,
+          "conviction": 44,
+          "band": "LOW",
+          "edge": 17.95,
+          "edgePct": 0.0039,
+          "fair": 5.55,
+          "pProfit": 0.995,
+          "cushionSigmaF": 2.63,
+          "probTouchF": 0.005,
+          "tailReliance": 0.76,
+          "empirical": true,
+          "cvar": -87.44,
+          "worst": -3646.61,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0.1,
+              "weight": 0.267,
+              "reading": "0.39% of margin (fair ₹5.55)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0.67,
+              "weight": 0.2,
+              "reading": "IV 20.3% vs forecast RV 15.2% (1.34×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.59,
+              "weight": 0.167,
+              "reading": "NEUTRAL +2 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 1,
+              "weight": 0.144,
+              "reading": "2.63σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.98,
+              "weight": 0.111,
+              "reading": "P(touch) 0% · 3% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.01,
+              "weight": 0.111,
+              "reading": "OI +840 · vol +180",
+              "present": true
+            }
+          ],
+          "notes": [
+            "contango 0.87 vol pts (+1)",
+            "put smirk 6.62 vol pts (−3)",
+            "76% of the premium is tail-risk compensation — thin real cushion (−5)"
+          ]
+        },
+        {
           "strike": 52500,
           "type": "PE",
           "ltp": 33.55,
@@ -6334,59 +6347,59 @@
           "delta": -0.028,
           "distancePct": 9.11,
           "cushionSigma": 3.21,
-          "probTouch": 0.067,
+          "probTouch": 0.062,
           "probProfit": 0.972,
-          "conviction": 40,
+          "conviction": 41,
           "band": "LOW",
-          "edge": -10.43,
-          "edgePct": -0.0023,
-          "fair": 43.98,
-          "pProfit": 0.967,
-          "cushionSigmaF": 1.84,
-          "probTouchF": 0.053,
-          "tailReliance": 0,
+          "edge": 1.74,
+          "edgePct": 0.0004,
+          "fair": 31.81,
+          "pProfit": 0.97,
+          "cushionSigmaF": 1.9,
+          "probTouchF": 0.046,
+          "tailReliance": 0.05,
           "empirical": true,
-          "cvar": -845.99,
-          "worst": -5031.55,
+          "cvar": -602.69,
+          "worst": -5636.56,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0,
+              "s": 0.01,
               "weight": 0.267,
-              "reading": "-0.23% of margin (fair ₹43.98)",
+              "reading": "0.04% of margin (fair ₹31.81)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.11,
+              "s": 0.14,
               "weight": 0.2,
-              "reading": "IV 16.2% vs forecast RV 15.4% (1.06×)",
+              "reading": "IV 16.2% vs forecast RV 15.2% (1.07×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.92,
+              "s": 0.95,
               "weight": 0.144,
-              "reading": "1.84σ away on forecast vol",
+              "reading": "1.9σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.91,
+              "s": 0.92,
               "weight": 0.111,
-              "reading": "P(touch) 5% · 14% stressed",
+              "reading": "P(touch) 5% · 12% stressed",
               "present": true
             },
             {
@@ -6419,27 +6432,27 @@
           "delta": -0.032,
           "distancePct": 8.24,
           "cushionSigma": 2.91,
-          "probTouch": 0.078,
+          "probTouch": 0.072,
           "probProfit": 0.968,
           "conviction": 39,
           "band": "LOW",
-          "edge": -26.44,
-          "edgePct": -0.0057,
-          "fair": 63.29,
-          "pProfit": 0.954,
-          "cushionSigmaF": 1.67,
-          "probTouchF": 0.082,
+          "edge": -13.79,
+          "edgePct": -0.003,
+          "fair": 50.64,
+          "pProfit": 0.955,
+          "cushionSigmaF": 1.72,
+          "probTouchF": 0.072,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -1228.96,
-          "worst": -5528.25,
+          "cvar": -976.02,
+          "worst": -6133.26,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.57% of margin (fair ₹63.29)",
+              "reading": "-0.3% of margin (fair ₹50.64)",
               "present": true
             },
             {
@@ -6447,31 +6460,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 15.2% vs forecast RV 15.4% (0.99×)",
+              "reading": "IV 15.2% vs forecast RV 15.2% (1×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.83,
+              "s": 0.86,
               "weight": 0.144,
-              "reading": "1.67σ away on forecast vol",
+              "reading": "1.72σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.88,
+              "s": 0.89,
               "weight": 0.111,
-              "reading": "P(touch) 8% · 18% stressed",
+              "reading": "P(touch) 7% · 17% stressed",
               "present": true
             },
             {
@@ -6504,59 +6517,59 @@
           "delta": -0.025,
           "distancePct": 9.8,
           "cushionSigma": 3.46,
-          "probTouch": 0.061,
+          "probTouch": 0.056,
           "probProfit": 0.975,
-          "conviction": 37,
+          "conviction": 39,
           "band": "LOW",
-          "edge": -0.42,
-          "edgePct": -0.0001,
-          "fair": 32.27,
-          "pProfit": 0.975,
-          "cushionSigmaF": 1.98,
-          "probTouchF": 0.037,
-          "tailReliance": 0,
+          "edge": 9.8,
+          "edgePct": 0.0021,
+          "fair": 22.05,
+          "pProfit": 0.98,
+          "cushionSigmaF": 2.05,
+          "probTouchF": 0.031,
+          "tailReliance": 0.31,
           "empirical": true,
-          "cvar": -613.59,
-          "worst": -4633.25,
+          "cvar": -409.09,
+          "worst": -5238.26,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0,
+              "s": 0.05,
               "weight": 0.267,
-              "reading": "-0.01% of margin (fair ₹32.27)",
+              "reading": "0.21% of margin (fair ₹22.05)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.23,
+              "s": 0.26,
               "weight": 0.2,
-              "reading": "IV 17.1% vs forecast RV 15.4% (1.11×)",
+              "reading": "IV 17.1% vs forecast RV 15.2% (1.13×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.99,
+              "s": 1,
               "weight": 0.144,
-              "reading": "1.98σ away on forecast vol",
+              "reading": "2.05σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.93,
+              "s": 0.94,
               "weight": 0.111,
-              "reading": "P(touch) 4% · 11% stressed",
+              "reading": "P(touch) 3% · 10% stressed",
               "present": true
             },
             {
@@ -6581,91 +6594,6 @@
           ]
         },
         {
-          "strike": 54000,
-          "type": "PE",
-          "ltp": 63,
-          "iv": 0.1395,
-          "oi": 213750,
-          "delta": -0.055,
-          "distancePct": 6.51,
-          "cushionSigma": 2.3,
-          "probTouch": 0.134,
-          "probProfit": 0.945,
-          "conviction": 36,
-          "band": "LOW",
-          "edge": -64.53,
-          "edgePct": -0.014,
-          "fair": 127.53,
-          "pProfit": 0.914,
-          "cushionSigmaF": 1.32,
-          "probTouchF": 0.173,
-          "tailReliance": 0,
-          "empirical": true,
-          "cvar": -2198.83,
-          "worst": -6502.1,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0,
-              "weight": 0.267,
-              "reading": "-1.4% of margin (fair ₹127.53)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0,
-              "weight": 0.2,
-              "reading": "IV 14% vs forecast RV 15.4% (0.91×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.58,
-              "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 0.66,
-              "weight": 0.144,
-              "reading": "1.32σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.78,
-              "weight": 0.111,
-              "reading": "P(touch) 17% · 29% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.92,
-              "weight": 0.111,
-              "reading": "OI +2.1L · vol +1.6L",
-              "present": true
-            }
-          ],
-          "notes": [
-            "put smirk 6.62 vol pts (−3)"
-          ]
-        },
-        {
           "strike": 53500,
           "type": "PE",
           "ltp": 50.75,
@@ -6674,27 +6602,27 @@
           "delta": -0.044,
           "distancePct": 7.38,
           "cushionSigma": 2.6,
-          "probTouch": 0.106,
+          "probTouch": 0.099,
           "probProfit": 0.956,
-          "conviction": 36,
+          "conviction": 37,
           "band": "LOW",
-          "edge": -39.51,
-          "edgePct": -0.0085,
-          "fair": 90.26,
-          "pProfit": 0.938,
-          "cushionSigmaF": 1.49,
-          "probTouchF": 0.121,
+          "edge": -26.69,
+          "edgePct": -0.0058,
+          "fair": 77.44,
+          "pProfit": 0.939,
+          "cushionSigmaF": 1.54,
+          "probTouchF": 0.109,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -1711.08,
-          "worst": -6014.35,
+          "cvar": -1455.68,
+          "worst": -6619.36,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.85% of margin (fair ₹90.26)",
+              "reading": "-0.58% of margin (fair ₹77.44)",
               "present": true
             },
             {
@@ -6702,31 +6630,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 14.7% vs forecast RV 15.4% (0.96×)",
+              "reading": "IV 14.7% vs forecast RV 15.2% (0.97×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.75,
+              "s": 0.77,
               "weight": 0.144,
-              "reading": "1.49σ away on forecast vol",
+              "reading": "1.54σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.83,
+              "s": 0.85,
               "weight": 0.111,
-              "reading": "P(touch) 12% · 23% stressed",
+              "reading": "P(touch) 11% · 22% stressed",
               "present": true
             },
             {
@@ -6751,6 +6679,91 @@
           ]
         },
         {
+          "strike": 54000,
+          "type": "PE",
+          "ltp": 63,
+          "iv": 0.1395,
+          "oi": 213750,
+          "delta": -0.055,
+          "distancePct": 6.51,
+          "cushionSigma": 2.3,
+          "probTouch": 0.126,
+          "probProfit": 0.945,
+          "conviction": 36,
+          "band": "LOW",
+          "edge": -49.84,
+          "edgePct": -0.0108,
+          "fair": 112.84,
+          "pProfit": 0.92,
+          "cushionSigmaF": 1.36,
+          "probTouchF": 0.159,
+          "tailReliance": 0,
+          "empirical": true,
+          "cvar": -1943.43,
+          "worst": -7107.11,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0,
+              "weight": 0.267,
+              "reading": "-1.08% of margin (fair ₹112.84)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0,
+              "weight": 0.2,
+              "reading": "IV 14% vs forecast RV 15.2% (0.92×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.59,
+              "weight": 0.167,
+              "reading": "NEUTRAL +2 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 0.68,
+              "weight": 0.144,
+              "reading": "1.36σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.79,
+              "weight": 0.111,
+              "reading": "P(touch) 16% · 28% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.92,
+              "weight": 0.111,
+              "reading": "OI +2.1L · vol +1.6L",
+              "present": true
+            }
+          ],
+          "notes": [
+            "put smirk 6.62 vol pts (−3)"
+          ]
+        },
+        {
           "strike": 55000,
           "type": "PE",
           "ltp": 117.3,
@@ -6759,27 +6772,27 @@
           "delta": -0.099,
           "distancePct": 4.78,
           "cushionSigma": 1.69,
-          "probTouch": 0.239,
+          "probTouch": 0.23,
           "probProfit": 0.901,
           "conviction": 33,
           "band": "LOW",
-          "edge": -123.16,
-          "edgePct": -0.0267,
-          "fair": 240.46,
+          "edge": -103.07,
+          "edgePct": -0.0223,
+          "fair": 220.37,
           "pProfit": 0.858,
-          "cushionSigmaF": 0.97,
-          "probTouchF": 0.322,
+          "cushionSigmaF": 1,
+          "probTouchF": 0.306,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -3144.53,
-          "worst": -7447.8,
+          "cvar": -2889.13,
+          "worst": -8052.81,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-2.67% of margin (fair ₹240.46)",
+              "reading": "-2.23% of margin (fair ₹220.37)",
               "present": true
             },
             {
@@ -6787,31 +6800,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.9% vs forecast RV 15.4% (0.84×)",
+              "reading": "IV 12.9% vs forecast RV 15.2% (0.85×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.48,
+              "s": 0.5,
               "weight": 0.144,
-              "reading": "0.97σ away on forecast vol",
+              "reading": "1σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.63,
+              "s": 0.64,
               "weight": 0.111,
-              "reading": "P(touch) 32% · 45% stressed",
+              "reading": "P(touch) 31% · 43% stressed",
               "present": true
             },
             {
@@ -6844,27 +6857,27 @@
           "delta": -0.069,
           "distancePct": 5.82,
           "cushionSigma": 2.05,
-          "probTouch": 0.169,
+          "probTouch": 0.16,
           "probProfit": 0.931,
           "conviction": 32,
           "band": "LOW",
-          "edge": -86.4,
-          "edgePct": -0.0187,
-          "fair": 166.2,
-          "pProfit": 0.894,
-          "cushionSigmaF": 1.18,
-          "probTouchF": 0.225,
+          "edge": -68.53,
+          "edgePct": -0.0148,
+          "fair": 148.33,
+          "pProfit": 0.901,
+          "cushionSigmaF": 1.22,
+          "probTouchF": 0.21,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2582.03,
-          "worst": -6885.3,
+          "cvar": -2326.63,
+          "worst": -7490.31,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.87% of margin (fair ₹166.2)",
+              "reading": "-1.48% of margin (fair ₹148.33)",
               "present": true
             },
             {
@@ -6872,31 +6885,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 13.5% vs forecast RV 15.4% (0.88×)",
+              "reading": "IV 13.5% vs forecast RV 15.2% (0.89×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.59,
+              "s": 0.61,
               "weight": 0.144,
-              "reading": "1.18σ away on forecast vol",
+              "reading": "1.22σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.72,
+              "s": 0.74,
               "weight": 0.111,
-              "reading": "P(touch) 23% · 35% stressed",
+              "reading": "P(touch) 21% · 34% stressed",
               "present": true
             },
             {
@@ -6929,27 +6942,27 @@
           "delta": -0.131,
           "distancePct": 3.92,
           "cushionSigma": 1.38,
-          "probTouch": 0.314,
+          "probTouch": 0.304,
           "probProfit": 0.869,
           "conviction": 31,
           "band": "LOW",
-          "edge": -164.33,
-          "edgePct": -0.0356,
-          "fair": 320.68,
-          "pProfit": 0.819,
-          "cushionSigmaF": 0.79,
-          "probTouchF": 0.419,
+          "edge": -143.2,
+          "edgePct": -0.031,
+          "fair": 299.55,
+          "pProfit": 0.822,
+          "cushionSigmaF": 0.82,
+          "probTouchF": 0.404,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -3605.48,
-          "worst": -7908.75,
+          "cvar": -3350.08,
+          "worst": -8513.76,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-3.56% of margin (fair ₹320.68)",
+              "reading": "-3.1% of margin (fair ₹299.55)",
               "present": true
             },
             {
@@ -6957,31 +6970,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.3% vs forecast RV 15.4% (0.8×)",
+              "reading": "IV 12.3% vs forecast RV 15.2% (0.81×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.4,
+              "s": 0.41,
               "weight": 0.144,
-              "reading": "0.79σ away on forecast vol",
+              "reading": "0.82σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.53,
+              "s": 0.55,
               "weight": 0.111,
-              "reading": "P(touch) 42% · 53% stressed",
+              "reading": "P(touch) 40% · 52% stressed",
               "present": true
             },
             {
@@ -7014,27 +7027,27 @@
           "delta": -0.088,
           "distancePct": 5.13,
           "cushionSigma": 1.81,
-          "probTouch": 0.214,
+          "probTouch": 0.204,
           "probProfit": 0.912,
-          "conviction": 30,
+          "conviction": 31,
           "band": "LOW",
-          "edge": -110.51,
-          "edgePct": -0.0239,
-          "fair": 213.41,
-          "pProfit": 0.871,
-          "cushionSigmaF": 1.04,
-          "probTouchF": 0.287,
+          "edge": -90.3,
+          "edgePct": -0.0195,
+          "fair": 193.2,
+          "pProfit": 0.872,
+          "cushionSigmaF": 1.07,
+          "probTouchF": 0.271,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2958.93,
-          "worst": -7262.2,
+          "cvar": -2703.53,
+          "worst": -7867.21,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-2.39% of margin (fair ₹213.41)",
+              "reading": "-1.95% of margin (fair ₹193.2)",
               "present": true
             },
             {
@@ -7042,31 +7055,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 13.1% vs forecast RV 15.4% (0.86×)",
+              "reading": "IV 13.1% vs forecast RV 15.2% (0.87×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.52,
+              "s": 0.54,
               "weight": 0.144,
-              "reading": "1.04σ away on forecast vol",
+              "reading": "1.07σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.66,
+              "s": 0.68,
               "weight": 0.111,
-              "reading": "P(touch) 29% · 41% stressed",
+              "reading": "P(touch) 27% · 40% stressed",
               "present": true
             },
             {
@@ -7099,27 +7112,27 @@
           "delta": -0.178,
           "distancePct": 3.05,
           "cushionSigma": 1.08,
-          "probTouch": 0.422,
+          "probTouch": 0.412,
           "probProfit": 0.822,
-          "conviction": 28,
+          "conviction": 29,
           "band": "LOW",
-          "edge": -199.78,
-          "edgePct": -0.0432,
-          "fair": 421.78,
-          "pProfit": 0.777,
-          "cushionSigmaF": 0.62,
-          "probTouchF": 0.531,
+          "edge": -178.44,
+          "edgePct": -0.0386,
+          "fair": 400.44,
+          "pProfit": 0.774,
+          "cushionSigmaF": 0.64,
+          "probTouchF": 0.517,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4039.83,
-          "worst": -8343.1,
+          "cvar": -3784.43,
+          "worst": -8948.11,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-4.32% of margin (fair ₹421.78)",
+              "reading": "-3.86% of margin (fair ₹400.44)",
               "present": true
             },
             {
@@ -7127,31 +7140,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12% vs forecast RV 15.4% (0.78×)",
+              "reading": "IV 12% vs forecast RV 15.2% (0.79×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.31,
+              "s": 0.32,
               "weight": 0.144,
-              "reading": "0.62σ away on forecast vol",
+              "reading": "0.64σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.43,
+              "s": 0.44,
               "weight": 0.111,
-              "reading": "P(touch) 53% · 63% stressed",
+              "reading": "P(touch) 52% · 62% stressed",
               "present": true
             },
             {
@@ -7184,27 +7197,27 @@
           "delta": -0.124,
           "distancePct": 4.09,
           "cushionSigma": 1.44,
-          "probTouch": 0.299,
+          "probTouch": 0.289,
           "probProfit": 0.876,
           "conviction": 28,
           "band": "LOW",
-          "edge": -154.53,
-          "edgePct": -0.0334,
-          "fair": 303.03,
-          "pProfit": 0.828,
-          "cushionSigmaF": 0.83,
-          "probTouchF": 0.398,
+          "edge": -133.62,
+          "edgePct": -0.0289,
+          "fair": 282.12,
+          "pProfit": 0.83,
+          "cushionSigmaF": 0.85,
+          "probTouchF": 0.383,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -3513.33,
-          "worst": -7816.6,
+          "cvar": -3257.93,
+          "worst": -8421.61,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-3.34% of margin (fair ₹303.03)",
+              "reading": "-2.89% of margin (fair ₹282.12)",
               "present": true
             },
             {
@@ -7212,31 +7225,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.5% vs forecast RV 15.4% (0.81×)",
+              "reading": "IV 12.5% vs forecast RV 15.2% (0.82×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.41,
+              "s": 0.43,
               "weight": 0.144,
-              "reading": "0.83σ away on forecast vol",
+              "reading": "0.85σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.55,
+              "s": 0.57,
               "weight": 0.111,
-              "reading": "P(touch) 40% · 52% stressed",
+              "reading": "P(touch) 38% · 50% stressed",
               "present": true
             },
             {
@@ -7269,27 +7282,27 @@
           "delta": 0.231,
           "distancePct": 3.01,
           "cushionSigma": 1.06,
-          "probTouch": 0.369,
+          "probTouch": 0.359,
           "probProfit": 0.769,
-          "conviction": 27,
+          "conviction": 28,
           "band": "LOW",
-          "edge": -200.84,
-          "edgePct": -0.0435,
-          "fair": 457.24,
-          "pProfit": 0.743,
-          "cushionSigmaF": 0.61,
-          "probTouchF": 0.549,
+          "edge": -179.15,
+          "edgePct": -0.0388,
+          "fair": 435.55,
+          "pProfit": 0.746,
+          "cushionSigmaF": 0.63,
+          "probTouchF": 0.536,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4330.25,
-          "worst": -11818.42,
+          "cvar": -3996.25,
+          "worst": -9418.93,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-4.35% of margin (fair ₹457.24)",
+              "reading": "-3.88% of margin (fair ₹435.55)",
               "present": true
             },
             {
@@ -7297,7 +7310,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 10.2% vs forecast RV 15.4% (0.67×)",
+              "reading": "IV 10.2% vs forecast RV 15.2% (0.68×)",
               "present": true
             },
             {
@@ -7305,23 +7318,23 @@
               "label": "Direction alignment",
               "s": 0.42,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell CE",
+              "reading": "NEUTRAL +2 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.3,
+              "s": 0.31,
               "weight": 0.144,
-              "reading": "0.61σ away on forecast vol",
+              "reading": "0.63σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.41,
+              "s": 0.43,
               "weight": 0.111,
-              "reading": "P(touch) 55% · 64% stressed",
+              "reading": "P(touch) 54% · 63% stressed",
               "present": true
             },
             {
@@ -7352,27 +7365,27 @@
           "delta": -0.235,
           "distancePct": 2.18,
           "cushionSigma": 0.77,
-          "probTouch": 0.551,
+          "probTouch": 0.543,
           "probProfit": 0.765,
           "conviction": 26,
           "band": "LOW",
-          "edge": -241.44,
-          "edgePct": -0.0522,
-          "fair": 546.94,
-          "pProfit": 0.72,
-          "cushionSigmaF": 0.44,
-          "probTouchF": 0.655,
+          "edge": -223.19,
+          "edgePct": -0.0483,
+          "fair": 528.69,
+          "pProfit": 0.714,
+          "cushionSigmaF": 0.46,
+          "probTouchF": 0.644,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4456.33,
-          "worst": -8759.6,
+          "cvar": -4200.93,
+          "worst": -9364.61,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-5.22% of margin (fair ₹546.94)",
+              "reading": "-4.83% of margin (fair ₹528.69)",
               "present": true
             },
             {
@@ -7380,31 +7393,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 11.5% vs forecast RV 15.4% (0.75×)",
+              "reading": "IV 11.5% vs forecast RV 15.2% (0.76×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.22,
+              "s": 0.23,
               "weight": 0.144,
-              "reading": "0.44σ away on forecast vol",
+              "reading": "0.46σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.31,
+              "s": 0.32,
               "weight": 0.111,
-              "reading": "P(touch) 66% · 73% stressed",
+              "reading": "P(touch) 64% · 72% stressed",
               "present": true
             },
             {
@@ -7429,6 +7442,176 @@
           ]
         },
         {
+          "strike": 55800,
+          "type": "PE",
+          "ltp": 189.75,
+          "iv": 0.1205,
+          "oi": 3900,
+          "delta": -0.156,
+          "distancePct": 3.4,
+          "cushionSigma": 1.2,
+          "probTouch": 0.363,
+          "probProfit": 0.844,
+          "conviction": 26,
+          "band": "LOW",
+          "edge": -167.38,
+          "edgePct": -0.0362,
+          "fair": 357.13,
+          "pProfit": 0.794,
+          "cushionSigmaF": 0.71,
+          "probTouchF": 0.47,
+          "tailReliance": 0,
+          "empirical": true,
+          "cvar": -3616.68,
+          "worst": -8780.36,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0,
+              "weight": 0.267,
+              "reading": "-3.62% of margin (fair ₹357.13)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0,
+              "weight": 0.2,
+              "reading": "IV 12% vs forecast RV 15.2% (0.79×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.59,
+              "weight": 0.167,
+              "reading": "NEUTRAL +2 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 0.35,
+              "weight": 0.144,
+              "reading": "0.71σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.49,
+              "weight": 0.111,
+              "reading": "P(touch) 47% · 58% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.62,
+              "weight": 0.111,
+              "reading": "OI +4k · vol +8k",
+              "present": true
+            }
+          ],
+          "notes": [
+            "put smirk 6.62 vol pts (−2)"
+          ]
+        },
+        {
+          "strike": 56300,
+          "type": "PE",
+          "ltp": 268.35,
+          "iv": 0.1168,
+          "oi": 9720,
+          "delta": -0.21,
+          "distancePct": 2.53,
+          "cushionSigma": 0.89,
+          "probTouch": 0.487,
+          "probProfit": 0.79,
+          "conviction": 25,
+          "band": "LOW",
+          "edge": -205.48,
+          "edgePct": -0.0445,
+          "fair": 473.83,
+          "pProfit": 0.737,
+          "cushionSigmaF": 0.53,
+          "probTouchF": 0.592,
+          "tailReliance": 0,
+          "empirical": true,
+          "cvar": -4038.08,
+          "worst": -9201.76,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0,
+              "weight": 0.267,
+              "reading": "-4.45% of margin (fair ₹473.83)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0,
+              "weight": 0.2,
+              "reading": "IV 11.7% vs forecast RV 15.2% (0.77×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.59,
+              "weight": 0.167,
+              "reading": "NEUTRAL +2 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 0.26,
+              "weight": 0.144,
+              "reading": "0.53σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.37,
+              "weight": 0.111,
+              "reading": "P(touch) 59% · 68% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.74,
+              "weight": 0.111,
+              "reading": "OI +10k · vol +7k",
+              "present": true
+            }
+          ],
+          "notes": [
+            "put smirk 6.62 vol pts (−2)"
+          ]
+        },
+        {
           "strike": 56200,
           "type": "PE",
           "ltp": 245.45,
@@ -7437,27 +7620,27 @@
           "delta": -0.196,
           "distancePct": 2.7,
           "cushionSigma": 0.95,
-          "probTouch": 0.466,
+          "probTouch": 0.456,
           "probProfit": 0.804,
           "conviction": 25,
           "band": "LOW",
-          "edge": -222.72,
-          "edgePct": -0.0482,
-          "fair": 468.17,
-          "pProfit": 0.76,
-          "cushionSigmaF": 0.55,
-          "probTouchF": 0.579,
+          "edge": -202.72,
+          "edgePct": -0.0439,
+          "fair": 448.17,
+          "pProfit": 0.749,
+          "cushionSigmaF": 0.57,
+          "probTouchF": 0.567,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4216.38,
-          "worst": -8519.65,
+          "cvar": -3960.98,
+          "worst": -9124.66,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-4.82% of margin (fair ₹468.17)",
+              "reading": "-4.39% of margin (fair ₹448.17)",
               "present": true
             },
             {
@@ -7465,31 +7648,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 11.7% vs forecast RV 15.4% (0.76×)",
+              "reading": "IV 11.7% vs forecast RV 15.2% (0.77×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.27,
+              "s": 0.28,
               "weight": 0.144,
-              "reading": "0.55σ away on forecast vol",
+              "reading": "0.57σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.38,
+              "s": 0.4,
               "weight": 0.111,
-              "reading": "P(touch) 58% · 67% stressed",
+              "reading": "P(touch) 57% · 66% stressed",
               "present": true
             },
             {
@@ -7522,27 +7705,27 @@
           "delta": -0.168,
           "distancePct": 3.22,
           "cushionSigma": 1.14,
-          "probTouch": 0.399,
+          "probTouch": 0.389,
           "probProfit": 0.832,
           "conviction": 25,
           "band": "LOW",
-          "edge": -192.13,
-          "edgePct": -0.0416,
-          "fair": 399.93,
-          "pProfit": 0.786,
-          "cushionSigmaF": 0.65,
-          "probTouchF": 0.508,
+          "edge": -170.5,
+          "edgePct": -0.0369,
+          "fair": 378.3,
+          "pProfit": 0.783,
+          "cushionSigmaF": 0.67,
+          "probTouchF": 0.493,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -3954.03,
-          "worst": -8257.3,
+          "cvar": -3698.63,
+          "worst": -8862.31,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-4.16% of margin (fair ₹399.93)",
+              "reading": "-3.69% of margin (fair ₹378.3)",
               "present": true
             },
             {
@@ -7550,31 +7733,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.1% vs forecast RV 15.4% (0.79×)",
+              "reading": "IV 12.1% vs forecast RV 15.2% (0.79×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.33,
+              "s": 0.34,
               "weight": 0.144,
-              "reading": "0.65σ away on forecast vol",
+              "reading": "0.67σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.45,
+              "s": 0.46,
               "weight": 0.111,
-              "reading": "P(touch) 51% · 61% stressed",
+              "reading": "P(touch) 49% · 60% stressed",
               "present": true
             },
             {
@@ -7599,91 +7782,6 @@
           ]
         },
         {
-          "strike": 55800,
-          "type": "PE",
-          "ltp": 189.75,
-          "iv": 0.1205,
-          "oi": 3900,
-          "delta": -0.156,
-          "distancePct": 3.4,
-          "cushionSigma": 1.2,
-          "probTouch": 0.373,
-          "probProfit": 0.844,
-          "conviction": 25,
-          "band": "LOW",
-          "edge": -189.14,
-          "edgePct": -0.0409,
-          "fair": 378.89,
-          "pProfit": 0.793,
-          "cushionSigmaF": 0.69,
-          "probTouchF": 0.485,
-          "tailReliance": 0,
-          "empirical": true,
-          "cvar": -3872.08,
-          "worst": -8175.35,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0,
-              "weight": 0.267,
-              "reading": "-4.09% of margin (fair ₹378.89)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0,
-              "weight": 0.2,
-              "reading": "IV 12% vs forecast RV 15.4% (0.79×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.58,
-              "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 0.34,
-              "weight": 0.144,
-              "reading": "0.69σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.47,
-              "weight": 0.111,
-              "reading": "P(touch) 48% · 59% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.62,
-              "weight": 0.111,
-              "reading": "OI +4k · vol +8k",
-              "present": true
-            }
-          ],
-          "notes": [
-            "put smirk 6.62 vol pts (−2)"
-          ]
-        },
-        {
           "strike": 59600,
           "type": "CE",
           "ltp": 231,
@@ -7692,27 +7790,27 @@
           "delta": 0.215,
           "distancePct": 3.18,
           "cushionSigma": 1.12,
-          "probTouch": 0.337,
+          "probTouch": 0.327,
           "probProfit": 0.786,
           "conviction": 25,
           "band": "LOW",
-          "edge": -201.24,
-          "edgePct": -0.0435,
-          "fair": 432.24,
+          "edge": -179.68,
+          "edgePct": -0.0389,
+          "fair": 410.68,
           "pProfit": 0.757,
-          "cushionSigmaF": 0.64,
-          "probTouchF": 0.526,
+          "cushionSigmaF": 0.67,
+          "probTouchF": 0.513,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4255.65,
-          "worst": -11743.82,
+          "cvar": -3921.65,
+          "worst": -9344.33,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-4.35% of margin (fair ₹432.24)",
+              "reading": "-3.89% of margin (fair ₹410.68)",
               "present": true
             },
             {
@@ -7720,7 +7818,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 10.1% vs forecast RV 15.4% (0.66×)",
+              "reading": "IV 10.1% vs forecast RV 15.2% (0.67×)",
               "present": true
             },
             {
@@ -7728,23 +7826,23 @@
               "label": "Direction alignment",
               "s": 0.42,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell CE",
+              "reading": "NEUTRAL +2 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.32,
+              "s": 0.33,
               "weight": 0.144,
-              "reading": "0.64σ away on forecast vol",
+              "reading": "0.67σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.43,
+              "s": 0.45,
               "weight": 0.111,
-              "reading": "P(touch) 53% · 63% stressed",
+              "reading": "P(touch) 51% · 61% stressed",
               "present": true
             },
             {
@@ -7775,27 +7873,27 @@
           "delta": 0.187,
           "distancePct": 3.53,
           "cushionSigma": 1.24,
-          "probTouch": 0.293,
+          "probTouch": 0.283,
           "probProfit": 0.813,
           "conviction": 25,
           "band": "LOW",
-          "edge": -189.56,
-          "edgePct": -0.041,
-          "fair": 385.96,
+          "edge": -168.33,
+          "edgePct": -0.0364,
+          "fair": 364.73,
           "pProfit": 0.781,
-          "cushionSigmaF": 0.71,
-          "probTouchF": 0.483,
+          "cushionSigmaF": 0.74,
+          "probTouchF": 0.469,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4090.25,
-          "worst": -11578.42,
+          "cvar": -3756.25,
+          "worst": -9178.93,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-4.1% of margin (fair ₹385.96)",
+              "reading": "-3.64% of margin (fair ₹364.73)",
               "present": true
             },
             {
@@ -7803,7 +7901,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 10.2% vs forecast RV 15.4% (0.67×)",
+              "reading": "IV 10.2% vs forecast RV 15.2% (0.67×)",
               "present": true
             },
             {
@@ -7811,23 +7909,23 @@
               "label": "Direction alignment",
               "s": 0.42,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell CE",
+              "reading": "NEUTRAL +2 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.36,
+              "s": 0.37,
               "weight": 0.144,
-              "reading": "0.71σ away on forecast vol",
+              "reading": "0.74σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.47,
+              "s": 0.49,
               "weight": 0.111,
-              "reading": "P(touch) 48% · 59% stressed",
+              "reading": "P(touch) 47% · 58% stressed",
               "present": true
             },
             {
@@ -7850,91 +7948,6 @@
           "notes": []
         },
         {
-          "strike": 56300,
-          "type": "PE",
-          "ltp": 268.35,
-          "iv": 0.1168,
-          "oi": 9720,
-          "delta": -0.21,
-          "distancePct": 2.53,
-          "cushionSigma": 0.89,
-          "probTouch": 0.496,
-          "probProfit": 0.79,
-          "conviction": 24,
-          "band": "LOW",
-          "edge": -224.77,
-          "edgePct": -0.0486,
-          "fair": 493.12,
-          "pProfit": 0.743,
-          "cushionSigmaF": 0.51,
-          "probTouchF": 0.604,
-          "tailReliance": 0,
-          "empirical": true,
-          "cvar": -4293.48,
-          "worst": -8596.75,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0,
-              "weight": 0.267,
-              "reading": "-4.86% of margin (fair ₹493.12)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0,
-              "weight": 0.2,
-              "reading": "IV 11.7% vs forecast RV 15.4% (0.76×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.58,
-              "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 0.26,
-              "weight": 0.144,
-              "reading": "0.51σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.36,
-              "weight": 0.111,
-              "reading": "P(touch) 60% · 69% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.74,
-              "weight": 0.111,
-              "reading": "OI +10k · vol +7k",
-              "present": true
-            }
-          ],
-          "notes": [
-            "put smirk 6.62 vol pts (−2)"
-          ]
-        },
-        {
           "strike": 56600,
           "type": "PE",
           "ltp": 328.1,
@@ -7943,27 +7956,27 @@
           "delta": -0.248,
           "distancePct": 2.01,
           "cushionSigma": 0.71,
-          "probTouch": 0.583,
+          "probTouch": 0.575,
           "probProfit": 0.752,
           "conviction": 23,
           "band": "LOW",
-          "edge": -247.61,
-          "edgePct": -0.0536,
-          "fair": 575.71,
-          "pProfit": 0.706,
-          "cushionSigmaF": 0.41,
-          "probTouchF": 0.681,
+          "edge": -229.94,
+          "edgePct": -0.0498,
+          "fair": 558.04,
+          "pProfit": 0.7,
+          "cushionSigmaF": 0.42,
+          "probTouchF": 0.671,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4533.73,
-          "worst": -8837,
+          "cvar": -4278.33,
+          "worst": -9442.01,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-5.36% of margin (fair ₹575.71)",
+              "reading": "-4.98% of margin (fair ₹558.04)",
               "present": true
             },
             {
@@ -7971,31 +7984,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 11.5% vs forecast RV 15.4% (0.75×)",
+              "reading": "IV 11.5% vs forecast RV 15.2% (0.76×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.2,
+              "s": 0.21,
               "weight": 0.144,
-              "reading": "0.41σ away on forecast vol",
+              "reading": "0.42σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.29,
+              "s": 0.3,
               "weight": 0.111,
-              "reading": "P(touch) 68% · 75% stressed",
+              "reading": "P(touch) 67% · 74% stressed",
               "present": true
             },
             {
@@ -8028,27 +8041,27 @@
           "delta": -0.221,
           "distancePct": 2.36,
           "cushionSigma": 0.83,
-          "probTouch": 0.523,
+          "probTouch": 0.514,
           "probProfit": 0.779,
           "conviction": 23,
           "band": "LOW",
-          "edge": -235.48,
-          "edgePct": -0.051,
-          "fair": 519.43,
-          "pProfit": 0.731,
-          "cushionSigmaF": 0.48,
-          "probTouchF": 0.629,
+          "edge": -216.74,
+          "edgePct": -0.0469,
+          "fair": 500.69,
+          "pProfit": 0.725,
+          "cushionSigmaF": 0.49,
+          "probTouchF": 0.618,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4377.88,
-          "worst": -8681.15,
+          "cvar": -4122.48,
+          "worst": -9286.16,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-5.1% of margin (fair ₹519.43)",
+              "reading": "-4.69% of margin (fair ₹500.69)",
               "present": true
             },
             {
@@ -8056,31 +8069,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 11.6% vs forecast RV 15.4% (0.76×)",
+              "reading": "IV 11.6% vs forecast RV 15.2% (0.76×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.58,
+              "s": 0.59,
               "weight": 0.167,
-              "reading": "NEUTRAL +1.8 · sell PE",
+              "reading": "NEUTRAL +2 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.24,
+              "s": 0.25,
               "weight": 0.144,
-              "reading": "0.48σ away on forecast vol",
+              "reading": "0.49σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.34,
+              "s": 0.35,
               "weight": 0.111,
-              "reading": "P(touch) 63% · 71% stressed",
+              "reading": "P(touch) 62% · 70% stressed",
               "present": true
             },
             {
@@ -9438,7 +9451,7 @@
         }
       ],
       "verdict": {
-        "score": 1.8,
+        "score": 2,
         "confidence": 0.85,
         "verdict": "NEUTRAL",
         "structure": "Iron condor / short strangle (defined-risk)",
@@ -9446,17 +9459,17 @@
           {
             "key": "trend",
             "label": "Price vs 20/50-EMA",
-            "s": 0.38,
+            "s": 0.36,
             "weight": 0.2,
-            "reading": "20-EMA 57558 · 50-EMA 57269",
+            "reading": "20-EMA 57578 · 50-EMA 57288",
             "present": true
           },
           {
             "key": "momentum",
             "label": "Momentum (5d/20d)",
-            "s": 0.28,
+            "s": 0.46,
             "weight": 0.15,
-            "reading": "5d 0.5% · 20d 1%",
+            "reading": "5d 0.9% · 20d 1.1%",
             "present": true
           },
           {
@@ -9494,9 +9507,9 @@
           {
             "key": "vixSig",
             "label": "VIX trend (inverse)",
-            "s": 0.08,
+            "s": 0.11,
             "weight": 0.1,
-            "reading": "VIX 5d -1.1%",
+            "reading": "VIX 5d -1.7%",
             "present": true
           },
           {
@@ -9513,8 +9526,8 @@
     "2026-10-27": {
       "label": "monthly",
       "date": "2026-10-27",
-      "dte": 66,
-      "tYears": 0.18046,
+      "dte": 64,
+      "tYears": 0.1762,
       "metrics": {
         "pcrOi": 1.87,
         "pcrVolume": 1.01,
@@ -9562,14 +9575,14 @@
         "rv20": 0.0978,
         "rv60": 0.137,
         "rv120": 0.2032,
-        "sigmaForecast": 0.1726,
+        "sigmaForecast": 0.1721,
         "vrp": 0.65,
         "gapShare": 0.299,
         "cpIvSpread": null,
         "smirk": 2.86,
         "termSlope": -0.87,
         "straddle": null,
-        "expectedMove": 2738,
+        "expectedMove": 2706,
         "skew": 0.0069,
         "gex": {
           "netPct": -32,
@@ -9587,60 +9600,60 @@
           "oi": 30,
           "delta": 0.113,
           "distancePct": 10.8,
-          "cushionSigma": 2.28,
-          "probTouch": 0.163,
+          "cushionSigma": 2.31,
+          "probTouch": 0.158,
           "probProfit": 0.887,
-          "conviction": 42,
+          "conviction": 43,
           "band": "LOW",
-          "edge": 107.13,
-          "edgePct": 0.0232,
-          "fair": 123.87,
-          "pProfit": 0.93,
-          "cushionSigmaF": 1.47,
-          "probTouchF": 0.162,
-          "tailReliance": 0.46,
+          "edge": 111.46,
+          "edgePct": 0.0241,
+          "fair": 119.54,
+          "pProfit": 0.933,
+          "cushionSigmaF": 1.49,
+          "probTouchF": 0.156,
+          "tailReliance": 0.48,
           "empirical": true,
-          "cvar": -2121.23,
-          "worst": -7999.38,
+          "cvar": -2069.52,
+          "worst": -9217.22,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.58,
+              "s": 0.6,
               "weight": 0.267,
-              "reading": "2.32% of margin (fair ₹123.87)",
+              "reading": "2.41% of margin (fair ₹119.54)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0,
+              "s": 0.01,
               "weight": 0.2,
-              "reading": "IV 17.3% vs forecast RV 17.3% (1×)",
+              "reading": "IV 17.3% vs forecast RV 17.2% (1×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.39,
+              "s": 0.38,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.5 · sell CE",
+              "reading": "NEUTRAL +2.7 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.74,
+              "s": 0.75,
               "weight": 0.144,
-              "reading": "1.47σ away on forecast vol",
+              "reading": "1.49σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.79,
+              "s": 0.8,
               "weight": 0.111,
-              "reading": "P(touch) 16% · 28% stressed",
+              "reading": "P(touch) 16% · 27% stressed",
               "present": true
             },
             {
@@ -9670,52 +9683,52 @@
           "oi": 5280,
           "delta": -0.024,
           "distancePct": 13.44,
-          "cushionSigma": 2.83,
-          "probTouch": 0.069,
+          "cushionSigma": 2.87,
+          "probTouch": 0.066,
           "probProfit": 0.976,
           "conviction": 40,
           "band": "LOW",
-          "edge": -33.39,
-          "edgePct": -0.0072,
-          "fair": 77.49,
-          "pProfit": 0.957,
-          "cushionSigmaF": 1.83,
-          "probTouchF": 0.049,
+          "edge": -20.82,
+          "edgePct": -0.0045,
+          "fair": 64.92,
+          "pProfit": 0.961,
+          "cushionSigmaF": 1.86,
+          "probTouchF": 0.046,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -1505.78,
-          "worst": -8283.8,
+          "cvar": -1254.22,
+          "worst": -7633.05,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.72% of margin (fair ₹77.49)",
+              "reading": "-0.45% of margin (fair ₹64.92)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.16,
+              "s": 0.17,
               "weight": 0.2,
-              "reading": "IV 18.7% vs forecast RV 17.3% (1.08×)",
+              "reading": "IV 18.7% vs forecast RV 17.2% (1.09×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.61,
+              "s": 0.62,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.5 · sell PE",
+              "reading": "NEUTRAL +2.7 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.92,
+              "s": 0.93,
               "weight": 0.144,
-              "reading": "1.83σ away on forecast vol",
+              "reading": "1.86σ away on forecast vol",
               "present": true
             },
             {
@@ -9723,7 +9736,7 @@
               "label": "Path safety to expiry",
               "s": 0.92,
               "weight": 0.111,
-              "reading": "P(touch) 5% · 13% stressed",
+              "reading": "P(touch) 5% · 12% stressed",
               "present": true
             },
             {
@@ -9755,28 +9768,28 @@
           "oi": 50190,
           "delta": -0.133,
           "distancePct": 4.78,
-          "cushionSigma": 1.01,
-          "probTouch": 0.365,
+          "cushionSigma": 1.02,
+          "probTouch": 0.36,
           "probProfit": 0.867,
-          "conviction": 29,
+          "conviction": 30,
           "band": "LOW",
-          "edge": -445.13,
-          "edgePct": -0.0963,
-          "fair": 664.13,
-          "pProfit": 0.782,
-          "cushionSigmaF": 0.65,
-          "probTouchF": 0.504,
+          "edge": -406.52,
+          "edgePct": -0.088,
+          "fair": 625.52,
+          "pProfit": 0.789,
+          "cushionSigmaF": 0.66,
+          "probTouchF": 0.498,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -6307.62,
-          "worst": -13108.9,
+          "cvar": -6014,
+          "worst": -12458.15,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-9.63% of margin (fair ₹664.13)",
+              "reading": "-8.8% of margin (fair ₹625.52)",
               "present": true
             },
             {
@@ -9784,15 +9797,15 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.7% vs forecast RV 17.3% (0.74×)",
+              "reading": "IV 12.7% vs forecast RV 17.2% (0.74×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.61,
+              "s": 0.62,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.5 · sell PE",
+              "reading": "NEUTRAL +2.7 · sell PE",
               "present": true
             },
             {
@@ -9800,15 +9813,15 @@
               "label": "Cushion (forecast σ)",
               "s": 0.33,
               "weight": 0.144,
-              "reading": "0.65σ away on forecast vol",
+              "reading": "0.66σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.45,
+              "s": 0.46,
               "weight": 0.111,
-              "reading": "P(touch) 50% · 61% stressed",
+              "reading": "P(touch) 50% · 60% stressed",
               "present": true
             },
             {
@@ -9840,28 +9853,28 @@
           "oi": 5850,
           "delta": -0.066,
           "distancePct": 7.55,
-          "cushionSigma": 1.59,
-          "probTouch": 0.187,
+          "cushionSigma": 1.61,
+          "probTouch": 0.182,
           "probProfit": 0.934,
           "conviction": 29,
           "band": "LOW",
-          "edge": -275.91,
-          "edgePct": -0.0597,
-          "fair": 379.51,
-          "pProfit": 0.858,
-          "cushionSigmaF": 1.03,
-          "probTouchF": 0.284,
+          "edge": -247.04,
+          "edgePct": -0.0535,
+          "fair": 350.64,
+          "pProfit": 0.862,
+          "cushionSigmaF": 1.05,
+          "probTouchF": 0.277,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4823.02,
-          "worst": -11624.3,
+          "cvar": -4529.4,
+          "worst": -10973.55,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-5.97% of margin (fair ₹379.51)",
+              "reading": "-5.35% of margin (fair ₹350.64)",
               "present": true
             },
             {
@@ -9869,23 +9882,23 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 14% vs forecast RV 17.3% (0.81×)",
+              "reading": "IV 14% vs forecast RV 17.2% (0.81×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.61,
+              "s": 0.62,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.5 · sell PE",
+              "reading": "NEUTRAL +2.7 · sell PE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.51,
+              "s": 0.52,
               "weight": 0.144,
-              "reading": "1.03σ away on forecast vol",
+              "reading": "1.05σ away on forecast vol",
               "present": true
             },
             {
@@ -9893,7 +9906,7 @@
               "label": "Path safety to expiry",
               "s": 0.67,
               "weight": 0.111,
-              "reading": "P(touch) 28% · 41% stressed",
+              "reading": "P(touch) 28% · 40% stressed",
               "present": true
             },
             {
@@ -9925,28 +9938,28 @@
           "oi": 38520,
           "delta": 0.172,
           "distancePct": 5.61,
-          "cushionSigma": 1.18,
-          "probTouch": 0.231,
+          "cushionSigma": 1.2,
+          "probTouch": 0.225,
           "probProfit": 0.828,
           "conviction": 28,
           "band": "LOW",
-          "edge": -300.9,
-          "edgePct": -0.0651,
-          "fair": 542.9,
-          "pProfit": 0.768,
-          "cushionSigmaF": 0.76,
-          "probTouchF": 0.457,
+          "edge": -279.61,
+          "edgePct": -0.0605,
+          "fair": 521.61,
+          "pProfit": 0.777,
+          "cushionSigmaF": 0.78,
+          "probTouchF": 0.45,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -5110.23,
-          "worst": -10988.38,
+          "cvar": -5058.52,
+          "worst": -12206.22,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-6.51% of margin (fair ₹542.9)",
+              "reading": "-6.05% of margin (fair ₹521.61)",
               "present": true
             },
             {
@@ -9954,31 +9967,31 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 10.7% vs forecast RV 17.3% (0.62×)",
+              "reading": "IV 10.7% vs forecast RV 17.2% (0.62×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.39,
+              "s": 0.38,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.5 · sell CE",
+              "reading": "NEUTRAL +2.7 · sell CE",
               "present": true
             },
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.38,
+              "s": 0.39,
               "weight": 0.144,
-              "reading": "0.76σ away on forecast vol",
+              "reading": "0.78σ away on forecast vol",
               "present": true
             },
             {
               "key": "survival",
               "label": "Path safety to expiry",
-              "s": 0.5,
+              "s": 0.51,
               "weight": 0.111,
-              "reading": "P(touch) 46% · 57% stressed",
+              "reading": "P(touch) 45% · 56% stressed",
               "present": true
             },
             {
@@ -10008,28 +10021,28 @@
           "oi": 13380,
           "delta": -0.204,
           "distancePct": 3.05,
-          "cushionSigma": 0.64,
-          "probTouch": 0.542,
+          "cushionSigma": 0.65,
+          "probTouch": 0.537,
           "probProfit": 0.796,
           "conviction": 25,
           "band": "LOW",
-          "edge": -559.09,
-          "edgePct": -0.121,
-          "fair": 910.04,
-          "pProfit": 0.718,
+          "edge": -516.6,
+          "edgePct": -0.1118,
+          "fair": 867.55,
+          "pProfit": 0.723,
           "cushionSigmaF": 0.42,
-          "probTouchF": 0.673,
+          "probTouchF": 0.668,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -7175.67,
-          "worst": -13976.95,
+          "cvar": -6882.05,
+          "worst": -13326.2,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-12.1% of margin (fair ₹910.04)",
+              "reading": "-11.18% of margin (fair ₹867.55)",
               "present": true
             },
             {
@@ -10037,15 +10050,15 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12% vs forecast RV 17.3% (0.69×)",
+              "reading": "IV 12% vs forecast RV 17.2% (0.69×)",
               "present": true
             },
             {
               "key": "direction",
               "label": "Direction alignment",
-              "s": 0.61,
+              "s": 0.62,
               "weight": 0.167,
-              "reading": "NEUTRAL +2.5 · sell PE",
+              "reading": "NEUTRAL +2.7 · sell PE",
               "present": true
             },
             {
@@ -10061,7 +10074,7 @@
               "label": "Path safety to expiry",
               "s": 0.3,
               "weight": 0.111,
-              "reading": "P(touch) 67% · 75% stressed",
+              "reading": "P(touch) 67% · 74% stressed",
               "present": true
             },
             {
@@ -10639,7 +10652,7 @@
         }
       ],
       "verdict": {
-        "score": 2.5,
+        "score": 2.7,
         "confidence": 0.86,
         "verdict": "NEUTRAL",
         "structure": "Iron condor / short strangle (defined-risk)",
@@ -10647,17 +10660,17 @@
           {
             "key": "trend",
             "label": "Price vs 20/50-EMA",
-            "s": 0.38,
+            "s": 0.36,
             "weight": 0.2,
-            "reading": "20-EMA 57558 · 50-EMA 57269",
+            "reading": "20-EMA 57578 · 50-EMA 57288",
             "present": true
           },
           {
             "key": "momentum",
             "label": "Momentum (5d/20d)",
-            "s": 0.28,
+            "s": 0.46,
             "weight": 0.15,
-            "reading": "5d 0.5% · 20d 1%",
+            "reading": "5d 0.9% · 20d 1.1%",
             "present": true
           },
           {
@@ -10695,9 +10708,9 @@
           {
             "key": "vixSig",
             "label": "VIX trend (inverse)",
-            "s": 0.08,
+            "s": 0.11,
             "weight": 0.1,
-            "reading": "VIX 5d -1.1%",
+            "reading": "VIX 5d -1.7%",
             "present": true
           },
           {
@@ -10820,10 +10833,14 @@
     {
       "t": "2026-08-22",
       "v": 0.0991
+    },
+    {
+      "t": "2026-08-24",
+      "v": 0.0991
     }
   ],
   "verdict": {
-    "score": 2.1,
+    "score": 2.3,
     "confidence": 0.84,
     "verdict": "NEUTRAL",
     "structure": "Iron condor / short strangle (defined-risk)",
@@ -10831,17 +10848,17 @@
       {
         "key": "trend",
         "label": "Price vs 20/50-EMA",
-        "s": 0.38,
+        "s": 0.36,
         "weight": 0.2,
-        "reading": "20-EMA 57558 · 50-EMA 57269",
+        "reading": "20-EMA 57578 · 50-EMA 57288",
         "present": true
       },
       {
         "key": "momentum",
         "label": "Momentum (5d/20d)",
-        "s": 0.28,
+        "s": 0.46,
         "weight": 0.15,
-        "reading": "5d 0.5% · 20d 1%",
+        "reading": "5d 0.9% · 20d 1.1%",
         "present": true
       },
       {
@@ -10879,9 +10896,9 @@
       {
         "key": "vixSig",
         "label": "VIX trend (inverse)",
-        "s": 0.08,
+        "s": 0.11,
         "weight": 0.1,
-        "reading": "VIX 5d -1.1%",
+        "reading": "VIX 5d -1.7%",
         "present": true
       },
       {
