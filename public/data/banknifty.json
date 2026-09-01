@@ -1,5 +1,5 @@
 {
-  "asOf": "2026-09-01T10:00:35.140Z",
+  "asOf": "2026-09-01T10:05:20.560Z",
   "stale": false,
   "source": "upstox",
   "index": "BANKNIFTY",
@@ -1214,7 +1214,7 @@
     ]
   },
   "vix": {
-    "value": 11.32,
+    "value": 11.3,
     "history": [
       {
         "t": "2025-06-23",
@@ -2414,15 +2414,15 @@
       },
       {
         "t": "2026-09-01",
-        "v": 11.32
+        "v": 11.3
       }
     ]
   },
   "future": {
-    "price": 57610,
+    "price": 57580,
     "expiry": "2026-09-29",
-    "oi": 2002200,
-    "basisPts": 200.4
+    "oi": 1999620,
+    "basisPts": 170.4
   },
   "defaultExpiry": "2026-09-29",
   "horizons": {
@@ -2447,107 +2447,192 @@
       "label": "monthly",
       "date": "2026-09-29",
       "dte": 28,
-      "tYears": 0.07671,
+      "tYears": 0.0767,
       "metrics": {
         "pcrOi": 1.06,
         "pcrVolume": 0.87,
-        "totalCallOi": 12532800,
-        "totalPutOi": 13226250,
+        "totalCallOi": 12521760,
+        "totalPutOi": 13224390,
         "maxPain": 57600,
         "callWall": 57500,
         "putWall": 57000,
         "supports": [
           {
             "strike": 57000,
-            "oi": 848190
+            "oi": 850260
           },
           {
             "strike": 55000,
-            "oi": 706350
+            "oi": 705450
           },
           {
             "strike": 56000,
-            "oi": 702390
+            "oi": 705180
           }
         ],
         "resistances": [
           {
             "strike": 57500,
-            "oi": 1973400
+            "oi": 1972500
           },
           {
             "strike": 58000,
-            "oi": 1375380
+            "oi": 1372080
           },
           {
             "strike": 60000,
-            "oi": 897690
+            "oi": 900480
           }
         ],
         "oiFlow": {
-          "callOiChg": 855990,
-          "putOiChg": 133350
+          "callOiChg": 844950,
+          "putOiChg": 131490
         },
         "atmStrike": 57400,
-        "atmIv": 0.1148,
+        "atmIv": 0.1164,
         "ivRank": 0.6,
         "ivPercentile": 26.5,
         "rv20": 0.0766,
         "rv60": 0.1276,
         "rv120": 0.1972,
         "sigmaForecast": 0.1376,
-        "vrp": 0.83,
+        "vrp": 0.85,
         "gapShare": 0.309,
-        "cpIvSpread": -0.2,
-        "smirk": 7.11,
-        "termSlope": 0.32,
-        "straddle": 1469.5,
-        "expectedMove": 1470,
-        "skew": 0.0141,
+        "cpIvSpread": -0.56,
+        "smirk": 6.88,
+        "termSlope": 0.49,
+        "straddle": 1482.3,
+        "expectedMove": 1482,
+        "skew": 0.0161,
         "gex": {
-          "netPct": -1,
+          "netPct": 0,
           "regime": "balanced",
           "pinStrike": 57500,
-          "coverage": 153
+          "coverage": 148
         }
       },
       "candidates": [
         {
+          "strike": 52500,
+          "type": "PE",
+          "ltp": 23.95,
+          "iv": 0.1695,
+          "oi": 103830,
+          "delta": -0.023,
+          "distancePct": 8.55,
+          "cushionSigma": 3.31,
+          "probTouch": 0.057,
+          "probProfit": 0.977,
+          "conviction": 48,
+          "band": "LOW",
+          "edge": 12.34,
+          "edgePct": 0.0027,
+          "fair": 11.61,
+          "pProfit": 0.988,
+          "cushionSigmaF": 2.24,
+          "probTouchF": 0.019,
+          "tailReliance": 0.52,
+          "empirical": true,
+          "cvar": -208.25,
+          "worst": -2464.09,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0.07,
+              "weight": 0.267,
+              "reading": "0.27% of margin (fair ₹11.61)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0.46,
+              "weight": 0.2,
+              "reading": "IV 17% vs forecast RV 13.8% (1.23×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.45,
+              "weight": 0.167,
+              "reading": "NEUTRAL -1.2 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 1,
+              "weight": 0.144,
+              "reading": "2.24σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.96,
+              "weight": 0.111,
+              "reading": "P(touch) 2% · 7% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.77,
+              "weight": 0.111,
+              "reading": "OI +1L · vol +2L",
+              "present": true
+            }
+          ],
+          "notes": [
+            "put smirk 6.88 vol pts (−4)"
+          ]
+        },
+        {
           "strike": 53000,
           "type": "PE",
-          "ltp": 27.7,
-          "iv": 0.1596,
-          "oi": 289740,
-          "delta": -0.028,
+          "ltp": 29.25,
+          "iv": 0.1601,
+          "oi": 290940,
+          "delta": -0.029,
           "distancePct": 7.68,
-          "cushionSigma": 3,
+          "cushionSigma": 2.97,
           "probTouch": 0.071,
-          "probProfit": 0.972,
+          "probProfit": 0.971,
           "conviction": 46,
           "band": "LOW",
-          "edge": 8.22,
-          "edgePct": 0.0018,
+          "edge": 9.77,
+          "edgePct": 0.0021,
           "fair": 19.48,
           "pProfit": 0.98,
           "cushionSigmaF": 2.02,
           "probTouchF": 0.036,
-          "tailReliance": 0.3,
+          "tailReliance": 0.33,
           "empirical": true,
-          "cvar": -361.9,
-          "worst": -2960.35,
+          "cvar": -360.34,
+          "worst": -2958.79,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0.05,
               "weight": 0.267,
-              "reading": "0.18% of margin (fair ₹19.48)",
+              "reading": "0.21% of margin (fair ₹19.48)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.32,
+              "s": 0.33,
               "weight": 0.2,
               "reading": "IV 16% vs forecast RV 13.8% (1.16×)",
               "present": true
@@ -2589,137 +2674,52 @@
               "label": "Strike liquidity",
               "s": 0.88,
               "weight": 0.111,
-              "reading": "OI +2.9L · vol +3.2L",
+              "reading": "OI +2.9L · vol +3.3L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−4)"
-          ]
-        },
-        {
-          "strike": 52200,
-          "type": "PE",
-          "ltp": 23,
-          "iv": 0.1785,
-          "oi": 1560,
-          "delta": -0.021,
-          "distancePct": 9.07,
-          "cushionSigma": 3.55,
-          "probTouch": 0.054,
-          "probProfit": 0.979,
-          "conviction": 45,
-          "band": "LOW",
-          "edge": 14.44,
-          "edgePct": 0.0031,
-          "fair": 8.56,
-          "pProfit": 0.992,
-          "cushionSigmaF": 2.38,
-          "probTouchF": 0.013,
-          "tailReliance": 0.63,
-          "empirical": true,
-          "cvar": -148.14,
-          "worst": -2165.05,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0.08,
-              "weight": 0.267,
-              "reading": "0.31% of margin (fair ₹8.56)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0.59,
-              "weight": 0.2,
-              "reading": "IV 17.8% vs forecast RV 13.8% (1.3×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.45,
-              "weight": 0.167,
-              "reading": "NEUTRAL -1.2 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 1,
-              "weight": 0.144,
-              "reading": "2.38σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.97,
-              "weight": 0.111,
-              "reading": "P(touch) 1% · 5% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.18,
-              "weight": 0.111,
-              "reading": "OI +2k · vol +3k",
-              "present": true
-            }
-          ],
-          "notes": [
-            "put smirk 7.11 vol pts (−3)"
+            "put smirk 6.88 vol pts (−3)"
           ]
         },
         {
           "strike": 52600,
           "type": "PE",
-          "ltp": 23.3,
-          "iv": 0.1669,
-          "oi": 5250,
-          "delta": -0.023,
+          "ltp": 25.4,
+          "iv": 0.1682,
+          "oi": 4860,
+          "delta": -0.025,
           "distancePct": 8.38,
-          "cushionSigma": 3.27,
-          "probTouch": 0.058,
-          "probProfit": 0.977,
-          "conviction": 44,
+          "cushionSigma": 3.24,
+          "probTouch": 0.06,
+          "probProfit": 0.975,
+          "conviction": 45,
           "band": "LOW",
-          "edge": 10.42,
-          "edgePct": 0.0023,
+          "edge": 12.52,
+          "edgePct": 0.0027,
           "fair": 12.88,
           "pProfit": 0.987,
           "cushionSigmaF": 2.2,
           "probTouchF": 0.022,
-          "tailReliance": 0.45,
+          "tailReliance": 0.49,
           "empirical": true,
-          "cvar": -234.31,
-          "worst": -2564.75,
+          "cvar": -232.21,
+          "worst": -2562.64,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.06,
+              "s": 0.07,
               "weight": 0.267,
-              "reading": "0.23% of margin (fair ₹12.88)",
+              "reading": "0.27% of margin (fair ₹12.88)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.43,
+              "s": 0.44,
               "weight": 0.2,
-              "reading": "IV 16.7% vs forecast RV 13.8% (1.21×)",
+              "reading": "IV 16.8% vs forecast RV 13.8% (1.22×)",
               "present": true
             },
             {
@@ -2757,52 +2757,52 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.44,
+              "s": 0.45,
               "weight": 0.111,
               "reading": "OI +5k · vol +44k",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−3)"
+            "put smirk 6.88 vol pts (−3)"
           ]
         },
         {
           "strike": 53500,
           "type": "PE",
-          "ltp": 35.1,
-          "iv": 0.1508,
-          "oi": 190680,
-          "delta": -0.036,
+          "ltp": 37.25,
+          "iv": 0.1511,
+          "oi": 189690,
+          "delta": -0.038,
           "distancePct": 6.81,
-          "cushionSigma": 2.66,
-          "probTouch": 0.091,
-          "probProfit": 0.964,
+          "cushionSigma": 2.64,
+          "probTouch": 0.092,
+          "probProfit": 0.962,
           "conviction": 41,
           "band": "LOW",
-          "edge": 1.76,
-          "edgePct": 0.0004,
+          "edge": 3.91,
+          "edgePct": 0.0009,
           "fair": 33.34,
           "pProfit": 0.964,
           "cushionSigmaF": 1.79,
           "probTouchF": 0.064,
-          "tailReliance": 0.05,
+          "tailReliance": 0.1,
           "empirical": true,
-          "cvar": -631.8,
-          "worst": -3452.95,
+          "cvar": -629.64,
+          "worst": -3450.79,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
-              "s": 0.01,
+              "s": 0.02,
               "weight": 0.267,
-              "reading": "0.04% of margin (fair ₹33.34)",
+              "reading": "0.09% of margin (fair ₹33.34)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.19,
+              "s": 0.2,
               "weight": 0.2,
               "reading": "IV 15.1% vs forecast RV 13.8% (1.1×)",
               "present": true
@@ -2842,54 +2842,54 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.86,
+              "s": 0.87,
               "weight": 0.111,
-              "reading": "OI +1.9L · vol +2.6L",
+              "reading": "OI +1.9L · vol +2.7L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−3)"
+            "put smirk 6.88 vol pts (−3)"
           ]
         },
         {
           "strike": 54000,
           "type": "PE",
-          "ltp": 48.1,
-          "iv": 0.1437,
-          "oi": 582870,
-          "delta": -0.05,
+          "ltp": 51.55,
+          "iv": 0.1446,
+          "oi": 579870,
+          "delta": -0.052,
           "distancePct": 5.94,
-          "cushionSigma": 2.32,
-          "probTouch": 0.124,
-          "probProfit": 0.95,
+          "cushionSigma": 2.3,
+          "probTouch": 0.126,
+          "probProfit": 0.948,
           "conviction": 38,
           "band": "LOW",
-          "edge": -7.87,
-          "edgePct": -0.0017,
+          "edge": -4.42,
+          "edgePct": -0.001,
           "fair": 55.97,
           "pProfit": 0.944,
           "cushionSigmaF": 1.56,
           "probTouchF": 0.108,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -1064.65,
-          "worst": -3939.95,
+          "cvar": -1061.19,
+          "worst": -3936.49,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.17% of margin (fair ₹55.97)",
+              "reading": "-0.1% of margin (fair ₹55.97)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.09,
+              "s": 0.1,
               "weight": 0.2,
-              "reading": "IV 14.4% vs forecast RV 13.8% (1.04×)",
+              "reading": "IV 14.5% vs forecast RV 13.8% (1.05×)",
               "present": true
             },
             {
@@ -2927,54 +2927,54 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.98,
+              "s": 0.99,
               "weight": 0.111,
-              "reading": "OI +5.8L · vol +8L",
+              "reading": "OI +5.8L · vol +8.1L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−3)"
+            "put smirk 6.88 vol pts (−3)"
           ]
         },
         {
           "strike": 54500,
           "type": "PE",
-          "ltp": 68.7,
-          "iv": 0.1377,
-          "oi": 195690,
-          "delta": -0.07,
+          "ltp": 73.55,
+          "iv": 0.1389,
+          "oi": 200070,
+          "delta": -0.074,
           "distancePct": 5.07,
-          "cushionSigma": 1.98,
-          "probTouch": 0.173,
-          "probProfit": 0.93,
-          "conviction": 33,
+          "cushionSigma": 1.96,
+          "probTouch": 0.176,
+          "probProfit": 0.926,
+          "conviction": 34,
           "band": "LOW",
-          "edge": -23.75,
-          "edgePct": -0.0052,
+          "edge": -18.9,
+          "edgePct": -0.0041,
           "fair": 92.45,
           "pProfit": 0.911,
           "cushionSigmaF": 1.33,
           "probTouchF": 0.172,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -1544.05,
-          "worst": -4419.35,
+          "cvar": -1539.19,
+          "worst": -4414.49,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.52% of margin (fair ₹92.45)",
+              "reading": "-0.41% of margin (fair ₹92.45)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0,
+              "s": 0.02,
               "weight": 0.2,
-              "reading": "IV 13.8% vs forecast RV 13.8% (1×)",
+              "reading": "IV 13.9% vs forecast RV 13.8% (1.01×)",
               "present": true
             },
             {
@@ -3012,52 +3012,52 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.92,
+              "s": 0.93,
               "weight": 0.111,
-              "reading": "OI +2L · vol +4.9L",
+              "reading": "OI +2L · vol +5L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−3)"
+            "put smirk 6.88 vol pts (−3)"
           ]
         },
         {
           "strike": 54400,
           "type": "PE",
-          "ltp": 65.05,
-          "iv": 0.1394,
-          "oi": 60060,
-          "delta": -0.066,
+          "ltp": 69.45,
+          "iv": 0.1387,
+          "oi": 60570,
+          "delta": -0.067,
           "distancePct": 5.24,
-          "cushionSigma": 2.05,
-          "probTouch": 0.163,
-          "probProfit": 0.934,
+          "cushionSigma": 2.03,
+          "probTouch": 0.161,
+          "probProfit": 0.933,
           "conviction": 33,
           "band": "LOW",
-          "edge": -18.77,
-          "edgePct": -0.0041,
+          "edge": -14.37,
+          "edgePct": -0.0031,
           "fair": 83.82,
           "pProfit": 0.916,
           "cushionSigmaF": 1.38,
           "probTouchF": 0.158,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -1447.7,
-          "worst": -4323,
+          "cvar": -1443.29,
+          "worst": -4318.59,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.41% of margin (fair ₹83.82)",
+              "reading": "-0.31% of margin (fair ₹83.82)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.03,
+              "s": 0.02,
               "weight": 0.2,
               "reading": "IV 13.9% vs forecast RV 13.8% (1.01×)",
               "present": true
@@ -3097,46 +3097,46 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.81,
+              "s": 0.82,
               "weight": 0.111,
-              "reading": "OI +60k · vol +90k",
+              "reading": "OI +61k · vol +91k",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−3)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
           "strike": 55000,
           "type": "PE",
-          "ltp": 101.6,
-          "iv": 0.1328,
-          "oi": 706350,
-          "delta": -0.1,
+          "ltp": 110,
+          "iv": 0.1344,
+          "oi": 705450,
+          "delta": -0.105,
           "distancePct": 4.2,
-          "cushionSigma": 1.64,
-          "probTouch": 0.244,
-          "probProfit": 0.9,
+          "cushionSigma": 1.63,
+          "probTouch": 0.249,
+          "probProfit": 0.895,
           "conviction": 32,
           "band": "LOW",
-          "edge": -42.64,
-          "edgePct": -0.0093,
+          "edge": -34.24,
+          "edgePct": -0.0075,
           "fair": 144.24,
           "pProfit": 0.881,
           "cushionSigmaF": 1.1,
           "probTouchF": 0.261,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2011.15,
-          "worst": -4886.45,
+          "cvar": -2002.74,
+          "worst": -4878.04,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.93% of margin (fair ₹144.24)",
+              "reading": "-0.75% of margin (fair ₹144.24)",
               "present": true
             },
             {
@@ -3144,7 +3144,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 13.3% vs forecast RV 13.8% (0.97×)",
+              "reading": "IV 13.4% vs forecast RV 13.8% (0.98×)",
               "present": true
             },
             {
@@ -3184,44 +3184,44 @@
               "label": "Strike liquidity",
               "s": 1,
               "weight": 0.111,
-              "reading": "OI +7.1L · vol +10.7L",
+              "reading": "OI +7.1L · vol +10.8L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
           "strike": 54800,
           "type": "PE",
-          "ltp": 85.55,
-          "iv": 0.1342,
-          "oi": 55260,
-          "delta": -0.086,
+          "ltp": 91.95,
+          "iv": 0.1354,
+          "oi": 56250,
+          "delta": -0.09,
           "distancePct": 4.55,
-          "cushionSigma": 1.78,
-          "probTouch": 0.211,
-          "probProfit": 0.914,
+          "cushionSigma": 1.76,
+          "probTouch": 0.215,
+          "probProfit": 0.91,
           "conviction": 31,
           "band": "LOW",
-          "edge": -36.14,
-          "edgePct": -0.0079,
+          "edge": -29.74,
+          "edgePct": -0.0065,
           "fair": 121.69,
           "pProfit": 0.894,
           "cushionSigmaF": 1.19,
           "probTouchF": 0.222,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -1827.2,
-          "worst": -4702.5,
+          "cvar": -1820.79,
+          "worst": -4696.09,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.79% of margin (fair ₹121.69)",
+              "reading": "-0.65% of margin (fair ₹121.69)",
               "present": true
             },
             {
@@ -3229,7 +3229,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 13.4% vs forecast RV 13.8% (0.98×)",
+              "reading": "IV 13.5% vs forecast RV 13.8% (0.98×)",
               "present": true
             },
             {
@@ -3267,46 +3267,46 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.83,
+              "s": 0.84,
               "weight": 0.111,
-              "reading": "OI +55k · vol +91k",
+              "reading": "OI +56k · vol +94k",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
           "strike": 59000,
           "type": "CE",
-          "ltp": 221,
-          "iv": 0.11,
-          "oi": 828570,
-          "delta": 0.223,
+          "ltp": 214.2,
+          "iv": 0.1103,
+          "oi": 830430,
+          "delta": 0.217,
           "distancePct": 2.77,
-          "cushionSigma": 1.08,
-          "probTouch": 0.37,
-          "probProfit": 0.777,
+          "cushionSigma": 1.07,
+          "probTouch": 0.371,
+          "probProfit": 0.783,
           "conviction": 31,
           "band": "LOW",
-          "edge": -45.64,
-          "edgePct": -0.0099,
+          "edge": -52.44,
+          "edgePct": -0.0114,
           "fair": 266.64,
           "pProfit": 0.809,
           "cushionSigmaF": 0.73,
           "probTouchF": 0.473,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -3024.15,
-          "worst": -8018.11,
+          "cvar": -3030.96,
+          "worst": -8024.92,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.99% of margin (fair ₹266.64)",
+              "reading": "-1.14% of margin (fair ₹266.64)",
               "present": true
             },
             {
@@ -3354,7 +3354,7 @@
               "label": "Strike liquidity",
               "s": 1,
               "weight": 0.111,
-              "reading": "OI +8.3L · vol +16.4L",
+              "reading": "OI +8.3L · vol +16.7L",
               "present": true
             }
           ],
@@ -3363,33 +3363,33 @@
         {
           "strike": 55200,
           "type": "PE",
-          "ltp": 118.3,
-          "iv": 0.1307,
-          "oi": 80940,
-          "delta": -0.115,
+          "ltp": 128.25,
+          "iv": 0.1326,
+          "oi": 80790,
+          "delta": -0.121,
           "distancePct": 3.85,
-          "cushionSigma": 1.5,
-          "probTouch": 0.278,
-          "probProfit": 0.885,
+          "cushionSigma": 1.49,
+          "probTouch": 0.285,
+          "probProfit": 0.879,
           "conviction": 30,
           "band": "LOW",
-          "edge": -51.76,
-          "edgePct": -0.0113,
+          "edge": -41.81,
+          "edgePct": -0.0091,
           "fair": 170.06,
           "pProfit": 0.862,
           "cushionSigmaF": 1.01,
           "probTouchF": 0.303,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2194.45,
-          "worst": -5069.75,
+          "cvar": -2184.49,
+          "worst": -5059.79,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.13% of margin (fair ₹170.06)",
+              "reading": "-0.91% of margin (fair ₹170.06)",
               "present": true
             },
             {
@@ -3397,7 +3397,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 13.1% vs forecast RV 13.8% (0.95×)",
+              "reading": "IV 13.3% vs forecast RV 13.8% (0.96×)",
               "present": true
             },
             {
@@ -3435,46 +3435,46 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.89,
+              "s": 0.9,
               "weight": 0.111,
-              "reading": "OI +81k · vol +1.2L",
+              "reading": "OI +81k · vol +1.3L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
           "strike": 55500,
           "type": "PE",
-          "ltp": 151.45,
-          "iv": 0.1285,
-          "oi": 483570,
-          "delta": -0.142,
+          "ltp": 164.3,
+          "iv": 0.1305,
+          "oi": 491340,
+          "delta": -0.15,
           "distancePct": 3.33,
-          "cushionSigma": 1.3,
-          "probTouch": 0.342,
-          "probProfit": 0.858,
+          "cushionSigma": 1.29,
+          "probTouch": 0.349,
+          "probProfit": 0.85,
           "conviction": 29,
           "band": "LOW",
-          "edge": -64.95,
-          "edgePct": -0.0141,
-          "fair": 216.4,
+          "edge": -52.09,
+          "edgePct": -0.0113,
+          "fair": 216.39,
           "pProfit": 0.831,
           "cushionSigmaF": 0.87,
           "probTouchF": 0.375,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2461.3,
-          "worst": -5336.6,
+          "cvar": -2448.44,
+          "worst": -5323.74,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.41% of margin (fair ₹216.4)",
+              "reading": "-1.13% of margin (fair ₹216.39)",
               "present": true
             },
             {
@@ -3482,7 +3482,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.9% vs forecast RV 13.8% (0.93×)",
+              "reading": "IV 13.1% vs forecast RV 13.8% (0.95×)",
               "present": true
             },
             {
@@ -3522,44 +3522,129 @@
               "label": "Strike liquidity",
               "s": 1,
               "weight": 0.111,
-              "reading": "OI +4.8L · vol +7.1L",
+              "reading": "OI +4.9L · vol +7.4L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
-          "strike": 58900,
-          "type": "CE",
-          "ltp": 244.5,
-          "iv": 0.11,
-          "oi": 50730,
-          "delta": 0.24,
-          "distancePct": 2.6,
-          "cushionSigma": 1.01,
-          "probTouch": 0.4,
-          "probProfit": 0.76,
+          "strike": 54600,
+          "type": "PE",
+          "ltp": 82.15,
+          "iv": 0.1387,
+          "oi": 4230,
+          "delta": -0.081,
+          "distancePct": 4.89,
+          "cushionSigma": 1.9,
+          "probTouch": 0.191,
+          "probProfit": 0.919,
           "conviction": 29,
           "band": "LOW",
-          "edge": -41.89,
-          "edgePct": -0.0091,
-          "fair": 286.39,
-          "pProfit": 0.797,
-          "cushionSigmaF": 0.68,
-          "probTouchF": 0.501,
+          "edge": -19.49,
+          "edgePct": -0.0042,
+          "fair": 101.64,
+          "pProfit": 0.905,
+          "cushionSigmaF": 1.28,
+          "probTouchF": 0.188,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -3100.65,
-          "worst": -8094.61,
+          "cvar": -1630.59,
+          "worst": -4505.89,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.91% of margin (fair ₹286.39)",
+              "reading": "-0.42% of margin (fair ₹101.64)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0.02,
+              "weight": 0.2,
+              "reading": "IV 13.9% vs forecast RV 13.8% (1.01×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.45,
+              "weight": 0.167,
+              "reading": "NEUTRAL -1.2 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 0.64,
+              "weight": 0.144,
+              "reading": "1.28σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.76,
+              "weight": 0.111,
+              "reading": "P(touch) 19% · 31% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.5,
+              "weight": 0.111,
+              "reading": "OI +4k · vol +7k",
+              "present": true
+            }
+          ],
+          "notes": [
+            "put smirk 6.88 vol pts (−2)"
+          ]
+        },
+        {
+          "strike": 58900,
+          "type": "CE",
+          "ltp": 237.5,
+          "iv": 0.1105,
+          "oi": 51420,
+          "delta": 0.234,
+          "distancePct": 2.6,
+          "cushionSigma": 1.01,
+          "probTouch": 0.402,
+          "probProfit": 0.766,
+          "conviction": 29,
+          "band": "LOW",
+          "edge": -48.89,
+          "edgePct": -0.0106,
+          "fair": 286.39,
+          "pProfit": 0.797,
+          "cushionSigmaF": 0.68,
+          "probTouchF": 0.501,
+          "tailReliance": 0,
+          "empirical": true,
+          "cvar": -3107.66,
+          "worst": -8101.62,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0,
+              "weight": 0.267,
+              "reading": "-1.06% of margin (fair ₹286.39)",
               "present": true
             },
             {
@@ -3567,7 +3652,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 11% vs forecast RV 13.8% (0.8×)",
+              "reading": "IV 11.1% vs forecast RV 13.8% (0.8×)",
               "present": true
             },
             {
@@ -3616,33 +3701,33 @@
         {
           "strike": 55400,
           "type": "PE",
-          "ltp": 140.55,
-          "iv": 0.1295,
-          "oi": 44700,
-          "delta": -0.133,
+          "ltp": 150.8,
+          "iv": 0.131,
+          "oi": 44730,
+          "delta": -0.14,
           "distancePct": 3.5,
-          "cushionSigma": 1.37,
-          "probTouch": 0.32,
-          "probProfit": 0.867,
+          "cushionSigma": 1.36,
+          "probTouch": 0.326,
+          "probProfit": 0.86,
           "conviction": 28,
           "band": "LOW",
-          "edge": -59.41,
-          "edgePct": -0.0129,
+          "edge": -49.16,
+          "edgePct": -0.0107,
           "fair": 199.96,
           "pProfit": 0.84,
           "cushionSigmaF": 0.92,
           "probTouchF": 0.35,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2372.2,
-          "worst": -5247.5,
+          "cvar": -2361.94,
+          "worst": -5237.24,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.29% of margin (fair ₹199.96)",
+              "reading": "-1.07% of margin (fair ₹199.96)",
               "present": true
             },
             {
@@ -3650,7 +3735,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 13% vs forecast RV 13.8% (0.94×)",
+              "reading": "IV 13.1% vs forecast RV 13.8% (0.95×)",
               "present": true
             },
             {
@@ -3690,214 +3775,44 @@
               "label": "Strike liquidity",
               "s": 0.86,
               "weight": 0.111,
-              "reading": "OI +45k · vol +75k",
+              "reading": "OI +45k · vol +77k",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
-          ]
-        },
-        {
-          "strike": 54600,
-          "type": "PE",
-          "ltp": 74.05,
-          "iv": 0.1369,
-          "oi": 4320,
-          "delta": -0.075,
-          "distancePct": 4.89,
-          "cushionSigma": 1.91,
-          "probTouch": 0.186,
-          "probProfit": 0.925,
-          "conviction": 28,
-          "band": "LOW",
-          "edge": -27.59,
-          "edgePct": -0.006,
-          "fair": 101.64,
-          "pProfit": 0.905,
-          "cushionSigmaF": 1.28,
-          "probTouchF": 0.188,
-          "tailReliance": 0,
-          "empirical": true,
-          "cvar": -1638.7,
-          "worst": -4514,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0,
-              "weight": 0.267,
-              "reading": "-0.6% of margin (fair ₹101.64)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0,
-              "weight": 0.2,
-              "reading": "IV 13.7% vs forecast RV 13.8% (0.99×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.45,
-              "weight": 0.167,
-              "reading": "NEUTRAL -1.2 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 0.64,
-              "weight": 0.144,
-              "reading": "1.28σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.76,
-              "weight": 0.111,
-              "reading": "P(touch) 19% · 31% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.49,
-              "weight": 0.111,
-              "reading": "OI +4k · vol +7k",
-              "present": true
-            }
-          ],
-          "notes": [
-            "put smirk 7.11 vol pts (−2)"
-          ]
-        },
-        {
-          "strike": 55800,
-          "type": "PE",
-          "ltp": 192.65,
-          "iv": 0.1262,
-          "oi": 77820,
-          "delta": -0.175,
-          "distancePct": 2.8,
-          "cushionSigma": 1.1,
-          "probTouch": 0.416,
-          "probProfit": 0.825,
-          "conviction": 27,
-          "band": "LOW",
-          "edge": -78.9,
-          "edgePct": -0.0172,
-          "fair": 271.55,
-          "pProfit": 0.8,
-          "cushionSigmaF": 0.74,
-          "probTouchF": 0.456,
-          "tailReliance": 0,
-          "empirical": true,
-          "cvar": -2720.1,
-          "worst": -5595.4,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0,
-              "weight": 0.267,
-              "reading": "-1.72% of margin (fair ₹271.55)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0,
-              "weight": 0.2,
-              "reading": "IV 12.6% vs forecast RV 13.8% (0.92×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.45,
-              "weight": 0.167,
-              "reading": "NEUTRAL -1.2 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 0.37,
-              "weight": 0.144,
-              "reading": "0.74σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.5,
-              "weight": 0.111,
-              "reading": "P(touch) 46% · 57% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.93,
-              "weight": 0.111,
-              "reading": "OI +78k · vol +1.4L",
-              "present": true
-            }
-          ],
-          "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
           "strike": 55300,
           "type": "PE",
-          "ltp": 127.7,
-          "iv": 0.1297,
-          "oi": 13380,
-          "delta": -0.123,
+          "ltp": 139.65,
+          "iv": 0.1319,
+          "oi": 13560,
+          "delta": -0.13,
           "distancePct": 3.67,
-          "cushionSigma": 1.44,
-          "probTouch": 0.297,
-          "probProfit": 0.877,
-          "conviction": 27,
+          "cushionSigma": 1.42,
+          "probTouch": 0.305,
+          "probProfit": 0.87,
+          "conviction": 28,
           "band": "LOW",
-          "edge": -56.76,
-          "edgePct": -0.0124,
+          "edge": -44.81,
+          "edgePct": -0.0098,
           "fair": 184.46,
           "pProfit": 0.849,
           "cushionSigmaF": 0.96,
           "probTouchF": 0.326,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2285.05,
-          "worst": -5160.35,
+          "cvar": -2273.09,
+          "worst": -5148.39,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.24% of margin (fair ₹184.46)",
+              "reading": "-0.98% of margin (fair ₹184.46)",
               "present": true
             },
             {
@@ -3905,7 +3820,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 13% vs forecast RV 13.8% (0.94×)",
+              "reading": "IV 13.2% vs forecast RV 13.8% (0.96×)",
               "present": true
             },
             {
@@ -3943,46 +3858,46 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.74,
+              "s": 0.75,
               "weight": 0.111,
-              "reading": "OI +13k · vol +99k",
+              "reading": "OI +14k · vol +100k",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
-          "strike": 56000,
+          "strike": 55800,
           "type": "PE",
-          "ltp": 223.2,
-          "iv": 0.1242,
-          "oi": 702390,
-          "delta": -0.199,
-          "distancePct": 2.46,
-          "cushionSigma": 0.96,
-          "probTouch": 0.47,
-          "probProfit": 0.801,
-          "conviction": 26,
+          "ltp": 205.95,
+          "iv": 0.1281,
+          "oi": 77280,
+          "delta": -0.183,
+          "distancePct": 2.8,
+          "cushionSigma": 1.09,
+          "probTouch": 0.423,
+          "probProfit": 0.817,
+          "conviction": 27,
           "band": "LOW",
-          "edge": -90.76,
-          "edgePct": -0.0198,
-          "fair": 313.96,
-          "pProfit": 0.777,
-          "cushionSigmaF": 0.64,
-          "probTouchF": 0.514,
+          "edge": -65.6,
+          "edgePct": -0.0143,
+          "fair": 271.55,
+          "pProfit": 0.8,
+          "cushionSigmaF": 0.74,
+          "probTouchF": 0.456,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2889.55,
-          "worst": -5764.85,
+          "cvar": -2706.79,
+          "worst": -5582.09,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.98% of margin (fair ₹313.96)",
+              "reading": "-1.43% of margin (fair ₹271.55)",
               "present": true
             },
             {
@@ -3990,7 +3905,92 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.4% vs forecast RV 13.8% (0.9×)",
+              "reading": "IV 12.8% vs forecast RV 13.8% (0.93×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.45,
+              "weight": 0.167,
+              "reading": "NEUTRAL -1.2 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 0.37,
+              "weight": 0.144,
+              "reading": "0.74σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.5,
+              "weight": 0.111,
+              "reading": "P(touch) 46% · 57% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.94,
+              "weight": 0.111,
+              "reading": "OI +77k · vol +1.4L",
+              "present": true
+            }
+          ],
+          "notes": [
+            "put smirk 6.88 vol pts (−2)"
+          ]
+        },
+        {
+          "strike": 56000,
+          "type": "PE",
+          "ltp": 241.45,
+          "iv": 0.1266,
+          "oi": 705180,
+          "delta": -0.209,
+          "distancePct": 2.46,
+          "cushionSigma": 0.95,
+          "probTouch": 0.478,
+          "probProfit": 0.791,
+          "conviction": 26,
+          "band": "LOW",
+          "edge": -72.5,
+          "edgePct": -0.0158,
+          "fair": 313.95,
+          "pProfit": 0.777,
+          "cushionSigmaF": 0.64,
+          "probTouchF": 0.514,
+          "tailReliance": 0,
+          "empirical": true,
+          "cvar": -2871.29,
+          "worst": -5746.59,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0,
+              "weight": 0.267,
+              "reading": "-1.58% of margin (fair ₹313.95)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0,
+              "weight": 0.2,
+              "reading": "IV 12.7% vs forecast RV 13.8% (0.92×)",
               "present": true
             },
             {
@@ -4030,44 +4030,44 @@
               "label": "Strike liquidity",
               "s": 1,
               "weight": 0.111,
-              "reading": "OI +7L · vol +10.4L",
+              "reading": "OI +7.1L · vol +10.6L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
           "strike": 55700,
           "type": "PE",
-          "ltp": 176.05,
-          "iv": 0.1265,
-          "oi": 20640,
-          "delta": -0.162,
+          "ltp": 192,
+          "iv": 0.1289,
+          "oi": 20730,
+          "delta": -0.172,
           "distancePct": 2.98,
-          "cushionSigma": 1.16,
-          "probTouch": 0.388,
-          "probProfit": 0.838,
+          "cushionSigma": 1.15,
+          "probTouch": 0.397,
+          "probProfit": 0.828,
           "conviction": 26,
           "band": "LOW",
-          "edge": -75.98,
-          "edgePct": -0.0165,
+          "edge": -60.03,
+          "edgePct": -0.0131,
           "fair": 252.03,
           "pProfit": 0.811,
           "cushionSigmaF": 0.78,
           "probTouchF": 0.428,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2636.7,
-          "worst": -5512,
+          "cvar": -2620.74,
+          "worst": -5496.04,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.65% of margin (fair ₹252.03)",
+              "reading": "-1.31% of margin (fair ₹252.03)",
               "present": true
             },
             {
@@ -4075,7 +4075,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.7% vs forecast RV 13.8% (0.92×)",
+              "reading": "IV 12.9% vs forecast RV 13.8% (0.94×)",
               "present": true
             },
             {
@@ -4113,46 +4113,46 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.81,
+              "s": 0.82,
               "weight": 0.111,
-              "reading": "OI +21k · vol +74k",
+              "reading": "OI +21k · vol +77k",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
           "strike": 55600,
           "type": "PE",
-          "ltp": 164.4,
-          "iv": 0.1278,
-          "oi": 17160,
-          "delta": -0.153,
+          "ltp": 169.8,
+          "iv": 0.1276,
+          "oi": 17070,
+          "delta": -0.157,
           "distancePct": 3.15,
-          "cushionSigma": 1.23,
-          "probTouch": 0.366,
-          "probProfit": 0.847,
+          "cushionSigma": 1.22,
+          "probTouch": 0.365,
+          "probProfit": 0.843,
           "conviction": 26,
           "band": "LOW",
-          "edge": -69.31,
-          "edgePct": -0.0151,
+          "edge": -63.91,
+          "edgePct": -0.0139,
           "fair": 233.71,
           "pProfit": 0.822,
           "cushionSigmaF": 0.83,
           "probTouchF": 0.401,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2548.35,
-          "worst": -5423.65,
+          "cvar": -2542.94,
+          "worst": -5418.24,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.51% of margin (fair ₹233.71)",
+              "reading": "-1.39% of margin (fair ₹233.71)",
               "present": true
             },
             {
@@ -4200,44 +4200,44 @@
               "label": "Strike liquidity",
               "s": 0.79,
               "weight": 0.111,
-              "reading": "OI +17k · vol +61k",
+              "reading": "OI +17k · vol +63k",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
           "strike": 55900,
           "type": "PE",
-          "ltp": 205.7,
-          "iv": 0.1248,
-          "oi": 20130,
-          "delta": -0.186,
+          "ltp": 224.65,
+          "iv": 0.1274,
+          "oi": 20700,
+          "delta": -0.196,
           "distancePct": 2.63,
-          "cushionSigma": 1.03,
-          "probTouch": 0.441,
-          "probProfit": 0.814,
+          "cushionSigma": 1.02,
+          "probTouch": 0.45,
+          "probProfit": 0.804,
           "conviction": 25,
           "band": "LOW",
-          "edge": -86.47,
-          "edgePct": -0.0188,
+          "edge": -67.52,
+          "edgePct": -0.0147,
           "fair": 292.17,
           "pProfit": 0.789,
           "cushionSigmaF": 0.69,
           "probTouchF": 0.484,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2807.05,
-          "worst": -5682.35,
+          "cvar": -2788.09,
+          "worst": -5663.39,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.88% of margin (fair ₹292.17)",
+              "reading": "-1.47% of margin (fair ₹292.17)",
               "present": true
             },
             {
@@ -4245,7 +4245,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.5% vs forecast RV 13.8% (0.91×)",
+              "reading": "IV 12.7% vs forecast RV 13.8% (0.93×)",
               "present": true
             },
             {
@@ -4259,7 +4259,7 @@
             {
               "key": "cushion",
               "label": "Cushion (forecast σ)",
-              "s": 0.34,
+              "s": 0.35,
               "weight": 0.144,
               "reading": "0.69σ away on forecast vol",
               "present": true
@@ -4283,46 +4283,46 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.82,
+              "s": 0.83,
               "weight": 0.111,
-              "reading": "OI +20k · vol +71k",
+              "reading": "OI +21k · vol +72k",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
-          "strike": 56200,
+          "strike": 54700,
           "type": "PE",
-          "ltp": 262.4,
-          "iv": 0.123,
-          "oi": 53460,
-          "delta": -0.227,
-          "distancePct": 2.11,
-          "cushionSigma": 0.82,
-          "probTouch": 0.532,
-          "probProfit": 0.773,
-          "conviction": 24,
+          "ltp": 82.35,
+          "iv": 0.1351,
+          "oi": 90,
+          "delta": -0.083,
+          "distancePct": 4.72,
+          "cushionSigma": 1.83,
+          "probTouch": 0.196,
+          "probProfit": 0.917,
+          "conviction": 25,
           "band": "LOW",
-          "edge": -99.09,
-          "edgePct": -0.0216,
-          "fair": 361.49,
-          "pProfit": 0.746,
-          "cushionSigmaF": 0.55,
-          "probTouchF": 0.576,
+          "edge": -29.11,
+          "edgePct": -0.0063,
+          "fair": 111.46,
+          "pProfit": 0.9,
+          "cushionSigmaF": 1.24,
+          "probTouchF": 0.205,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -3050.35,
-          "worst": -5925.65,
+          "cvar": -1730.39,
+          "worst": -4605.69,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-2.16% of margin (fair ₹361.49)",
+              "reading": "-0.63% of margin (fair ₹111.46)",
               "present": true
             },
             {
@@ -4330,7 +4330,92 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.3% vs forecast RV 13.8% (0.89×)",
+              "reading": "IV 13.5% vs forecast RV 13.8% (0.98×)",
+              "present": true
+            },
+            {
+              "key": "direction",
+              "label": "Direction alignment",
+              "s": 0.45,
+              "weight": 0.167,
+              "reading": "NEUTRAL -1.2 · sell PE",
+              "present": true
+            },
+            {
+              "key": "cushion",
+              "label": "Cushion (forecast σ)",
+              "s": 0.62,
+              "weight": 0.144,
+              "reading": "1.24σ away on forecast vol",
+              "present": true
+            },
+            {
+              "key": "survival",
+              "label": "Path safety to expiry",
+              "s": 0.75,
+              "weight": 0.111,
+              "reading": "P(touch) 20% · 33% stressed",
+              "present": true
+            },
+            {
+              "key": "ivRank",
+              "label": "IV rank",
+              "s": null,
+              "weight": 0,
+              "reading": null,
+              "present": false
+            },
+            {
+              "key": "liquidity",
+              "label": "Strike liquidity",
+              "s": 0.17,
+              "weight": 0.111,
+              "reading": "OI +90 · vol +750",
+              "present": true
+            }
+          ],
+          "notes": [
+            "put smirk 6.88 vol pts (−2)"
+          ]
+        },
+        {
+          "strike": 56200,
+          "type": "PE",
+          "ltp": 283.2,
+          "iv": 0.1254,
+          "oi": 53340,
+          "delta": -0.237,
+          "distancePct": 2.11,
+          "cushionSigma": 0.82,
+          "probTouch": 0.54,
+          "probProfit": 0.763,
+          "conviction": 24,
+          "band": "LOW",
+          "edge": -78.28,
+          "edgePct": -0.017,
+          "fair": 361.48,
+          "pProfit": 0.746,
+          "cushionSigmaF": 0.55,
+          "probTouchF": 0.576,
+          "tailReliance": 0,
+          "empirical": true,
+          "cvar": -3029.54,
+          "worst": -5904.84,
+          "factors": [
+            {
+              "key": "edge",
+              "label": "Expected edge on margin",
+              "s": 0,
+              "weight": 0.267,
+              "reading": "-1.7% of margin (fair ₹361.48)",
+              "present": true
+            },
+            {
+              "key": "vrp",
+              "label": "IV vs forecast RV",
+              "s": 0,
+              "weight": 0.2,
+              "reading": "IV 12.5% vs forecast RV 13.8% (0.91×)",
               "present": true
             },
             {
@@ -4368,46 +4453,46 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.92,
+              "s": 0.93,
               "weight": 0.111,
-              "reading": "OI +53k · vol +1.1L",
+              "reading": "OI +53k · vol +1.2L",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         },
         {
           "strike": 56100,
           "type": "PE",
-          "ltp": 245.4,
-          "iv": 0.1243,
-          "oi": 22860,
-          "delta": -0.214,
+          "ltp": 261.85,
+          "iv": 0.126,
+          "oi": 23250,
+          "delta": -0.222,
           "distancePct": 2.28,
-          "cushionSigma": 0.89,
-          "probTouch": 0.503,
-          "probProfit": 0.786,
+          "cushionSigma": 0.88,
+          "probTouch": 0.508,
+          "probProfit": 0.778,
           "conviction": 24,
           "band": "LOW",
-          "edge": -91.54,
-          "edgePct": -0.0199,
+          "edge": -75.09,
+          "edgePct": -0.0163,
           "fair": 336.94,
           "pProfit": 0.762,
           "cushionSigmaF": 0.6,
           "probTouchF": 0.545,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -2967.35,
-          "worst": -5842.65,
+          "cvar": -2950.89,
+          "worst": -5826.19,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-1.99% of margin (fair ₹336.94)",
+              "reading": "-1.63% of margin (fair ₹336.94)",
               "present": true
             },
             {
@@ -4415,7 +4500,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.4% vs forecast RV 13.8% (0.9×)",
+              "reading": "IV 12.6% vs forecast RV 13.8% (0.92×)",
               "present": true
             },
             {
@@ -4455,97 +4540,12 @@
               "label": "Strike liquidity",
               "s": 0.85,
               "weight": 0.111,
-              "reading": "OI +23k · vol +68k",
+              "reading": "OI +23k · vol +70k",
               "present": true
             }
           ],
           "notes": [
-            "put smirk 7.11 vol pts (−2)"
-          ]
-        },
-        {
-          "strike": 56300,
-          "type": "PE",
-          "ltp": 285.45,
-          "iv": 0.1227,
-          "oi": 38400,
-          "delta": -0.243,
-          "distancePct": 1.93,
-          "cushionSigma": 0.76,
-          "probTouch": 0.566,
-          "probProfit": 0.757,
-          "conviction": 23,
-          "band": "LOW",
-          "edge": -102.22,
-          "edgePct": -0.0223,
-          "fair": 387.67,
-          "pProfit": 0.73,
-          "cushionSigmaF": 0.51,
-          "probTouchF": 0.609,
-          "tailReliance": 0,
-          "empirical": true,
-          "cvar": -3127.3,
-          "worst": -6002.6,
-          "factors": [
-            {
-              "key": "edge",
-              "label": "Expected edge on margin",
-              "s": 0,
-              "weight": 0.267,
-              "reading": "-2.23% of margin (fair ₹387.67)",
-              "present": true
-            },
-            {
-              "key": "vrp",
-              "label": "IV vs forecast RV",
-              "s": 0,
-              "weight": 0.2,
-              "reading": "IV 12.3% vs forecast RV 13.8% (0.89×)",
-              "present": true
-            },
-            {
-              "key": "direction",
-              "label": "Direction alignment",
-              "s": 0.45,
-              "weight": 0.167,
-              "reading": "NEUTRAL -1.2 · sell PE",
-              "present": true
-            },
-            {
-              "key": "cushion",
-              "label": "Cushion (forecast σ)",
-              "s": 0.25,
-              "weight": 0.144,
-              "reading": "0.51σ away on forecast vol",
-              "present": true
-            },
-            {
-              "key": "survival",
-              "label": "Path safety to expiry",
-              "s": 0.36,
-              "weight": 0.111,
-              "reading": "P(touch) 61% · 69% stressed",
-              "present": true
-            },
-            {
-              "key": "ivRank",
-              "label": "IV rank",
-              "s": null,
-              "weight": 0,
-              "reading": null,
-              "present": false
-            },
-            {
-              "key": "liquidity",
-              "label": "Strike liquidity",
-              "s": 0.9,
-              "weight": 0.111,
-              "reading": "OI +38k · vol +1.1L",
-              "present": true
-            }
-          ],
-          "notes": [
-            "put smirk 7.11 vol pts (−2)"
+            "put smirk 6.88 vol pts (−2)"
           ]
         }
       ],
@@ -4574,37 +4574,37 @@
           "strike": 45000,
           "type": "PE",
           "ltp": 6.85,
-          "iv": 0.3418,
-          "oi": 185310,
+          "iv": 0.3412,
+          "oi": 185430,
           "prevOi": 183960,
-          "volume": 12000,
+          "volume": 12240,
           "delta": -0.004
         },
         {
           "strike": 46500,
           "type": "CE",
           "ltp": 11380,
-          "iv": 0.5394,
+          "iv": 0.5563,
           "oi": 30,
           "prevOi": 0,
           "volume": 60,
-          "delta": 0.935
+          "delta": 0.928
         },
         {
           "strike": 46500,
           "type": "PE",
-          "ltp": 8.55,
-          "iv": 0.3079,
-          "oi": 20190,
+          "ltp": 8,
+          "iv": 0.3076,
+          "oi": 20130,
           "prevOi": 20130,
-          "volume": 15510,
+          "volume": 16500,
           "delta": -0.005
         },
         {
           "strike": 48000,
           "type": "CE",
           "ltp": 9580,
-          "iv": null,
+          "iv": 0.1563,
           "oi": 8160,
           "prevOi": 8160,
           "volume": 90,
@@ -4613,72 +4613,72 @@
         {
           "strike": 48000,
           "type": "PE",
-          "ltp": 10,
-          "iv": 0.2728,
-          "oi": 90720,
+          "ltp": 9.6,
+          "iv": 0.2701,
+          "oi": 90300,
           "prevOi": 91350,
-          "volume": 75810,
+          "volume": 77910,
           "delta": -0.007
         },
         {
           "strike": 49000,
           "type": "CE",
           "ltp": 8880,
-          "iv": 0.43,
+          "iv": 0.4497,
           "oi": 2190,
           "prevOi": 2220,
           "volume": 0,
-          "delta": 0.922
+          "delta": 0.913
         },
         {
           "strike": 49000,
           "type": "PE",
-          "ltp": 12.85,
-          "iv": 0.2524,
-          "oi": 36750,
+          "ltp": 12.35,
+          "iv": 0.2499,
+          "oi": 36720,
           "prevOi": 35970,
-          "volume": 40260,
+          "volume": 44820,
           "delta": -0.009
         },
         {
           "strike": 49500,
           "type": "CE",
           "ltp": 8160,
-          "iv": 0.2713,
+          "iv": 0.3162,
           "oi": 90,
           "prevOi": 90,
           "volume": 0,
-          "delta": 0.98
+          "delta": 0.962
         },
         {
           "strike": 49500,
           "type": "PE",
-          "ltp": 14.35,
-          "iv": 0.2417,
-          "oi": 42690,
+          "ltp": 13.6,
+          "iv": 0.2391,
+          "oi": 42030,
           "prevOi": 36630,
-          "volume": 50400,
-          "delta": -0.011
+          "volume": 51720,
+          "delta": -0.01
         },
         {
           "strike": 50000,
           "type": "CE",
-          "ltp": 7510.45,
+          "ltp": 7505.15,
           "iv": null,
-          "oi": 112680,
+          "oi": 112740,
           "prevOi": 112380,
-          "volume": 930,
+          "volume": 990,
           "delta": 1
         },
         {
           "strike": 50000,
           "type": "PE",
-          "ltp": 14.55,
-          "iv": 0.2283,
-          "oi": 420990,
+          "ltp": 15,
+          "iv": 0.228,
+          "oi": 421380,
           "prevOi": 427950,
-          "volume": 114810,
-          "delta": -0.011
+          "volume": 116850,
+          "delta": -0.012
         },
         {
           "strike": 50500,
@@ -4693,12 +4693,12 @@
         {
           "strike": 50500,
           "type": "PE",
-          "ltp": 14.7,
-          "iv": 0.2142,
-          "oi": 8580,
+          "ltp": 16.15,
+          "iv": 0.2159,
+          "oi": 8490,
           "prevOi": 10380,
-          "volume": 24540,
-          "delta": -0.012
+          "volume": 24660,
+          "delta": -0.013
         },
         {
           "strike": 51000,
@@ -4713,118 +4713,118 @@
         {
           "strike": 51000,
           "type": "PE",
-          "ltp": 16.85,
-          "iv": 0.2042,
-          "oi": 231480,
+          "ltp": 17.25,
+          "iv": 0.2039,
+          "oi": 231180,
           "prevOi": 228900,
-          "volume": 92580,
-          "delta": -0.014
+          "volume": 93750,
+          "delta": -0.015
         },
         {
           "strike": 51500,
           "type": "PE",
-          "ltp": 16.75,
-          "iv": 0.1898,
-          "oi": 70260,
+          "ltp": 17.05,
+          "iv": 0.1892,
+          "oi": 70530,
           "prevOi": 68340,
-          "volume": 79530,
-          "delta": -0.015
+          "volume": 80850,
+          "delta": -0.016
         },
         {
           "strike": 51600,
           "type": "PE",
           "ltp": 17.1,
-          "iv": 0.1875,
-          "oi": 1290,
+          "iv": 0.1865,
+          "oi": 1170,
           "prevOi": 2310,
-          "volume": 5280,
+          "volume": 5400,
           "delta": -0.016
         },
         {
           "strike": 51700,
           "type": "PE",
-          "ltp": 17.9,
-          "iv": 0.1859,
+          "ltp": 18.15,
+          "iv": 0.1852,
           "oi": 1050,
           "prevOi": 180,
-          "volume": 4170,
-          "delta": -0.016
+          "volume": 4200,
+          "delta": -0.017
         },
         {
           "strike": 52000,
           "type": "CE",
           "ltp": 5900,
-          "iv": 0.3123,
+          "iv": 0.3271,
           "oi": 13260,
           "prevOi": 13260,
           "volume": 0,
-          "delta": 0.891
+          "delta": 0.879
         },
         {
           "strike": 52000,
           "type": "PE",
-          "ltp": 19.35,
+          "ltp": 20,
           "iv": 0.1793,
-          "oi": 343320,
+          "oi": 341580,
           "prevOi": 326850,
-          "volume": 277650,
-          "delta": -0.018
+          "volume": 281490,
+          "delta": -0.019
         },
         {
           "strike": 52100,
           "type": "PE",
-          "ltp": 20.25,
-          "iv": 0.1779,
-          "oi": 8670,
+          "ltp": 19.65,
+          "iv": 0.1759,
+          "oi": 8640,
           "prevOi": 9720,
-          "volume": 21180,
+          "volume": 21210,
           "delta": -0.019
         },
         {
           "strike": 52200,
           "type": "PE",
-          "ltp": 23,
-          "iv": 0.1785,
-          "oi": 1560,
+          "ltp": 17.5,
+          "iv": 0.1772,
+          "oi": 2190,
           "prevOi": 0,
-          "volume": 2970,
-          "delta": -0.021
+          "volume": 3030,
+          "delta": -0.022
         },
         {
           "strike": 52500,
           "type": "CE",
-          "ltp": 5478.6,
-          "iv": 0.3151,
-          "oi": 300,
+          "ltp": 5000,
+          "iv": null,
+          "oi": 330,
           "prevOi": 330,
-          "volume": 0,
-          "delta": 0.867
+          "volume": 30,
+          "delta": 1
         },
         {
           "strike": 52500,
           "type": "PE",
-          "ltp": 22.65,
-          "iv": 0.1691,
-          "oi": 104250,
+          "ltp": 23.95,
+          "iv": 0.1695,
+          "oi": 103830,
           "prevOi": 93840,
-          "volume": 197520,
-          "delta": -0.022
+          "volume": 200400,
+          "delta": -0.023
         },
         {
           "strike": 52600,
           "type": "PE",
-          "ltp": 23.3,
-          "iv": 0.1669,
-          "oi": 5250,
+          "ltp": 25.4,
+          "iv": 0.1682,
+          "oi": 4860,
           "prevOi": 2010,
-          "volume": 43800,
-          "delta": -0.023
+          "volume": 44490,
+          "delta": -0.025
         },
         {
           "strike": 52700,
           "type": "PE",
           "ltp": 16.15,
-          "iv": 0.1552,
+          "iv": 0.1538,
           "oi": 1770,
           "prevOi": 0,
           "volume": 1860,
@@ -4833,962 +4833,962 @@
         {
           "strike": 53000,
           "type": "CE",
-          "ltp": 4600,
+          "ltp": 4540,
           "iv": null,
-          "oi": 35730,
+          "oi": 35670,
           "prevOi": 35760,
-          "volume": 600,
+          "volume": 630,
           "delta": 1
         },
         {
           "strike": 53000,
           "type": "PE",
-          "ltp": 27.7,
-          "iv": 0.1596,
-          "oi": 289740,
+          "ltp": 29.25,
+          "iv": 0.1601,
+          "oi": 290940,
           "prevOi": 292170,
-          "volume": 317370,
-          "delta": -0.028
+          "volume": 327030,
+          "delta": -0.029
         },
         {
           "strike": 53500,
           "type": "CE",
           "ltp": 4675,
-          "iv": 0.3188,
+          "iv": 0.3281,
           "oi": 5100,
           "prevOi": 5100,
           "volume": 0,
-          "delta": 0.812
+          "delta": 0.803
         },
         {
           "strike": 53500,
           "type": "PE",
-          "ltp": 35.1,
-          "iv": 0.1508,
-          "oi": 190680,
+          "ltp": 37.25,
+          "iv": 0.1511,
+          "oi": 189690,
           "prevOi": 198030,
-          "volume": 262620,
-          "delta": -0.036
+          "volume": 267240,
+          "delta": -0.038
         },
         {
           "strike": 53600,
           "type": "CE",
           "ltp": 4150,
-          "iv": 0.1938,
+          "iv": 0.2113,
           "oi": 30,
           "prevOi": 30,
           "volume": 0,
-          "delta": 0.916
+          "delta": 0.895
         },
         {
           "strike": 54000,
           "type": "CE",
-          "ltp": 3600,
+          "ltp": 3556.75,
           "iv": null,
-          "oi": 63930,
+          "oi": 63960,
           "prevOi": 64290,
-          "volume": 2670,
+          "volume": 2790,
           "delta": 1
         },
         {
           "strike": 54000,
           "type": "PE",
-          "ltp": 48.1,
-          "iv": 0.1437,
-          "oi": 582870,
+          "ltp": 51.55,
+          "iv": 0.1446,
+          "oi": 579870,
           "prevOi": 632460,
-          "volume": 795780,
-          "delta": -0.05
+          "volume": 811440,
+          "delta": -0.052
         },
         {
           "strike": 54300,
           "type": "CE",
           "ltp": 3350,
-          "iv": 0.1155,
+          "iv": 0.1441,
           "oi": 270,
           "prevOi": 270,
           "volume": 60,
-          "delta": 0.97
+          "delta": 0.932
         },
         {
           "strike": 54400,
           "type": "PE",
-          "ltp": 65.05,
-          "iv": 0.1394,
-          "oi": 60060,
+          "ltp": 69.45,
+          "iv": 0.1387,
+          "oi": 60570,
           "prevOi": 57630,
-          "volume": 89940,
-          "delta": -0.066
+          "volume": 90780,
+          "delta": -0.067
         },
         {
           "strike": 54500,
           "type": "CE",
           "ltp": 3150,
-          "iv": 0.117,
+          "iv": 0.1387,
           "oi": 4080,
           "prevOi": 4050,
           "volume": 150,
-          "delta": 0.959
+          "delta": 0.926
         },
         {
           "strike": 54500,
           "type": "PE",
-          "ltp": 68.7,
-          "iv": 0.1377,
-          "oi": 195690,
+          "ltp": 73.55,
+          "iv": 0.1389,
+          "oi": 200070,
           "prevOi": 168240,
-          "volume": 486990,
-          "delta": -0.07
+          "volume": 500790,
+          "delta": -0.074
         },
         {
           "strike": 54600,
           "type": "PE",
-          "ltp": 74.05,
-          "iv": 0.1369,
-          "oi": 4320,
+          "ltp": 82.15,
+          "iv": 0.1387,
+          "oi": 4230,
           "prevOi": 0,
-          "volume": 7230,
-          "delta": -0.075
+          "volume": 7350,
+          "delta": -0.081
         },
         {
           "strike": 54700,
           "type": "PE",
-          "ltp": 149.75,
-          "iv": 0.1605,
-          "oi": 0,
+          "ltp": 82.35,
+          "iv": 0.1351,
+          "oi": 90,
           "prevOi": 0,
-          "volume": 30,
-          "delta": -0.117
+          "volume": 750,
+          "delta": -0.083
         },
         {
           "strike": 54800,
           "type": "PE",
-          "ltp": 85.55,
-          "iv": 0.1342,
-          "oi": 55260,
+          "ltp": 91.95,
+          "iv": 0.1354,
+          "oi": 56250,
           "prevOi": 63510,
-          "volume": 91200,
-          "delta": -0.086
+          "volume": 94050,
+          "delta": -0.09
         },
         {
           "strike": 55000,
           "type": "CE",
-          "ltp": 2690,
-          "iv": 0.1213,
-          "oi": 63990,
+          "ltp": 2631.35,
+          "iv": 0.1108,
+          "oi": 63930,
           "prevOi": 61350,
-          "volume": 34110,
-          "delta": 0.919
+          "volume": 34590,
+          "delta": 0.934
         },
         {
           "strike": 55000,
           "type": "PE",
-          "ltp": 101.6,
-          "iv": 0.1328,
-          "oi": 706350,
+          "ltp": 110,
+          "iv": 0.1344,
+          "oi": 705450,
           "prevOi": 620220,
-          "volume": 1066140,
-          "delta": -0.1
+          "volume": 1080960,
+          "delta": -0.105
         },
         {
           "strike": 55100,
           "type": "CE",
           "ltp": 2665,
-          "iv": 0.141,
+          "iv": 0.1541,
           "oi": 330,
           "prevOi": 270,
           "volume": 0,
-          "delta": 0.879
+          "delta": 0.854
         },
         {
           "strike": 55200,
           "type": "PE",
-          "ltp": 118.3,
-          "iv": 0.1307,
-          "oi": 80940,
+          "ltp": 128.25,
+          "iv": 0.1326,
+          "oi": 80790,
           "prevOi": 71670,
-          "volume": 124770,
-          "delta": -0.115
+          "volume": 127260,
+          "delta": -0.121
         },
         {
           "strike": 55300,
           "type": "PE",
-          "ltp": 127.7,
-          "iv": 0.1297,
-          "oi": 13380,
+          "ltp": 139.65,
+          "iv": 0.1319,
+          "oi": 13560,
           "prevOi": 6630,
-          "volume": 98910,
-          "delta": -0.123
+          "volume": 99660,
+          "delta": -0.13
         },
         {
           "strike": 55400,
           "type": "PE",
-          "ltp": 140.55,
-          "iv": 0.1295,
-          "oi": 44700,
+          "ltp": 150.8,
+          "iv": 0.131,
+          "oi": 44730,
           "prevOi": 42870,
-          "volume": 74700,
-          "delta": -0.133
+          "volume": 77100,
+          "delta": -0.14
         },
         {
           "strike": 55500,
           "type": "CE",
           "ltp": 2246,
-          "iv": 0.1217,
+          "iv": 0.1309,
           "oi": 14130,
           "prevOi": 14430,
           "volume": 2490,
-          "delta": 0.87
+          "delta": 0.849
         },
         {
           "strike": 55500,
           "type": "PE",
-          "ltp": 151.45,
-          "iv": 0.1285,
-          "oi": 483570,
+          "ltp": 164.3,
+          "iv": 0.1305,
+          "oi": 491340,
           "prevOi": 496320,
-          "volume": 707580,
-          "delta": -0.142
+          "volume": 736980,
+          "delta": -0.15
         },
         {
           "strike": 55600,
           "type": "PE",
-          "ltp": 164.4,
-          "iv": 0.1278,
-          "oi": 17160,
+          "ltp": 169.8,
+          "iv": 0.1276,
+          "oi": 17070,
           "prevOi": 15450,
-          "volume": 60870,
-          "delta": -0.153
+          "volume": 62640,
+          "delta": -0.157
         },
         {
           "strike": 55700,
           "type": "CE",
           "ltp": 2051.05,
-          "iv": 0.1149,
+          "iv": 0.1245,
           "oi": 30,
           "prevOi": 30,
           "volume": 90,
-          "delta": 0.86
+          "delta": 0.836
         },
         {
           "strike": 55700,
           "type": "PE",
-          "ltp": 176.05,
-          "iv": 0.1265,
-          "oi": 20640,
+          "ltp": 192,
+          "iv": 0.1289,
+          "oi": 20730,
           "prevOi": 13230,
-          "volume": 74100,
-          "delta": -0.162
+          "volume": 77190,
+          "delta": -0.172
         },
         {
           "strike": 55800,
           "type": "CE",
           "ltp": 2043.95,
-          "iv": 0.1322,
+          "iv": 0.1417,
           "oi": 750,
           "prevOi": 720,
           "volume": 0,
-          "delta": 0.816
+          "delta": 0.793
         },
         {
           "strike": 55800,
           "type": "PE",
-          "ltp": 192.65,
-          "iv": 0.1262,
-          "oi": 77820,
+          "ltp": 205.95,
+          "iv": 0.1281,
+          "oi": 77280,
           "prevOi": 64260,
-          "volume": 136350,
-          "delta": -0.175
+          "volume": 139320,
+          "delta": -0.183
         },
         {
           "strike": 55900,
           "type": "CE",
           "ltp": 2026,
-          "iv": 0.1473,
+          "iv": 0.154,
           "oi": 300,
           "prevOi": 300,
           "volume": 30,
-          "delta": 0.777
+          "delta": 0.762
         },
         {
           "strike": 55900,
           "type": "PE",
-          "ltp": 205.7,
-          "iv": 0.1248,
-          "oi": 20130,
+          "ltp": 224.65,
+          "iv": 0.1274,
+          "oi": 20700,
           "prevOi": 21420,
-          "volume": 70620,
-          "delta": -0.186
+          "volume": 72180,
+          "delta": -0.196
         },
         {
           "strike": 56000,
           "type": "CE",
-          "ltp": 1815.05,
-          "iv": 0.1181,
-          "oi": 63720,
+          "ltp": 1775,
+          "iv": 0.116,
+          "oi": 63750,
           "prevOi": 62610,
-          "volume": 54960,
-          "delta": 0.813
+          "volume": 55920,
+          "delta": 0.811
         },
         {
           "strike": 56000,
           "type": "PE",
-          "ltp": 223.2,
-          "iv": 0.1242,
-          "oi": 702390,
+          "ltp": 241.45,
+          "iv": 0.1266,
+          "oi": 705180,
           "prevOi": 696780,
-          "volume": 1040640,
-          "delta": -0.199
+          "volume": 1056690,
+          "delta": -0.209
         },
         {
           "strike": 56100,
           "type": "CE",
           "ltp": 1729.3,
-          "iv": 0.1167,
+          "iv": 0.1233,
           "oi": 720,
           "prevOi": 480,
           "volume": 600,
-          "delta": 0.8
+          "delta": 0.782
         },
         {
           "strike": 56100,
           "type": "PE",
-          "ltp": 245.4,
-          "iv": 0.1243,
-          "oi": 22860,
+          "ltp": 261.85,
+          "iv": 0.126,
+          "oi": 23250,
           "prevOi": 20220,
-          "volume": 68070,
-          "delta": -0.214
+          "volume": 70170,
+          "delta": -0.222
         },
         {
           "strike": 56200,
           "type": "CE",
           "ltp": 1664.75,
-          "iv": 0.1197,
+          "iv": 0.1258,
           "oi": 1740,
           "prevOi": 1020,
           "volume": 2040,
-          "delta": 0.779
+          "delta": 0.762
         },
         {
           "strike": 56200,
           "type": "PE",
-          "ltp": 262.4,
-          "iv": 0.123,
-          "oi": 53460,
+          "ltp": 283.2,
+          "iv": 0.1254,
+          "oi": 53340,
           "prevOi": 49860,
-          "volume": 113550,
-          "delta": -0.227
+          "volume": 116190,
+          "delta": -0.237
         },
         {
           "strike": 56300,
           "type": "CE",
           "ltp": 1580.3,
-          "iv": 0.118,
+          "iv": 0.1238,
           "oi": 1080,
           "prevOi": 210,
           "volume": 1680,
-          "delta": 0.766
+          "delta": 0.75
         },
         {
           "strike": 56300,
           "type": "PE",
-          "ltp": 285.45,
-          "iv": 0.1227,
-          "oi": 38400,
+          "ltp": 303.9,
+          "iv": 0.125,
+          "oi": 38940,
           "prevOi": 32160,
-          "volume": 109770,
-          "delta": -0.243
+          "volume": 113130,
+          "delta": -0.252
         },
         {
           "strike": 56400,
           "type": "CE",
-          "ltp": 1498.7,
-          "iv": 0.1166,
-          "oi": 2280,
+          "ltp": 1463.5,
+          "iv": 0.1153,
+          "oi": 2250,
           "prevOi": 1050,
-          "volume": 3450,
-          "delta": 0.751
+          "volume": 3480,
+          "delta": 0.747
         },
         {
           "strike": 56400,
           "type": "PE",
-          "ltp": 305.2,
-          "iv": 0.1214,
-          "oi": 43470,
+          "ltp": 330.2,
+          "iv": 0.1243,
+          "oi": 44250,
           "prevOi": 39060,
-          "volume": 132420,
-          "delta": -0.257
+          "volume": 134130,
+          "delta": -0.268
         },
         {
           "strike": 56500,
           "type": "CE",
-          "ltp": 1424.8,
-          "iv": 0.1165,
-          "oi": 56340,
+          "ltp": 1391,
+          "iv": 0.1154,
+          "oi": 56310,
           "prevOi": 56430,
-          "volume": 78720,
-          "delta": 0.734
+          "volume": 79020,
+          "delta": 0.729
         },
         {
           "strike": 56500,
           "type": "PE",
-          "ltp": 329.55,
-          "iv": 0.1208,
+          "ltp": 352.6,
+          "iv": 0.1231,
           "oi": 455910,
           "prevOi": 454470,
-          "volume": 665220,
-          "delta": -0.273
+          "volume": 673230,
+          "delta": -0.283
         },
         {
           "strike": 56600,
           "type": "CE",
-          "ltp": 1354.9,
-          "iv": 0.1167,
-          "oi": 3690,
+          "ltp": 1354.75,
+          "iv": 0.1217,
+          "oi": 3660,
           "prevOi": 2280,
-          "volume": 5250,
-          "delta": 0.715
+          "volume": 5280,
+          "delta": 0.701
         },
         {
           "strike": 56600,
           "type": "PE",
-          "ltp": 354.9,
-          "iv": 0.1201,
-          "oi": 61620,
+          "ltp": 382.65,
+          "iv": 0.1231,
+          "oi": 61830,
           "prevOi": 48090,
-          "volume": 152910,
-          "delta": -0.29
+          "volume": 155280,
+          "delta": -0.301
         },
         {
           "strike": 56700,
           "type": "CE",
-          "ltp": 1288.2,
-          "iv": 0.1172,
-          "oi": 24450,
+          "ltp": 1250,
+          "iv": 0.1151,
+          "oi": 24510,
           "prevOi": 24660,
-          "volume": 8910,
-          "delta": 0.695
+          "volume": 9090,
+          "delta": 0.691
         },
         {
           "strike": 56700,
           "type": "PE",
-          "ltp": 383.55,
-          "iv": 0.1196,
-          "oi": 62940,
+          "ltp": 411.6,
+          "iv": 0.1225,
+          "oi": 64620,
           "prevOi": 55170,
-          "volume": 158700,
-          "delta": -0.308
+          "volume": 160710,
+          "delta": -0.319
         },
         {
           "strike": 56800,
           "type": "CE",
-          "ltp": 1214.5,
-          "iv": 0.1161,
-          "oi": 7320,
-          "prevOi": 4230,
-          "volume": 20460,
-          "delta": 0.678
-        },
-        {
-          "strike": 56800,
-          "type": "PE",
-          "ltp": 413.3,
-          "iv": 0.1191,
-          "oi": 70260,
-          "prevOi": 61200,
-          "volume": 295830,
-          "delta": -0.326
-        },
-        {
-          "strike": 56900,
-          "type": "CE",
-          "ltp": 1144,
-          "iv": 0.1153,
-          "oi": 5520,
-          "prevOi": 4800,
-          "volume": 20220,
-          "delta": 0.659
-        },
-        {
-          "strike": 56900,
-          "type": "PE",
-          "ltp": 443.65,
-          "iv": 0.1183,
-          "oi": 62310,
-          "prevOi": 37260,
-          "volume": 328620,
-          "delta": -0.345
-        },
-        {
-          "strike": 57000,
-          "type": "CE",
-          "ltp": 1079.7,
+          "ltp": 1185,
           "iv": 0.1155,
-          "oi": 280050,
+          "oi": 7290,
+          "prevOi": 4230,
+          "volume": 20700,
+          "delta": 0.671
+        },
+        {
+          "strike": 56800,
+          "type": "PE",
+          "ltp": 441.7,
+          "iv": 0.1218,
+          "oi": 68190,
+          "prevOi": 61200,
+          "volume": 300330,
+          "delta": -0.337
+        },
+        {
+          "strike": 56900,
+          "type": "CE",
+          "ltp": 1140,
+          "iv": 0.1188,
+          "oi": 5700,
+          "prevOi": 4800,
+          "volume": 20280,
+          "delta": 0.647
+        },
+        {
+          "strike": 56900,
+          "type": "PE",
+          "ltp": 467.35,
+          "iv": 0.1201,
+          "oi": 62040,
+          "prevOi": 37260,
+          "volume": 333480,
+          "delta": -0.354
+        },
+        {
+          "strike": 57000,
+          "type": "CE",
+          "ltp": 1053.45,
+          "iv": 0.1148,
+          "oi": 279900,
           "prevOi": 236250,
-          "volume": 629820,
-          "delta": 0.638
+          "volume": 636300,
+          "delta": 0.631
         },
         {
           "strike": 57000,
           "type": "PE",
-          "ltp": 476.85,
-          "iv": 0.1177,
-          "oi": 848190,
+          "ltp": 507.6,
+          "iv": 0.1206,
+          "oi": 850260,
           "prevOi": 793260,
-          "volume": 1764180,
-          "delta": -0.364
+          "volume": 1797000,
+          "delta": -0.374
         },
         {
           "strike": 57100,
           "type": "CE",
-          "ltp": 1014.75,
-          "iv": 0.1146,
-          "oi": 27360,
-          "prevOi": 14790,
-          "volume": 161190,
-          "delta": 0.618
-        },
-        {
-          "strike": 57100,
-          "type": "PE",
-          "ltp": 512.65,
-          "iv": 0.1171,
-          "oi": 71250,
-          "prevOi": 67200,
-          "volume": 346050,
-          "delta": -0.384
-        },
-        {
-          "strike": 57200,
-          "type": "CE",
-          "ltp": 954.75,
-          "iv": 0.1145,
-          "oi": 132960,
-          "prevOi": 65010,
-          "volume": 609090,
-          "delta": 0.597
-        },
-        {
-          "strike": 57200,
-          "type": "PE",
-          "ltp": 551.05,
-          "iv": 0.1169,
-          "oi": 216660,
-          "prevOi": 219480,
-          "volume": 856890,
-          "delta": -0.405
-        },
-        {
-          "strike": 57300,
-          "type": "CE",
-          "ltp": 893.7,
-          "iv": 0.1141,
-          "oi": 151530,
-          "prevOi": 92760,
-          "volume": 877020,
-          "delta": 0.576
-        },
-        {
-          "strike": 57300,
-          "type": "PE",
-          "ltp": 589.5,
-          "iv": 0.1163,
-          "oi": 338520,
-          "prevOi": 380490,
-          "volume": 1044240,
-          "delta": -0.425
-        },
-        {
-          "strike": 57400,
-          "type": "CE",
-          "ltp": 836.7,
-          "iv": 0.1138,
-          "oi": 189540,
-          "prevOi": 125880,
-          "volume": 1364040,
-          "delta": 0.554
-        },
-        {
-          "strike": 57400,
-          "type": "PE",
-          "ltp": 632.8,
-          "iv": 0.1158,
-          "oi": 331470,
-          "prevOi": 373080,
-          "volume": 1529100,
-          "delta": -0.447
-        },
-        {
-          "strike": 57500,
-          "type": "CE",
-          "ltp": 778.4,
-          "iv": 0.1129,
-          "oi": 1973400,
-          "prevOi": 1883130,
-          "volume": 3408960,
-          "delta": 0.532
-        },
-        {
-          "strike": 57500,
-          "type": "PE",
-          "ltp": 675.2,
-          "iv": 0.1152,
-          "oi": 1951800,
-          "prevOi": 1921980,
-          "volume": 3147420,
-          "delta": -0.468
-        },
-        {
-          "strike": 57600,
-          "type": "CE",
-          "ltp": 729,
-          "iv": 0.1131,
-          "oi": 228390,
-          "prevOi": 165150,
-          "volume": 1166520,
-          "delta": 0.51
-        },
-        {
-          "strike": 57600,
-          "type": "PE",
-          "ltp": 723.15,
+          "ltp": 991.65,
           "iv": 0.1147,
+          "oi": 25410,
+          "prevOi": 14790,
+          "volume": 166320,
+          "delta": 0.61
+        },
+        {
+          "strike": 57100,
+          "type": "PE",
+          "ltp": 544.6,
+          "iv": 0.1202,
+          "oi": 69480,
+          "prevOi": 67200,
+          "volume": 352590,
+          "delta": -0.394
+        },
+        {
+          "strike": 57200,
+          "type": "CE",
+          "ltp": 932.4,
+          "iv": 0.1147,
+          "oi": 128730,
+          "prevOi": 65010,
+          "volume": 620490,
+          "delta": 0.589
+        },
+        {
+          "strike": 57200,
+          "type": "PE",
+          "ltp": 585,
+          "iv": 0.12,
+          "oi": 214980,
+          "prevOi": 219480,
+          "volume": 870870,
+          "delta": -0.414
+        },
+        {
+          "strike": 57300,
+          "type": "CE",
+          "ltp": 871.8,
+          "iv": 0.114,
+          "oi": 151740,
+          "prevOi": 92760,
+          "volume": 884970,
+          "delta": 0.568
+        },
+        {
+          "strike": 57300,
+          "type": "PE",
+          "ltp": 626.6,
+          "iv": 0.1195,
+          "oi": 336270,
+          "prevOi": 380490,
+          "volume": 1054590,
+          "delta": -0.435
+        },
+        {
+          "strike": 57400,
+          "type": "CE",
+          "ltp": 813,
+          "iv": 0.1136,
+          "oi": 189180,
+          "prevOi": 125880,
+          "volume": 1374840,
+          "delta": 0.546
+        },
+        {
+          "strike": 57400,
+          "type": "PE",
+          "ltp": 669.3,
+          "iv": 0.1192,
+          "oi": 329790,
+          "prevOi": 373080,
+          "volume": 1542240,
+          "delta": -0.456
+        },
+        {
+          "strike": 57500,
+          "type": "CE",
+          "ltp": 757.4,
+          "iv": 0.1128,
+          "oi": 1972500,
+          "prevOi": 1883130,
+          "volume": 3437880,
+          "delta": 0.524
+        },
+        {
+          "strike": 57500,
+          "type": "PE",
+          "ltp": 710.3,
+          "iv": 0.1179,
+          "oi": 1950030,
+          "prevOi": 1921980,
+          "volume": 3168150,
+          "delta": -0.476
+        },
+        {
+          "strike": 57600,
+          "type": "CE",
+          "ltp": 707.5,
+          "iv": 0.1128,
+          "oi": 228480,
+          "prevOi": 165150,
+          "volume": 1176510,
+          "delta": 0.502
+        },
+        {
+          "strike": 57600,
+          "type": "PE",
+          "ltp": 763.2,
+          "iv": 0.1184,
           "oi": 148350,
           "prevOi": 130170,
-          "volume": 1161000,
-          "delta": -0.49
+          "volume": 1167600,
+          "delta": -0.498
         },
         {
           "strike": 57700,
           "type": "CE",
-          "ltp": 678,
-          "iv": 0.1129,
-          "oi": 331470,
+          "ltp": 659.9,
+          "iv": 0.1128,
+          "oi": 331110,
           "prevOi": 252300,
-          "volume": 1182810,
-          "delta": 0.488
+          "volume": 1191150,
+          "delta": 0.48
         },
         {
           "strike": 57700,
           "type": "PE",
-          "ltp": 771.95,
-          "iv": 0.1146,
-          "oi": 235710,
+          "ltp": 812.75,
+          "iv": 0.118,
+          "oi": 235560,
           "prevOi": 179880,
-          "volume": 1070430,
-          "delta": -0.511
+          "volume": 1073790,
+          "delta": -0.519
         },
         {
           "strike": 57800,
           "type": "CE",
-          "ltp": 630.2,
-          "iv": 0.1125,
-          "oi": 302790,
+          "ltp": 610.75,
+          "iv": 0.1122,
+          "oi": 293580,
           "prevOi": 285180,
-          "volume": 1220400,
-          "delta": 0.466
+          "volume": 1253280,
+          "delta": 0.457
         },
         {
           "strike": 57800,
           "type": "PE",
-          "ltp": 820,
-          "iv": 0.1137,
-          "oi": 218700,
+          "ltp": 862.1,
+          "iv": 0.1172,
+          "oi": 217770,
           "prevOi": 263190,
-          "volume": 1009260,
-          "delta": -0.534
+          "volume": 1013400,
+          "delta": -0.54
         },
         {
           "strike": 57900,
           "type": "CE",
-          "ltp": 584.4,
-          "iv": 0.1123,
-          "oi": 220770,
+          "ltp": 566.7,
+          "iv": 0.1121,
+          "oi": 219450,
           "prevOi": 203130,
-          "volume": 760830,
-          "delta": 0.444
+          "volume": 769410,
+          "delta": 0.435
         },
         {
           "strike": 57900,
           "type": "PE",
-          "ltp": 878.3,
-          "iv": 0.1142,
+          "ltp": 914.7,
+          "iv": 0.1171,
           "oi": 131940,
           "prevOi": 130350,
-          "volume": 449340,
-          "delta": -0.555
+          "volume": 451620,
+          "delta": -0.561
         },
         {
           "strike": 58000,
           "type": "CE",
-          "ltp": 540.55,
-          "iv": 0.112,
-          "oi": 1375380,
-          "prevOi": 1242150,
-          "volume": 3148350,
-          "delta": 0.422
-        },
-        {
-          "strike": 58000,
-          "type": "PE",
-          "ltp": 927.65,
-          "iv": 0.1129,
-          "oi": 992610,
-          "prevOi": 1051740,
-          "volume": 1606590,
-          "delta": -0.577
-        },
-        {
-          "strike": 58100,
-          "type": "CE",
-          "ltp": 498.65,
+          "ltp": 524.85,
           "iv": 0.1117,
-          "oi": 142020,
+          "oi": 1372080,
+          "prevOi": 1242150,
+          "volume": 3181470,
+          "delta": 0.413
+        },
+        {
+          "strike": 58000,
+          "type": "PE",
+          "ltp": 970.95,
+          "iv": 0.1162,
+          "oi": 990900,
+          "prevOi": 1051740,
+          "volume": 1616220,
+          "delta": -0.583
+        },
+        {
+          "strike": 58100,
+          "type": "CE",
+          "ltp": 484,
+          "iv": 0.1116,
+          "oi": 141870,
           "prevOi": 123360,
-          "volume": 401370,
-          "delta": 0.4
+          "volume": 404430,
+          "delta": 0.392
         },
         {
           "strike": 58100,
           "type": "PE",
-          "ltp": 985.65,
-          "iv": 0.1125,
-          "oi": 68490,
+          "ltp": 1028.2,
+          "iv": 0.1157,
+          "oi": 68370,
           "prevOi": 61530,
-          "volume": 258300,
-          "delta": -0.599
+          "volume": 258960,
+          "delta": -0.604
         },
         {
           "strike": 58200,
           "type": "CE",
-          "ltp": 458,
-          "iv": 0.1112,
-          "oi": 149670,
+          "ltp": 444.55,
+          "iv": 0.1111,
+          "oi": 150840,
           "prevOi": 132930,
-          "volume": 593850,
-          "delta": 0.378
+          "volume": 599400,
+          "delta": 0.37
         },
         {
           "strike": 58200,
           "type": "PE",
-          "ltp": 1049.7,
-          "iv": 0.1129,
-          "oi": 82980,
+          "ltp": 1095.8,
+          "iv": 0.1165,
+          "oi": 82770,
           "prevOi": 78150,
-          "volume": 316350,
-          "delta": -0.62
+          "volume": 317940,
+          "delta": -0.624
         },
         {
           "strike": 58300,
           "type": "CE",
-          "ltp": 422.3,
+          "ltp": 409,
           "iv": 0.1112,
-          "oi": 144930,
+          "oi": 146100,
           "prevOi": 177240,
-          "volume": 375060,
-          "delta": 0.357
+          "volume": 379800,
+          "delta": 0.349
         },
         {
           "strike": 58300,
           "type": "PE",
-          "ltp": 1110.3,
-          "iv": 0.1122,
-          "oi": 55260,
-          "prevOi": 59670,
-          "volume": 89400,
-          "delta": -0.642
-        },
-        {
-          "strike": 58400,
-          "type": "CE",
-          "ltp": 387.75,
-          "iv": 0.111,
-          "oi": 101430,
-          "prevOi": 97080,
-          "volume": 483810,
-          "delta": 0.336
-        },
-        {
-          "strike": 58400,
-          "type": "PE",
-          "ltp": 1179.95,
-          "iv": 0.1128,
-          "oi": 32610,
-          "prevOi": 33270,
-          "volume": 56610,
-          "delta": -0.661
-        },
-        {
-          "strike": 58500,
-          "type": "CE",
-          "ltp": 353.85,
-          "iv": 0.1106,
-          "oi": 597090,
-          "prevOi": 606690,
-          "volume": 1346610,
-          "delta": 0.315
-        },
-        {
-          "strike": 58500,
-          "type": "PE",
-          "ltp": 1240,
-          "iv": 0.1113,
-          "oi": 258330,
-          "prevOi": 264300,
-          "volume": 188910,
-          "delta": -0.683
-        },
-        {
-          "strike": 58600,
-          "type": "CE",
-          "ltp": 325,
-          "iv": 0.1107,
-          "oi": 76740,
-          "prevOi": 74670,
-          "volume": 207750,
-          "delta": 0.296
-        },
-        {
-          "strike": 58600,
-          "type": "PE",
-          "ltp": 1309.85,
-          "iv": 0.1112,
-          "oi": 32010,
-          "prevOi": 34110,
-          "volume": 33240,
-          "delta": -0.703
-        },
-        {
-          "strike": 58700,
-          "type": "CE",
-          "ltp": 295.6,
-          "iv": 0.1103,
-          "oi": 58800,
-          "prevOi": 50280,
-          "volume": 212190,
-          "delta": 0.276
-        },
-        {
-          "strike": 58700,
-          "type": "PE",
-          "ltp": 1402.15,
-          "iv": 0.115,
-          "oi": 11400,
-          "prevOi": 11400,
-          "volume": 12390,
-          "delta": -0.715
-        },
-        {
-          "strike": 58800,
-          "type": "CE",
-          "ltp": 268.15,
+          "ltp": 1122.4,
           "iv": 0.1101,
-          "oi": 103950,
+          "oi": 55200,
+          "prevOi": 59670,
+          "volume": 89760,
+          "delta": -0.653
+        },
+        {
+          "strike": 58400,
+          "type": "CE",
+          "ltp": 375.75,
+          "iv": 0.1112,
+          "oi": 101790,
+          "prevOi": 97080,
+          "volume": 488880,
+          "delta": 0.329
+        },
+        {
+          "strike": 58400,
+          "type": "PE",
+          "ltp": 1188.3,
+          "iv": 0.1098,
+          "oi": 32550,
+          "prevOi": 33270,
+          "volume": 56730,
+          "delta": -0.673
+        },
+        {
+          "strike": 58500,
+          "type": "CE",
+          "ltp": 342.5,
+          "iv": 0.1107,
+          "oi": 596400,
+          "prevOi": 606690,
+          "volume": 1368630,
+          "delta": 0.308
+        },
+        {
+          "strike": 58500,
+          "type": "PE",
+          "ltp": 1289,
+          "iv": 0.1154,
+          "oi": 258030,
+          "prevOi": 264300,
+          "volume": 189450,
+          "delta": -0.684
+        },
+        {
+          "strike": 58600,
+          "type": "CE",
+          "ltp": 313.1,
+          "iv": 0.1105,
+          "oi": 76470,
+          "prevOi": 74670,
+          "volume": 211530,
+          "delta": 0.288
+        },
+        {
+          "strike": 58600,
+          "type": "PE",
+          "ltp": 1343.5,
+          "iv": 0.1125,
+          "oi": 29580,
+          "prevOi": 34110,
+          "volume": 33420,
+          "delta": -0.708
+        },
+        {
+          "strike": 58700,
+          "type": "CE",
+          "ltp": 285.8,
+          "iv": 0.1105,
+          "oi": 59850,
+          "prevOi": 50280,
+          "volume": 215670,
+          "delta": 0.27
+        },
+        {
+          "strike": 58700,
+          "type": "PE",
+          "ltp": 1417.5,
+          "iv": 0.1127,
+          "oi": 11460,
+          "prevOi": 11400,
+          "volume": 12600,
+          "delta": -0.726
+        },
+        {
+          "strike": 58800,
+          "type": "CE",
+          "ltp": 260.95,
+          "iv": 0.1105,
+          "oi": 102990,
           "prevOi": 103110,
-          "volume": 299730,
-          "delta": 0.258
+          "volume": 305520,
+          "delta": 0.252
         },
         {
           "strike": 58800,
           "type": "PE",
-          "ltp": 1456.25,
-          "iv": 0.1112,
-          "oi": 35880,
+          "ltp": 1463.45,
+          "iv": 0.107,
+          "oi": 35850,
           "prevOi": 49290,
-          "volume": 22620,
-          "delta": -0.74
+          "volume": 22800,
+          "delta": -0.756
         },
         {
           "strike": 58900,
           "type": "CE",
-          "ltp": 244.5,
-          "iv": 0.11,
-          "oi": 50730,
+          "ltp": 237.5,
+          "iv": 0.1105,
+          "oi": 51420,
           "prevOi": 47310,
-          "volume": 166860,
-          "delta": 0.24
+          "volume": 170370,
+          "delta": 0.234
         },
         {
           "strike": 58900,
           "type": "PE",
-          "ltp": 1545.5,
-          "iv": 0.1139,
-          "oi": 17100,
+          "ltp": 1587.65,
+          "iv": 0.1166,
+          "oi": 17070,
           "prevOi": 18450,
-          "volume": 5640,
-          "delta": -0.752
+          "volume": 5700,
+          "delta": -0.754
         },
         {
           "strike": 59000,
           "type": "CE",
-          "ltp": 221,
-          "iv": 0.11,
-          "oi": 828570,
+          "ltp": 214.2,
+          "iv": 0.1103,
+          "oi": 830430,
           "prevOi": 817950,
-          "volume": 1642500,
-          "delta": 0.223
+          "volume": 1665870,
+          "delta": 0.217
         },
         {
           "strike": 59000,
           "type": "PE",
-          "ltp": 1608.05,
-          "iv": 0.1109,
-          "oi": 294270,
+          "ltp": 1665.3,
+          "iv": 0.1167,
+          "oi": 294330,
           "prevOi": 323940,
-          "volume": 112620,
-          "delta": -0.775
+          "volume": 113700,
+          "delta": -0.77
         },
         {
           "strike": 59100,
           "type": "CE",
-          "ltp": 201.3,
-          "iv": 0.11,
-          "oi": 36630,
+          "ltp": 195,
+          "iv": 0.1103,
+          "oi": 36420,
           "prevOi": 25290,
-          "volume": 150840,
-          "delta": 0.207
+          "volume": 153750,
+          "delta": 0.201
         },
         {
           "strike": 59100,
           "type": "PE",
-          "ltp": 1718.45,
-          "iv": 0.1176,
-          "oi": 3750,
+          "ltp": 1746.9,
+          "iv": 0.1173,
+          "oi": 3720,
           "prevOi": 1830,
-          "volume": 3570,
-          "delta": -0.777
+          "volume": 3660,
+          "delta": -0.784
         },
         {
           "strike": 59200,
           "type": "CE",
-          "ltp": 181.5,
-          "iv": 0.1098,
-          "oi": 58260,
+          "ltp": 176.35,
+          "iv": 0.1103,
+          "oi": 57630,
           "prevOi": 53340,
-          "volume": 152700,
-          "delta": 0.191
+          "volume": 155820,
+          "delta": 0.186
         },
         {
           "strike": 59200,
           "type": "PE",
           "ltp": 1807.05,
-          "iv": 0.1212,
+          "iv": 0.112,
           "oi": 1500,
           "prevOi": 1200,
           "volume": 540,
-          "delta": -0.784
+          "delta": -0.811
         },
         {
           "strike": 59300,
           "type": "CE",
-          "ltp": 164.25,
-          "iv": 0.1099,
-          "oi": 29280,
+          "ltp": 160,
+          "iv": 0.1105,
+          "oi": 28620,
           "prevOi": 24180,
-          "volume": 196920,
-          "delta": 0.176
+          "volume": 198960,
+          "delta": 0.172
         },
         {
           "strike": 59300,
@@ -5803,52 +5803,52 @@
         {
           "strike": 59400,
           "type": "CE",
-          "ltp": 147.45,
-          "iv": 0.1097,
-          "oi": 32910,
+          "ltp": 143.7,
+          "iv": 0.1103,
+          "oi": 32790,
           "prevOi": 32280,
-          "volume": 182220,
-          "delta": 0.162
+          "volume": 184650,
+          "delta": 0.158
         },
         {
           "strike": 59400,
           "type": "PE",
           "ltp": 1784.7,
-          "iv": 0.0597,
+          "iv": null,
           "oi": 1170,
           "prevOi": 1200,
           "volume": 0,
-          "delta": -0.966
+          "delta": -1
         },
         {
           "strike": 59500,
           "type": "CE",
-          "ltp": 133.3,
-          "iv": 0.1099,
-          "oi": 467160,
+          "ltp": 129.5,
+          "iv": 0.1104,
+          "oi": 467100,
           "prevOi": 454140,
-          "volume": 732690,
-          "delta": 0.149
+          "volume": 746670,
+          "delta": 0.145
         },
         {
           "strike": 59500,
           "type": "PE",
           "ltp": 2030,
-          "iv": 0.1138,
+          "iv": 0.1049,
           "oi": 38250,
           "prevOi": 37860,
           "volume": 5640,
-          "delta": -0.842
+          "delta": -0.867
         },
         {
           "strike": 59600,
           "type": "CE",
-          "ltp": 120.25,
-          "iv": 0.1101,
-          "oi": 52830,
+          "ltp": 117.4,
+          "iv": 0.1107,
+          "oi": 52050,
           "prevOi": 40470,
-          "volume": 142680,
-          "delta": 0.137
+          "volume": 146040,
+          "delta": 0.134
         },
         {
           "strike": 59600,
@@ -5863,32 +5863,32 @@
         {
           "strike": 59700,
           "type": "CE",
-          "ltp": 107.7,
-          "iv": 0.11,
-          "oi": 39390,
+          "ltp": 104.9,
+          "iv": 0.1106,
+          "oi": 39060,
           "prevOi": 36030,
-          "volume": 135810,
-          "delta": 0.125
+          "volume": 140310,
+          "delta": 0.122
         },
         {
           "strike": 59700,
           "type": "PE",
           "ltp": 2105.35,
-          "iv": 0.0761,
+          "iv": null,
           "oi": 450,
           "prevOi": 450,
           "volume": 0,
-          "delta": -0.953
+          "delta": -1
         },
         {
           "strike": 59800,
           "type": "CE",
-          "ltp": 96.5,
-          "iv": 0.1101,
-          "oi": 168180,
+          "ltp": 94.05,
+          "iv": 0.1107,
+          "oi": 167160,
           "prevOi": 170010,
-          "volume": 139140,
-          "delta": 0.114
+          "volume": 141510,
+          "delta": 0.112
         },
         {
           "strike": 59800,
@@ -5903,12 +5903,12 @@
         {
           "strike": 59900,
           "type": "CE",
-          "ltp": 87.25,
-          "iv": 0.1104,
-          "oi": 41580,
+          "ltp": 86,
+          "iv": 0.1114,
+          "oi": 41340,
           "prevOi": 42390,
-          "volume": 131910,
-          "delta": 0.105
+          "volume": 134070,
+          "delta": 0.103
         },
         {
           "strike": 59900,
@@ -5923,52 +5923,52 @@
         {
           "strike": 60000,
           "type": "CE",
-          "ltp": 79.1,
-          "iv": 0.111,
-          "oi": 897690,
+          "ltp": 77.05,
+          "iv": 0.1115,
+          "oi": 900480,
           "prevOi": 897150,
-          "volume": 1187280,
-          "delta": 0.096
+          "volume": 1221930,
+          "delta": 0.094
         },
         {
           "strike": 60000,
           "type": "PE",
-          "ltp": 2460.1,
-          "iv": 0.1106,
+          "ltp": 2508.5,
+          "iv": 0.1157,
           "oi": 348690,
           "prevOi": 346830,
-          "volume": 57480,
-          "delta": -0.904
+          "volume": 57810,
+          "delta": -0.898
         },
         {
           "strike": 60100,
           "type": "CE",
-          "ltp": 70.45,
-          "iv": 0.111,
-          "oi": 44040,
+          "ltp": 68.75,
+          "iv": 0.1116,
+          "oi": 44100,
           "prevOi": 45270,
-          "volume": 104910,
-          "delta": 0.087
+          "volume": 106800,
+          "delta": 0.085
         },
         {
           "strike": 60100,
           "type": "PE",
           "ltp": 2685.4,
-          "iv": 0.1515,
+          "iv": 0.1429,
           "oi": 270,
           "prevOi": 270,
           "volume": 60,
-          "delta": -0.837
+          "delta": -0.856
         },
         {
           "strike": 60200,
           "type": "CE",
-          "ltp": 64,
-          "iv": 0.1112,
-          "oi": 28950,
+          "ltp": 61.45,
+          "iv": 0.1118,
+          "oi": 28710,
           "prevOi": 23760,
-          "volume": 121560,
-          "delta": 0.081
+          "volume": 123030,
+          "delta": 0.078
         },
         {
           "strike": 60200,
@@ -5983,121 +5983,121 @@
         {
           "strike": 60300,
           "type": "CE",
-          "ltp": 57.5,
-          "iv": 0.1118,
-          "oi": 27270,
+          "ltp": 56.5,
+          "iv": 0.1127,
+          "oi": 26610,
           "prevOi": 23250,
-          "volume": 56550,
-          "delta": 0.073
+          "volume": 58170,
+          "delta": 0.072
         },
         {
           "strike": 60400,
           "type": "CE",
-          "ltp": 51.35,
-          "iv": 0.1121,
-          "oi": 49230,
+          "ltp": 50.25,
+          "iv": 0.1131,
+          "oi": 49680,
           "prevOi": 37230,
-          "volume": 76590,
-          "delta": 0.066
+          "volume": 79590,
+          "delta": 0.065
         },
         {
           "strike": 60500,
           "type": "CE",
-          "ltp": 47.6,
-          "iv": 0.1132,
-          "oi": 442740,
+          "ltp": 46.95,
+          "iv": 0.114,
+          "oi": 445920,
           "prevOi": 414930,
-          "volume": 674190,
-          "delta": 0.062
+          "volume": 688920,
+          "delta": 0.061
         },
         {
           "strike": 60500,
           "type": "PE",
           "ltp": 2882.05,
-          "iv": 0.0562,
+          "iv": null,
           "oi": 9600,
           "prevOi": 9540,
           "volume": 120,
-          "delta": -0.999
+          "delta": -1
         },
         {
           "strike": 60700,
           "type": "CE",
-          "ltp": 39.6,
-          "iv": 0.1147,
-          "oi": 1830,
+          "ltp": 38.7,
+          "iv": 0.1154,
+          "oi": 2790,
           "prevOi": 0,
-          "volume": 2970,
-          "delta": 0.052
+          "volume": 5370,
+          "delta": 0.051
         },
         {
           "strike": 61000,
           "type": "CE",
-          "ltp": 29.4,
-          "iv": 0.1163,
-          "oi": 585780,
+          "ltp": 29.35,
+          "iv": 0.1175,
+          "oi": 585150,
           "prevOi": 553020,
-          "volume": 716100,
+          "volume": 724200,
           "delta": 0.04
         },
         {
           "strike": 61000,
           "type": "PE",
           "ltp": 3432,
-          "iv": 0.1293,
+          "iv": 0.1012,
           "oi": 64020,
           "prevOi": 60960,
           "volume": 8700,
-          "delta": -0.942
+          "delta": -0.98
         },
         {
           "strike": 61500,
           "type": "CE",
           "ltp": 19,
-          "iv": 0.1204,
-          "oi": 343290,
+          "iv": 0.1215,
+          "oi": 345090,
           "prevOi": 356970,
-          "volume": 486570,
+          "volume": 495570,
           "delta": 0.026
         },
         {
           "strike": 61500,
           "type": "PE",
           "ltp": 3900,
-          "iv": 0.1196,
+          "iv": null,
           "oi": 11910,
           "prevOi": 11880,
           "volume": 270,
-          "delta": -0.974
+          "delta": -1
         },
         {
           "strike": 62000,
           "type": "CE",
-          "ltp": 13.7,
-          "iv": 0.1263,
-          "oi": 390000,
+          "ltp": 13.95,
+          "iv": 0.1276,
+          "oi": 392190,
           "prevOi": 377730,
-          "volume": 434610,
+          "volume": 449760,
           "delta": 0.019
         },
         {
           "strike": 62000,
           "type": "PE",
           "ltp": 4400,
-          "iv": 0.1413,
-          "oi": 86910,
+          "iv": null,
+          "oi": 86940,
           "prevOi": 85950,
-          "volume": 1800,
-          "delta": -0.968
+          "volume": 2160,
+          "delta": -1
         },
         {
           "strike": 62500,
           "type": "CE",
-          "ltp": 10.6,
-          "iv": 0.1326,
-          "oi": 85200,
+          "ltp": 10.2,
+          "iv": 0.1334,
+          "oi": 84990,
           "prevOi": 72420,
-          "volume": 172590,
+          "volume": 174570,
           "delta": 0.014
         },
         {
@@ -6113,31 +6113,31 @@
         {
           "strike": 63000,
           "type": "CE",
-          "ltp": 9,
-          "iv": 0.1408,
-          "oi": 257970,
+          "ltp": 9.1,
+          "iv": 0.1422,
+          "oi": 257460,
           "prevOi": 257130,
-          "volume": 173940,
+          "volume": 177450,
           "delta": 0.012
         },
         {
           "strike": 63000,
           "type": "PE",
           "ltp": 5395,
-          "iv": 0.1486,
+          "iv": null,
           "oi": 54000,
           "prevOi": 53880,
           "volume": 270,
-          "delta": -0.984
+          "delta": -1
         },
         {
           "strike": 63500,
           "type": "CE",
-          "ltp": 7.9,
-          "iv": 0.1492,
-          "oi": 26340,
+          "ltp": 8,
+          "iv": 0.1505,
+          "oi": 26430,
           "prevOi": 23220,
-          "volume": 67320,
+          "volume": 67740,
           "delta": 0.01
         },
         {
@@ -6153,11 +6153,11 @@
         {
           "strike": 64000,
           "type": "CE",
-          "ltp": 6.4,
-          "iv": 0.1556,
-          "oi": 130440,
+          "ltp": 6.5,
+          "iv": 0.1569,
+          "oi": 130410,
           "prevOi": 124620,
-          "volume": 75510,
+          "volume": 76500,
           "delta": 0.008
         },
         {
@@ -6173,18 +6173,18 @@
         {
           "strike": 64200,
           "type": "CE",
-          "ltp": 6.3,
-          "iv": 0.1596,
-          "oi": 2130,
+          "ltp": 5.45,
+          "iv": 0.1575,
+          "oi": 2370,
           "prevOi": 0,
-          "volume": 4830,
-          "delta": 0.008
+          "volume": 5250,
+          "delta": 0.007
         },
         {
           "strike": 64500,
           "type": "CE",
           "ltp": 5.65,
-          "iv": 0.1633,
+          "iv": 0.1645,
           "oi": 8970,
           "prevOi": 8790,
           "volume": 132570,
@@ -6203,11 +6203,11 @@
         {
           "strike": 65000,
           "type": "CE",
-          "ltp": 5.2,
+          "ltp": 4.9,
           "iv": 0.1715,
-          "oi": 108990,
+          "oi": 108570,
           "prevOi": 94170,
-          "volume": 138840,
+          "volume": 141900,
           "delta": 0.006
         },
         {
@@ -6224,7 +6224,7 @@
           "strike": 65500,
           "type": "CE",
           "ltp": 3.95,
-          "iv": 0.1758,
+          "iv": 0.177,
           "oi": 18090,
           "prevOi": 15330,
           "volume": 63870,
@@ -6233,11 +6233,11 @@
         {
           "strike": 66000,
           "type": "CE",
-          "ltp": 3.1,
-          "iv": 0.1807,
-          "oi": 74760,
+          "ltp": 2.9,
+          "iv": 0.1813,
+          "oi": 75810,
           "prevOi": 73380,
-          "volume": 85860,
+          "volume": 88890,
           "delta": 0.004
         },
         {
@@ -6253,12 +6253,12 @@
         {
           "strike": 67500,
           "type": "CE",
-          "ltp": 2.3,
-          "iv": 0.2008,
+          "ltp": 2.35,
+          "iv": 0.2026,
           "oi": 64320,
           "prevOi": 64290,
-          "volume": 31740,
-          "delta": 0.002
+          "volume": 32940,
+          "delta": 0.003
         },
         {
           "strike": 67500,
@@ -6274,10 +6274,10 @@
           "strike": 69000,
           "type": "CE",
           "ltp": 2.15,
-          "iv": 0.2246,
+          "iv": 0.2258,
           "oi": 27270,
           "prevOi": 27270,
-          "volume": 12990,
+          "volume": 13020,
           "delta": 0.002
         },
         {
@@ -6318,7 +6318,7 @@
             "label": "OI flow (put vs call writing)",
             "s": -0.73,
             "weight": 0.17,
-            "reading": "ΔOI put +1.3L vs call +8.6L",
+            "reading": "ΔOI put +1.3L vs call +8.4L",
             "present": true
           },
           {
@@ -6340,25 +6340,25 @@
           {
             "key": "skewSig",
             "label": "IV skew",
-            "s": -0.35,
+            "s": -0.4,
             "weight": 0.08,
-            "reading": "25∆-ish skew 1.4 vol pts",
+            "reading": "25∆-ish skew 1.6 vol pts",
             "present": true
           },
           {
             "key": "vixSig",
             "label": "VIX trend (inverse)",
-            "s": -0.14,
+            "s": -0.13,
             "weight": 0.1,
-            "reading": "VIX 5d 2.2%",
+            "reading": "VIX 5d 2%",
             "present": true
           },
           {
             "key": "basisSig",
             "label": "Futures basis",
-            "s": 1,
+            "s": 0.99,
             "weight": 0.08,
-            "reading": "basis 200.4 pts",
+            "reading": "basis 170.4 pts",
             "present": true
           }
         ]
@@ -6368,49 +6368,49 @@
       "label": "monthly",
       "date": "2026-10-27",
       "dte": 56,
-      "tYears": 0.15342,
+      "tYears": 0.15341,
       "metrics": {
-        "pcrOi": 1.65,
-        "pcrVolume": 1.08,
-        "totalCallOi": 497730,
-        "totalPutOi": 822210,
+        "pcrOi": 1.64,
+        "pcrVolume": 1.07,
+        "totalCallOi": 501990,
+        "totalPutOi": 821790,
         "maxPain": 58000,
         "callWall": 58000,
         "putWall": 57000,
         "supports": [
           {
             "strike": 57000,
-            "oi": 122340
+            "oi": 122880
           },
           {
             "strike": 55000,
-            "oi": 117570
+            "oi": 117990
           },
           {
             "strike": 56500,
-            "oi": 95850
+            "oi": 95940
           }
         ],
         "resistances": [
           {
             "strike": 58000,
-            "oi": 107610
+            "oi": 107850
           },
           {
             "strike": 60000,
-            "oi": 96750
+            "oi": 99900
           },
           {
             "strike": 61000,
-            "oi": 78570
+            "oi": 78660
           }
         ],
         "oiFlow": {
-          "callOiChg": 60510,
-          "putOiChg": 69210
+          "callOiChg": 64770,
+          "putOiChg": 68790
         },
         "atmStrike": 57400,
-        "atmIv": 0.1116,
+        "atmIv": 0.1115,
         "ivRank": null,
         "ivPercentile": null,
         "rv20": 0.0922,
@@ -6419,17 +6419,17 @@
         "sigmaForecast": 0.1618,
         "vrp": 0.69,
         "gapShare": 0.309,
-        "cpIvSpread": 0.44,
+        "cpIvSpread": 0.65,
         "smirk": 7.05,
-        "termSlope": 0.32,
-        "straddle": 2054.5,
-        "expectedMove": 2055,
-        "skew": 0.0086,
+        "termSlope": 0.49,
+        "straddle": 2041.8,
+        "expectedMove": 2042,
+        "skew": 0.0095,
         "gex": {
-          "netPct": -29,
+          "netPct": -28,
           "regime": "volatile",
           "pinStrike": 58000,
-          "coverage": 74
+          "coverage": 72
         }
       },
       "candidates": [
@@ -6437,12 +6437,12 @@
           "strike": 64000,
           "type": "CE",
           "ltp": 231,
-          "iv": 0.1999,
+          "iv": 0.2009,
           "oi": 30,
           "delta": 0.109,
           "distancePct": 11.48,
-          "cushionSigma": 3.21,
-          "probTouch": 0.165,
+          "cushionSigma": 3.23,
+          "probTouch": 0.167,
           "probProfit": 0.891,
           "conviction": 62,
           "band": "MEDIUM",
@@ -6468,9 +6468,9 @@
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.47,
+              "s": 0.48,
               "weight": 0.2,
-              "reading": "IV 20% vs forecast RV 16.2% (1.24×)",
+              "reading": "IV 20.1% vs forecast RV 16.2% (1.24×)",
               "present": true
             },
             {
@@ -6524,7 +6524,7 @@
           "oi": 300,
           "delta": 0.135,
           "distancePct": 9.74,
-          "cushionSigma": 2.72,
+          "cushionSigma": 2.74,
           "probTouch": 0.207,
           "probProfit": 0.865,
           "conviction": 58,
@@ -6537,7 +6537,7 @@
           "probTouchF": 0.143,
           "tailReliance": 0.57,
           "empirical": true,
-          "cvar": -2112.69,
+          "cvar": -2112.7,
           "worst": -9797.37,
           "factors": [
             {
@@ -6602,41 +6602,41 @@
         {
           "strike": 50000,
           "type": "PE",
-          "ltp": 31.9,
-          "iv": 0.1863,
-          "oi": 17310,
-          "delta": -0.02,
+          "ltp": 29.5,
+          "iv": 0.1872,
+          "oi": 17790,
+          "delta": -0.021,
           "distancePct": 12.91,
-          "cushionSigma": 3.61,
-          "probTouch": 0.058,
-          "probProfit": 0.98,
+          "cushionSigma": 3.63,
+          "probTouch": 0.059,
+          "probProfit": 0.979,
           "conviction": 43,
           "band": "LOW",
-          "edge": -4.83,
-          "edgePct": -0.0011,
+          "edge": -7.23,
+          "edgePct": -0.0016,
           "fair": 36.73,
           "pProfit": 0.973,
           "cushionSigmaF": 2.04,
           "probTouchF": 0.029,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -702.73,
-          "worst": -5202.43,
+          "cvar": -705.13,
+          "worst": -5204.83,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-0.11% of margin (fair ₹36.73)",
+              "reading": "-0.16% of margin (fair ₹36.73)",
               "present": true
             },
             {
               "key": "vrp",
               "label": "IV vs forecast RV",
-              "s": 0.3,
+              "s": 0.31,
               "weight": 0.2,
-              "reading": "IV 18.6% vs forecast RV 16.2% (1.15×)",
+              "reading": "IV 18.7% vs forecast RV 16.2% (1.16×)",
               "present": true
             },
             {
@@ -6674,9 +6674,9 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.51,
+              "s": 0.5,
               "weight": 0.111,
-              "reading": "OI +17k · vol +10k",
+              "reading": "OI +18k · vol +11k",
               "present": true
             }
           ],
@@ -6687,33 +6687,33 @@
         {
           "strike": 61000,
           "type": "CE",
-          "ltp": 153.5,
-          "iv": 0.1122,
-          "oi": 78570,
-          "delta": 0.124,
+          "ltp": 150.5,
+          "iv": 0.1125,
+          "oi": 78660,
+          "delta": 0.122,
           "distancePct": 6.25,
-          "cushionSigma": 1.75,
-          "probTouch": 0.167,
-          "probProfit": 0.876,
+          "cushionSigma": 1.76,
+          "probTouch": 0.169,
+          "probProfit": 0.878,
           "conviction": 31,
           "band": "LOW",
-          "edge": -166.15,
-          "edgePct": -0.0362,
+          "edge": -169.15,
+          "edgePct": -0.0368,
           "fair": 319.65,
           "pProfit": 0.844,
           "cushionSigmaF": 0.99,
           "probTouchF": 0.338,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4241.94,
-          "worst": -11926.62,
+          "cvar": -4244.95,
+          "worst": -11929.62,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-3.62% of margin (fair ₹319.65)",
+              "reading": "-3.68% of margin (fair ₹319.65)",
               "present": true
             },
             {
@@ -6721,7 +6721,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 11.2% vs forecast RV 16.2% (0.69×)",
+              "reading": "IV 11.3% vs forecast RV 16.2% (0.7×)",
               "present": true
             },
             {
@@ -6761,7 +6761,7 @@
               "label": "Strike liquidity",
               "s": 0.91,
               "weight": 0.111,
-              "reading": "OI +79k · vol +71k",
+              "reading": "OI +79k · vol +72k",
               "present": true
             }
           ],
@@ -6770,33 +6770,33 @@
         {
           "strike": 53400,
           "type": "PE",
-          "ltp": 91.2,
-          "iv": 0.1394,
-          "oi": 14400,
-          "delta": -0.065,
+          "ltp": 99.85,
+          "iv": 0.1416,
+          "oi": 14250,
+          "delta": -0.069,
           "distancePct": 6.98,
-          "cushionSigma": 1.95,
-          "probTouch": 0.185,
-          "probProfit": 0.935,
+          "cushionSigma": 1.96,
+          "probTouch": 0.192,
+          "probProfit": 0.931,
           "conviction": 30,
           "band": "LOW",
-          "edge": -197.91,
-          "edgePct": -0.0431,
+          "edge": -189.26,
+          "edgePct": -0.0412,
           "fair": 289.11,
           "pProfit": 0.873,
           "cushionSigmaF": 1.1,
           "probTouchF": 0.253,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -3815.37,
-          "worst": -8543.13,
+          "cvar": -3806.72,
+          "worst": -8534.48,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-4.31% of margin (fair ₹289.11)",
+              "reading": "-4.12% of margin (fair ₹289.11)",
               "present": true
             },
             {
@@ -6804,7 +6804,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 13.9% vs forecast RV 16.2% (0.86×)",
+              "reading": "IV 14.2% vs forecast RV 16.2% (0.88×)",
               "present": true
             },
             {
@@ -6842,9 +6842,9 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.65,
+              "s": 0.66,
               "weight": 0.111,
-              "reading": "OI +14k · vol +10k",
+              "reading": "OI +14k · vol +11k",
               "present": true
             }
           ],
@@ -6856,12 +6856,12 @@
           "strike": 53000,
           "type": "PE",
           "ltp": 200,
-          "iv": 0.1821,
+          "iv": 0.182,
           "oi": 90,
           "delta": -0.099,
           "distancePct": 7.68,
-          "cushionSigma": 2.15,
-          "probTouch": 0.263,
+          "cushionSigma": 2.16,
+          "probTouch": 0.262,
           "probProfit": 0.901,
           "conviction": 29,
           "band": "LOW",
@@ -6889,7 +6889,7 @@
               "label": "IV vs forecast RV",
               "s": 0.25,
               "weight": 0.2,
-              "reading": "IV 18.2% vs forecast RV 16.2% (1.13×)",
+              "reading": "IV 18.2% vs forecast RV 16.2% (1.12×)",
               "present": true
             },
             {
@@ -6940,33 +6940,33 @@
         {
           "strike": 60000,
           "type": "CE",
-          "ltp": 301.4,
-          "iv": 0.1108,
-          "oi": 96750,
-          "delta": 0.215,
+          "ltp": 295,
+          "iv": 0.1109,
+          "oi": 99900,
+          "delta": 0.211,
           "distancePct": 4.51,
-          "cushionSigma": 1.26,
-          "probTouch": 0.309,
-          "probProfit": 0.785,
+          "cushionSigma": 1.27,
+          "probTouch": 0.31,
+          "probProfit": 0.789,
           "conviction": 29,
           "band": "LOW",
-          "edge": -211.23,
-          "edgePct": -0.046,
+          "edge": -217.63,
+          "edgePct": -0.0474,
           "fair": 512.63,
           "pProfit": 0.766,
           "cushionSigmaF": 0.71,
           "probTouchF": 0.486,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -5094.04,
-          "worst": -12778.72,
+          "cvar": -5100.45,
+          "worst": -12785.12,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-4.6% of margin (fair ₹512.63)",
+              "reading": "-4.74% of margin (fair ₹512.63)",
               "present": true
             },
             {
@@ -6974,7 +6974,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 11.1% vs forecast RV 16.2% (0.68×)",
+              "reading": "IV 11.1% vs forecast RV 16.2% (0.69×)",
               "present": true
             },
             {
@@ -7014,7 +7014,7 @@
               "label": "Strike liquidity",
               "s": 0.99,
               "weight": 0.111,
-              "reading": "OI +97k · vol +79k",
+              "reading": "OI +100k · vol +85k",
               "present": true
             }
           ],
@@ -7023,33 +7023,33 @@
         {
           "strike": 55000,
           "type": "PE",
-          "ltp": 215.2,
-          "iv": 0.1269,
-          "oi": 117570,
-          "delta": -0.143,
+          "ltp": 228.15,
+          "iv": 0.1284,
+          "oi": 117990,
+          "delta": -0.148,
           "distancePct": 4.2,
-          "cushionSigma": 1.17,
-          "probTouch": 0.388,
-          "probProfit": 0.857,
+          "cushionSigma": 1.18,
+          "probTouch": 0.394,
+          "probProfit": 0.852,
           "conviction": 28,
           "band": "LOW",
-          "edge": -335.6,
-          "edgePct": -0.0731,
+          "edge": -322.65,
+          "edgePct": -0.0703,
           "fair": 550.8,
           "pProfit": 0.791,
           "cushionSigmaF": 0.66,
           "probTouchF": 0.499,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -5291.37,
-          "worst": -10019.13,
+          "cvar": -5278.42,
+          "worst": -10006.18,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-7.31% of margin (fair ₹550.8)",
+              "reading": "-7.03% of margin (fair ₹550.8)",
               "present": true
             },
             {
@@ -7057,7 +7057,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.7% vs forecast RV 16.2% (0.78×)",
+              "reading": "IV 12.8% vs forecast RV 16.2% (0.79×)",
               "present": true
             },
             {
@@ -7097,7 +7097,7 @@
               "label": "Strike liquidity",
               "s": 0.98,
               "weight": 0.111,
-              "reading": "OI +1.2L · vol +69k",
+              "reading": "OI +1.2L · vol +70k",
               "present": true
             }
           ],
@@ -7109,13 +7109,13 @@
           "strike": 61100,
           "type": "CE",
           "ltp": 143.1,
-          "iv": 0.1123,
+          "iv": 0.113,
           "oi": 5490,
-          "delta": 0.117,
+          "delta": 0.116,
           "distancePct": 6.43,
-          "cushionSigma": 1.8,
-          "probTouch": 0.157,
-          "probProfit": 0.883,
+          "cushionSigma": 1.81,
+          "probTouch": 0.159,
+          "probProfit": 0.884,
           "conviction": 27,
           "band": "LOW",
           "edge": -161.27,
@@ -7126,7 +7126,7 @@
           "probTouchF": 0.326,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -4152.34,
+          "cvar": -4152.35,
           "worst": -11837.02,
           "factors": [
             {
@@ -7142,7 +7142,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 11.2% vs forecast RV 16.2% (0.69×)",
+              "reading": "IV 11.3% vs forecast RV 16.2% (0.7×)",
               "present": true
             },
             {
@@ -7191,33 +7191,33 @@
         {
           "strike": 56000,
           "type": "PE",
-          "ltp": 368.3,
-          "iv": 0.1197,
-          "oi": 51390,
-          "delta": -0.228,
+          "ltp": 386.05,
+          "iv": 0.1211,
+          "oi": 51600,
+          "delta": -0.235,
           "distancePct": 2.46,
           "cushionSigma": 0.69,
-          "probTouch": 0.596,
-          "probProfit": 0.772,
+          "probTouch": 0.6,
+          "probProfit": 0.765,
           "conviction": 24,
           "band": "LOW",
-          "edge": -424.37,
-          "edgePct": -0.0924,
+          "edge": -406.62,
+          "edgePct": -0.0885,
           "fair": 792.67,
           "pProfit": 0.717,
           "cushionSigmaF": 0.39,
           "probTouchF": 0.695,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -6138.27,
-          "worst": -10866.03,
+          "cvar": -6120.52,
+          "worst": -10848.28,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-9.24% of margin (fair ₹792.67)",
+              "reading": "-8.85% of margin (fair ₹792.67)",
               "present": true
             },
             {
@@ -7225,7 +7225,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12% vs forecast RV 16.2% (0.74×)",
+              "reading": "IV 12.1% vs forecast RV 16.2% (0.75×)",
               "present": true
             },
             {
@@ -7263,9 +7263,9 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.95,
+              "s": 0.96,
               "weight": 0.111,
-              "reading": "OI +51k · vol +46k",
+              "reading": "OI +52k · vol +46k",
               "present": true
             }
           ],
@@ -7276,33 +7276,33 @@
         {
           "strike": 55800,
           "type": "PE",
-          "ltp": 328.25,
-          "iv": 0.1207,
-          "oi": 3420,
-          "delta": -0.208,
+          "ltp": 330.5,
+          "iv": 0.1202,
+          "oi": 3450,
+          "delta": -0.209,
           "distancePct": 2.8,
-          "cushionSigma": 0.78,
-          "probTouch": 0.548,
-          "probProfit": 0.792,
+          "cushionSigma": 0.79,
+          "probTouch": 0.546,
+          "probProfit": 0.791,
           "conviction": 22,
           "band": "LOW",
-          "edge": -409.6,
-          "edgePct": -0.0892,
+          "edge": -407.35,
+          "edgePct": -0.0887,
           "fair": 737.85,
           "pProfit": 0.734,
           "cushionSigmaF": 0.44,
           "probTouchF": 0.654,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -5978.32,
-          "worst": -10706.08,
+          "cvar": -5976.07,
+          "worst": -10703.83,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-8.92% of margin (fair ₹737.85)",
+              "reading": "-8.87% of margin (fair ₹737.85)",
               "present": true
             },
             {
@@ -7310,7 +7310,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.1% vs forecast RV 16.2% (0.75×)",
+              "reading": "IV 12% vs forecast RV 16.2% (0.74×)",
               "present": true
             },
             {
@@ -7361,33 +7361,33 @@
         {
           "strike": 55500,
           "type": "PE",
-          "ltp": 289.15,
-          "iv": 0.1244,
-          "oi": 1260,
-          "delta": -0.184,
+          "ltp": 285.7,
+          "iv": 0.1231,
+          "oi": 1380,
+          "delta": -0.183,
           "distancePct": 3.33,
-          "cushionSigma": 0.93,
-          "probTouch": 0.488,
-          "probProfit": 0.816,
+          "cushionSigma": 0.94,
+          "probTouch": 0.483,
+          "probProfit": 0.817,
           "conviction": 21,
           "band": "LOW",
-          "edge": -372.74,
-          "edgePct": -0.0812,
+          "edge": -376.19,
+          "edgePct": -0.0819,
           "fair": 661.89,
           "pProfit": 0.759,
           "cushionSigmaF": 0.52,
           "probTouchF": 0.593,
           "tailReliance": 0,
           "empirical": true,
-          "cvar": -5717.42,
-          "worst": -10445.18,
+          "cvar": -5720.87,
+          "worst": -10448.63,
           "factors": [
             {
               "key": "edge",
               "label": "Expected edge on margin",
               "s": 0,
               "weight": 0.267,
-              "reading": "-8.12% of margin (fair ₹661.89)",
+              "reading": "-8.19% of margin (fair ₹661.89)",
               "present": true
             },
             {
@@ -7395,7 +7395,7 @@
               "label": "IV vs forecast RV",
               "s": 0,
               "weight": 0.2,
-              "reading": "IV 12.4% vs forecast RV 16.2% (0.77×)",
+              "reading": "IV 12.3% vs forecast RV 16.2% (0.76×)",
               "present": true
             },
             {
@@ -7433,9 +7433,9 @@
             {
               "key": "liquidity",
               "label": "Strike liquidity",
-              "s": 0.49,
+              "s": 0.5,
               "weight": 0.111,
-              "reading": "OI +1k · vol +1k",
+              "reading": "OI +1k · vol +2k",
               "present": true
             }
           ],
@@ -7449,51 +7449,51 @@
           "strike": 49500,
           "type": "CE",
           "ltp": 8767.8,
-          "iv": 0.3216,
+          "iv": 0.3275,
           "oi": 90,
           "prevOi": 60,
           "volume": 0,
-          "delta": 0.905
+          "delta": 0.901
         },
         {
           "strike": 50000,
           "type": "CE",
           "ltp": 7950,
-          "iv": 0.1791,
+          "iv": 0.2,
           "oi": 210,
           "prevOi": 240,
           "volume": 0,
-          "delta": 0.984
+          "delta": 0.972
         },
         {
           "strike": 50000,
           "type": "PE",
-          "ltp": 31.9,
-          "iv": 0.1863,
-          "oi": 17310,
+          "ltp": 29.5,
+          "iv": 0.1872,
+          "oi": 17790,
           "prevOi": 17760,
-          "volume": 9900,
-          "delta": -0.02
+          "volume": 10890,
+          "delta": -0.021
         },
         {
           "strike": 50500,
           "type": "CE",
           "ltp": 7750,
-          "iv": 0.2864,
+          "iv": 0.2921,
           "oi": 30,
           "prevOi": 0,
           "volume": 0,
-          "delta": 0.9
+          "delta": 0.895
         },
         {
           "strike": 52000,
           "type": "CE",
           "ltp": 6100,
-          "iv": 0.2027,
+          "iv": 0.2093,
           "oi": 30,
           "prevOi": 30,
           "volume": 0,
-          "delta": 0.919
+          "delta": 0.912
         },
         {
           "strike": 53000,
@@ -7509,7 +7509,7 @@
           "strike": 53000,
           "type": "PE",
           "ltp": 200,
-          "iv": 0.1821,
+          "iv": 0.182,
           "oi": 90,
           "prevOi": 90,
           "volume": 0,
@@ -7518,508 +7518,508 @@
         {
           "strike": 53400,
           "type": "PE",
-          "ltp": 91.2,
-          "iv": 0.1394,
-          "oi": 14400,
+          "ltp": 99.85,
+          "iv": 0.1416,
+          "oi": 14250,
           "prevOi": 13230,
-          "volume": 10320,
-          "delta": -0.065
+          "volume": 11010,
+          "delta": -0.069
         },
         {
           "strike": 54000,
           "type": "CE",
           "ltp": 4025.25,
-          "iv": 0.1271,
+          "iv": 0.1339,
           "oi": 690,
           "prevOi": 690,
           "volume": 30,
-          "delta": 0.924
+          "delta": 0.912
         },
         {
           "strike": 54200,
           "type": "CE",
           "ltp": 3923.8,
-          "iv": 0.147,
+          "iv": 0.1518,
           "oi": 0,
           "prevOi": 0,
           "volume": 0,
-          "delta": 0.882
+          "delta": 0.873
         },
         {
           "strike": 54500,
           "type": "CE",
           "ltp": 3470,
-          "iv": 0.0951,
+          "iv": 0.1043,
           "oi": 60,
           "prevOi": 60,
           "volume": 30,
-          "delta": 0.951
+          "delta": 0.934
         },
         {
           "strike": 55000,
           "type": "CE",
           "ltp": 3089.35,
-          "iv": 0.1163,
+          "iv": 0.121,
           "oi": 3540,
           "prevOi": 3540,
           "volume": 240,
-          "delta": 0.877
+          "delta": 0.866
         },
         {
           "strike": 55000,
           "type": "PE",
-          "ltp": 215.2,
-          "iv": 0.1269,
-          "oi": 117570,
+          "ltp": 228.15,
+          "iv": 0.1284,
+          "oi": 117990,
           "prevOi": 104280,
-          "volume": 68550,
-          "delta": -0.143
+          "volume": 70170,
+          "delta": -0.148
         },
         {
           "strike": 55300,
           "type": "CE",
           "ltp": 2900,
-          "iv": 0.1284,
+          "iv": 0.132,
           "oi": 0,
           "prevOi": 0,
           "volume": 30,
-          "delta": 0.828
+          "delta": 0.82
         },
         {
           "strike": 55500,
           "type": "CE",
           "ltp": 2625,
-          "iv": 0.1087,
+          "iv": 0.1141,
           "oi": 150,
           "prevOi": 120,
           "volume": 90,
-          "delta": 0.847
+          "delta": 0.833
         },
         {
           "strike": 55500,
           "type": "PE",
-          "ltp": 289.15,
-          "iv": 0.1244,
-          "oi": 1260,
+          "ltp": 285.7,
+          "iv": 0.1231,
+          "oi": 1380,
           "prevOi": 30,
-          "volume": 1470,
-          "delta": -0.184
+          "volume": 1620,
+          "delta": -0.183
         },
         {
           "strike": 55800,
           "type": "PE",
-          "ltp": 328.25,
-          "iv": 0.1207,
-          "oi": 3420,
+          "ltp": 330.5,
+          "iv": 0.1202,
+          "oi": 3450,
           "prevOi": 1350,
-          "volume": 4590,
-          "delta": -0.208
+          "volume": 4620,
+          "delta": -0.209
         },
         {
           "strike": 56000,
           "type": "CE",
-          "ltp": 2283.85,
-          "iv": 0.1183,
+          "ltp": 2250,
+          "iv": 0.1173,
           "oi": 5730,
           "prevOi": 5250,
-          "volume": 2220,
-          "delta": 0.774
+          "volume": 2280,
+          "delta": 0.772
         },
         {
           "strike": 56000,
           "type": "PE",
-          "ltp": 368.3,
-          "iv": 0.1197,
-          "oi": 51390,
+          "ltp": 386.05,
+          "iv": 0.1211,
+          "oi": 51600,
           "prevOi": 39060,
-          "volume": 46290,
-          "delta": -0.228
+          "volume": 46410,
+          "delta": -0.235
         },
         {
           "strike": 56400,
           "type": "CE",
           "ltp": 2411.65,
-          "iv": 0.1713,
+          "iv": 0.1733,
           "oi": 30,
           "prevOi": 30,
           "volume": 0,
-          "delta": 0.667
+          "delta": 0.663
         },
         {
           "strike": 56500,
           "type": "CE",
           "ltp": 1900,
-          "iv": 0.1158,
+          "iv": 0.119,
           "oi": 1290,
           "prevOi": 1020,
           "volume": 930,
-          "delta": 0.716
+          "delta": 0.707
         },
         {
           "strike": 56500,
           "type": "PE",
-          "ltp": 479.4,
-          "iv": 0.1164,
-          "oi": 95850,
+          "ltp": 502.6,
+          "iv": 0.1181,
+          "oi": 95940,
           "prevOi": 85470,
-          "volume": 45600,
-          "delta": -0.285
+          "volume": 46140,
+          "delta": -0.292
         },
         {
           "strike": 56900,
           "type": "CE",
           "ltp": 1649.9,
-          "iv": 0.1181,
+          "iv": 0.1201,
           "oi": 60,
           "prevOi": 0,
           "volume": 180,
-          "delta": 0.659
+          "delta": 0.653
         },
         {
           "strike": 57000,
           "type": "CE",
-          "ltp": 1561.85,
-          "iv": 0.1152,
-          "oi": 21540,
+          "ltp": 1520,
+          "iv": 0.1129,
+          "oi": 21570,
           "prevOi": 21030,
-          "volume": 13470,
-          "delta": 0.648
+          "volume": 13560,
+          "delta": 0.645
         },
         {
           "strike": 57000,
           "type": "PE",
-          "ltp": 627,
-          "iv": 0.114,
-          "oi": 122340,
+          "ltp": 657.45,
+          "iv": 0.1162,
+          "oi": 122880,
           "prevOi": 112740,
-          "volume": 58860,
-          "delta": -0.351
+          "volume": 60420,
+          "delta": -0.358
         },
         {
           "strike": 57100,
           "type": "CE",
           "ltp": 1640,
-          "iv": 0.1315,
+          "iv": 0.1333,
           "oi": 480,
           "prevOi": 510,
           "volume": 0,
-          "delta": 0.62
+          "delta": 0.615
         },
         {
           "strike": 57200,
           "type": "CE",
           "ltp": 1429.9,
-          "iv": 0.1142,
+          "iv": 0.1167,
           "oi": 1560,
           "prevOi": 690,
           "volume": 1350,
-          "delta": 0.62
+          "delta": 0.612
         },
         {
           "strike": 57300,
           "type": "CE",
-          "ltp": 1364.95,
-          "iv": 0.1135,
+          "ltp": 1365.65,
+          "iv": 0.1154,
           "oi": 3750,
           "prevOi": 1140,
-          "volume": 3480,
-          "delta": 0.605
+          "volume": 3540,
+          "delta": 0.6
         },
         {
           "strike": 57400,
           "type": "CE",
-          "ltp": 1309.5,
-          "iv": 0.1138,
-          "oi": 5730,
+          "ltp": 1296.8,
+          "iv": 0.1147,
+          "oi": 5820,
           "prevOi": 4200,
-          "volume": 3570,
-          "delta": 0.59
+          "volume": 3720,
+          "delta": 0.584
         },
         {
           "strike": 57400,
           "type": "PE",
           "ltp": 745,
-          "iv": 0.1094,
+          "iv": 0.1082,
           "oi": 930,
           "prevOi": 960,
           "volume": 0,
-          "delta": -0.407
+          "delta": -0.411
         },
         {
           "strike": 57500,
           "type": "CE",
-          "ltp": 1241,
-          "iv": 0.1125,
-          "oi": 28710,
+          "ltp": 1221.75,
+          "iv": 0.1126,
+          "oi": 28770,
           "prevOi": 24150,
-          "volume": 28230,
-          "delta": 0.575
+          "volume": 28800,
+          "delta": 0.57
         },
         {
           "strike": 57500,
           "type": "PE",
-          "ltp": 812.9,
-          "iv": 0.1122,
+          "ltp": 847.8,
+          "iv": 0.1144,
           "oi": 102210,
           "prevOi": 100950,
-          "volume": 23850,
-          "delta": -0.425
+          "volume": 24960,
+          "delta": -0.431
         },
         {
           "strike": 57600,
           "type": "CE",
           "ltp": 1180,
-          "iv": 0.1118,
-          "oi": 5580,
+          "iv": 0.114,
+          "oi": 5550,
           "prevOi": 4920,
-          "volume": 2370,
-          "delta": 0.56
+          "volume": 2430,
+          "delta": 0.554
         },
         {
           "strike": 57600,
           "type": "PE",
           "ltp": 855.9,
-          "iv": 0.112,
+          "iv": 0.1102,
           "oi": 12150,
           "prevOi": 11820,
           "volume": 2250,
-          "delta": -0.44
+          "delta": -0.445
         },
         {
           "strike": 57700,
           "type": "CE",
-          "ltp": 1119.1,
-          "iv": 0.111,
-          "oi": 6360,
+          "ltp": 1130,
+          "iv": 0.1143,
+          "oi": 6450,
           "prevOi": 4620,
-          "volume": 2280,
-          "delta": 0.544
+          "volume": 2310,
+          "delta": 0.538
         },
         {
           "strike": 57700,
           "type": "PE",
-          "ltp": 903.15,
-          "iv": 0.112,
+          "ltp": 903.85,
+          "iv": 0.1103,
           "oi": 10260,
           "prevOi": 10230,
-          "volume": 2520,
-          "delta": -0.456
+          "volume": 2550,
+          "delta": -0.461
         },
         {
           "strike": 57800,
           "type": "CE",
-          "ltp": 1073.55,
-          "iv": 0.1117,
-          "oi": 4050,
+          "ltp": 1073,
+          "iv": 0.1137,
+          "oi": 3990,
           "prevOi": 3480,
-          "volume": 1710,
-          "delta": 0.529
+          "volume": 1830,
+          "delta": 0.523
         },
         {
           "strike": 57800,
           "type": "PE",
-          "ltp": 971.9,
-          "iv": 0.1143,
-          "oi": 5820,
+          "ltp": 949.4,
+          "iv": 0.1099,
+          "oi": 5880,
           "prevOi": 4890,
-          "volume": 2460,
-          "delta": -0.472
+          "volume": 2490,
+          "delta": -0.477
         },
         {
           "strike": 57900,
           "type": "CE",
-          "ltp": 1026,
-          "iv": 0.112,
+          "ltp": 1030,
+          "iv": 0.1144,
           "oi": 2940,
           "prevOi": 2730,
-          "volume": 1980,
-          "delta": 0.513
+          "volume": 2070,
+          "delta": 0.507
         },
         {
           "strike": 57900,
           "type": "PE",
           "ltp": 994,
-          "iv": 0.1112,
+          "iv": 0.1093,
           "oi": 6930,
           "prevOi": 7110,
           "volume": 780,
-          "delta": -0.487
+          "delta": -0.493
         },
         {
           "strike": 58000,
           "type": "CE",
-          "ltp": 976.8,
-          "iv": 0.1119,
-          "oi": 107610,
+          "ltp": 958.2,
+          "iv": 0.1118,
+          "oi": 107850,
           "prevOi": 87330,
-          "volume": 64050,
-          "delta": 0.497
+          "volume": 66540,
+          "delta": 0.491
         },
         {
           "strike": 58000,
           "type": "PE",
-          "ltp": 1041.5,
-          "iv": 0.1108,
-          "oi": 129060,
+          "ltp": 1078,
+          "iv": 0.1129,
+          "oi": 126750,
           "prevOi": 121230,
-          "volume": 79980,
-          "delta": -0.503
+          "volume": 82620,
+          "delta": -0.508
         },
         {
           "strike": 58100,
           "type": "CE",
-          "ltp": 930,
-          "iv": 0.112,
+          "ltp": 929.05,
+          "iv": 0.1137,
           "oi": 5610,
           "prevOi": 4890,
-          "volume": 2430,
-          "delta": 0.481
+          "volume": 2490,
+          "delta": 0.477
         },
         {
           "strike": 58200,
           "type": "CE",
           "ltp": 882.95,
-          "iv": 0.1118,
+          "iv": 0.1131,
           "oi": 5130,
           "prevOi": 4770,
           "volume": 1710,
-          "delta": 0.466
+          "delta": 0.462
         },
         {
           "strike": 58200,
           "type": "PE",
-          "ltp": 1166.05,
-          "iv": 0.1127,
-          "oi": 450,
+          "ltp": 1154.55,
+          "iv": 0.1094,
+          "oi": 480,
           "prevOi": 0,
-          "volume": 480,
-          "delta": -0.534
+          "volume": 510,
+          "delta": -0.541
         },
         {
           "strike": 58300,
           "type": "CE",
-          "ltp": 835.3,
-          "iv": 0.1114,
-          "oi": 3870,
+          "ltp": 822,
+          "iv": 0.1117,
+          "oi": 3810,
           "prevOi": 3720,
-          "volume": 1230,
-          "delta": 0.45
+          "volume": 1320,
+          "delta": 0.445
         },
         {
           "strike": 58300,
           "type": "PE",
           "ltp": 1209.8,
-          "iv": 0.1114,
+          "iv": 0.1098,
           "oi": 930,
           "prevOi": 0,
           "volume": 960,
-          "delta": -0.55
+          "delta": -0.555
         },
         {
           "strike": 58400,
           "type": "PE",
           "ltp": 1278.75,
-          "iv": 0.1127,
+          "iv": 0.1111,
           "oi": 2400,
           "prevOi": 2100,
           "volume": 630,
-          "delta": -0.565
+          "delta": -0.57
         },
         {
           "strike": 58500,
           "type": "CE",
-          "ltp": 748.5,
-          "iv": 0.111,
-          "oi": 35310,
+          "ltp": 735,
+          "iv": 0.1112,
+          "oi": 35550,
           "prevOi": 31020,
-          "volume": 26100,
-          "delta": 0.419
+          "volume": 26370,
+          "delta": 0.413
         },
         {
           "strike": 58500,
           "type": "PE",
-          "ltp": 1308.15,
-          "iv": 0.1093,
+          "ltp": 1316.3,
+          "iv": 0.1079,
           "oi": 33210,
           "prevOi": 28980,
-          "volume": 13620,
-          "delta": -0.583
+          "volume": 13650,
+          "delta": -0.59
         },
         {
           "strike": 58600,
           "type": "PE",
           "ltp": 1237.55,
-          "iv": 0.0943,
+          "iv": 0.0925,
           "oi": 2820,
           "prevOi": 2880,
           "volume": 150,
-          "delta": -0.616
+          "delta": -0.623
         },
         {
           "strike": 58700,
           "type": "PE",
           "ltp": 1320.85,
-          "iv": 0.0966,
+          "iv": 0.0947,
           "oi": 6630,
           "prevOi": 6630,
           "volume": 60,
-          "delta": -0.63
+          "delta": -0.637
         },
         {
           "strike": 58800,
           "type": "PE",
           "ltp": 1193.75,
-          "iv": 0.0732,
+          "iv": 0.0709,
           "oi": 1140,
           "prevOi": 1110,
           "volume": 90,
-          "delta": -0.694
+          "delta": -0.706
         },
         {
           "strike": 58900,
           "type": "CE",
-          "ltp": 600,
-          "iv": 0.1111,
+          "ltp": 592.15,
+          "iv": 0.1116,
           "oi": 3930,
           "prevOi": 4080,
-          "volume": 7950,
-          "delta": 0.359
+          "volume": 8070,
+          "delta": 0.354
         },
         {
           "strike": 58900,
           "type": "PE",
           "ltp": 1420,
-          "iv": 0.0926,
+          "iv": 0.0896,
           "oi": 4380,
           "prevOi": 4350,
           "volume": 60,
-          "delta": -0.671
+          "delta": -0.683
         },
         {
           "strike": 59000,
           "type": "CE",
-          "ltp": 566.95,
-          "iv": 0.1111,
-          "oi": 56910,
+          "ltp": 555.35,
+          "iv": 0.1108,
+          "oi": 56430,
           "prevOi": 55740,
-          "volume": 38760,
-          "delta": 0.344
+          "volume": 39420,
+          "delta": 0.34
         },
         {
           "strike": 59000,
           "type": "PE",
-          "ltp": 1620,
-          "iv": 0.1085,
-          "oi": 50700,
+          "ltp": 1645.15,
+          "iv": 0.1087,
+          "oi": 50730,
           "prevOi": 47070,
-          "volume": 18330,
-          "delta": -0.659
+          "volume": 18450,
+          "delta": -0.664
         },
         {
           "strike": 59100,
           "type": "PE",
           "ltp": 1339.9,
-          "iv": 0.0624,
+          "iv": 0.0623,
           "oi": 450,
           "prevOi": 480,
           "volume": 0,
@@ -8029,51 +8029,51 @@
           "strike": 59200,
           "type": "PE",
           "ltp": 1374.1,
-          "iv": 0.0543,
+          "iv": 0.0501,
           "oi": 150,
           "prevOi": 270,
           "volume": 0,
-          "delta": -0.844
+          "delta": -0.869
         },
         {
           "strike": 59300,
           "type": "PE",
           "ltp": 1568.35,
-          "iv": 0.0729,
+          "iv": 0.0697,
           "oi": 120,
           "prevOi": 180,
           "volume": 0,
-          "delta": -0.79
+          "delta": -0.805
         },
         {
           "strike": 59400,
           "type": "PE",
           "ltp": 1500,
-          "iv": 0.0416,
+          "iv": 0.0195,
           "oi": 150,
           "prevOi": 150,
           "volume": 0,
-          "delta": -0.937
+          "delta": -1
         },
         {
           "strike": 59500,
           "type": "CE",
-          "ltp": 419.9,
-          "iv": 0.1111,
-          "oi": 4050,
+          "ltp": 410.95,
+          "iv": 0.1112,
+          "oi": 4950,
           "prevOi": 1860,
-          "volume": 11790,
-          "delta": 0.276
+          "volume": 11970,
+          "delta": 0.272
         },
         {
           "strike": 59500,
           "type": "PE",
           "ltp": 1979.05,
-          "iv": 0.1091,
+          "iv": 0.1056,
           "oi": 390,
           "prevOi": 270,
           "volume": 240,
-          "delta": -0.728
+          "delta": -0.74
         },
         {
           "strike": 59600,
@@ -8089,81 +8089,81 @@
           "strike": 59700,
           "type": "PE",
           "ltp": 1977.65,
-          "iv": 0.0864,
+          "iv": 0.083,
           "oi": 60,
           "prevOi": 120,
           "volume": 0,
-          "delta": -0.809
+          "delta": -0.823
         },
         {
           "strike": 59900,
           "type": "PE",
           "ltp": 2025,
-          "iv": 0.0607,
+          "iv": 0.0525,
           "oi": 150,
           "prevOi": 180,
           "volume": 0,
-          "delta": -0.919
+          "delta": -0.949
         },
         {
           "strike": 60000,
           "type": "CE",
-          "ltp": 301.4,
-          "iv": 0.1108,
-          "oi": 96750,
+          "ltp": 295,
+          "iv": 0.1109,
+          "oi": 99900,
           "prevOi": 87900,
-          "volume": 79200,
-          "delta": 0.215
+          "volume": 84690,
+          "delta": 0.211
         },
         {
           "strike": 60000,
           "type": "PE",
-          "ltp": 2360,
-          "iv": 0.1083,
-          "oi": 25890,
+          "ltp": 2391.5,
+          "iv": 0.1089,
+          "oi": 25920,
           "prevOi": 25770,
-          "volume": 6420,
-          "delta": -0.79
+          "volume": 6480,
+          "delta": -0.793
         },
         {
           "strike": 60100,
           "type": "PE",
           "ltp": 2234.15,
-          "iv": 0.0679,
+          "iv": 0.0603,
           "oi": 60,
           "prevOi": 150,
           "volume": 0,
-          "delta": -0.915
+          "delta": -0.941
         },
         {
           "strike": 60200,
           "type": "PE",
           "ltp": 2298.3,
-          "iv": 0.0575,
+          "iv": null,
           "oi": 60,
           "prevOi": 90,
           "volume": 0,
-          "delta": -0.955
+          "delta": -1
         },
         {
           "strike": 60300,
           "type": "PE",
           "ltp": 2393.1,
-          "iv": 0.0568,
+          "iv": null,
           "oi": 60,
           "prevOi": 90,
           "volume": 0,
-          "delta": -0.964
+          "delta": -1
         },
         {
           "strike": 60500,
           "type": "CE",
           "ltp": 626.15,
-          "iv": 0.1718,
+          "iv": 0.1732,
           "oi": 30,
           "prevOi": 30,
           "volume": 0,
-          "delta": 0.271
+          "delta": 0.27
         },
         {
           "strike": 60500,
@@ -8178,12 +8178,12 @@
         {
           "strike": 61000,
           "type": "CE",
-          "ltp": 153.5,
-          "iv": 0.1122,
-          "oi": 78570,
+          "ltp": 150.5,
+          "iv": 0.1125,
+          "oi": 78660,
           "prevOi": 71190,
-          "volume": 70560,
-          "delta": 0.124
+          "volume": 72270,
+          "delta": 0.122
         },
         {
           "strike": 61000,
@@ -8199,21 +8199,21 @@
           "strike": 61100,
           "type": "CE",
           "ltp": 143.1,
-          "iv": 0.1123,
+          "iv": 0.113,
           "oi": 5490,
           "prevOi": 5700,
           "volume": 1080,
-          "delta": 0.117
+          "delta": 0.116
         },
         {
           "strike": 61400,
           "type": "CE",
           "ltp": 824.05,
-          "iv": 0.228,
+          "iv": 0.2289,
           "oi": 90,
           "prevOi": 90,
           "volume": 0,
-          "delta": 0.272
+          "delta": 0.271
         },
         {
           "strike": 62000,
@@ -8239,7 +8239,7 @@
           "strike": 64000,
           "type": "CE",
           "ltp": 231,
-          "iv": 0.1999,
+          "iv": 0.2009,
           "oi": 30,
           "prevOi": 30,
           "volume": 0,
@@ -8249,7 +8249,7 @@
           "strike": 65000,
           "type": "CE",
           "ltp": 22.1,
-          "iv": 0.1404,
+          "iv": 0.1408,
           "oi": 1380,
           "prevOi": 0,
           "volume": 2010,
@@ -8281,9 +8281,9 @@
           {
             "key": "oiFlowSig",
             "label": "OI flow (put vs call writing)",
-            "s": 0.07,
+            "s": 0.03,
             "weight": 0.17,
-            "reading": "ΔOI put +69k vs call +61k",
+            "reading": "ΔOI put +69k vs call +65k",
             "present": true
           },
           {
@@ -8291,7 +8291,7 @@
             "label": "PCR positioning",
             "s": 1,
             "weight": 0.12,
-            "reading": "PCR(OI) 1.65",
+            "reading": "PCR(OI) 1.64",
             "present": true
           },
           {
@@ -8305,7 +8305,7 @@
           {
             "key": "skewSig",
             "label": "IV skew",
-            "s": -0.22,
+            "s": -0.24,
             "weight": 0.08,
             "reading": "25∆-ish skew 0.9 vol pts",
             "present": true
@@ -8313,17 +8313,17 @@
           {
             "key": "vixSig",
             "label": "VIX trend (inverse)",
-            "s": -0.14,
+            "s": -0.13,
             "weight": 0.1,
-            "reading": "VIX 5d 2.2%",
+            "reading": "VIX 5d 2%",
             "present": true
           },
           {
             "key": "basisSig",
             "label": "Futures basis",
-            "s": 1,
+            "s": 0.99,
             "weight": 0.08,
-            "reading": "basis 200.4 pts",
+            "reading": "basis 170.4 pts",
             "present": true
           }
         ]
@@ -8333,19 +8333,19 @@
       "label": "monthly",
       "date": "2026-11-23",
       "dte": 83,
-      "tYears": 0.2274,
+      "tYears": 0.22739,
       "metrics": {
         "pcrOi": 0.56,
-        "pcrVolume": 0.77,
-        "totalCallOi": 18330,
-        "totalPutOi": 10230,
+        "pcrVolume": 0.75,
+        "totalCallOi": 18390,
+        "totalPutOi": 10380,
         "maxPain": 57000,
         "callWall": 60000,
         "putWall": 57000,
         "supports": [
           {
             "strike": 57000,
-            "oi": 8160
+            "oi": 8280
           },
           {
             "strike": 52000,
@@ -8359,7 +8359,7 @@
         "resistances": [
           {
             "strike": 60000,
-            "oi": 5430
+            "oi": 5490
           },
           {
             "strike": 59000,
@@ -8371,11 +8371,11 @@
           }
         ],
         "oiFlow": {
-          "callOiChg": 3300,
-          "putOiChg": 6630
+          "callOiChg": 3360,
+          "putOiChg": 6780
         },
         "atmStrike": 57400,
-        "atmIv": 0.1105,
+        "atmIv": 0.1108,
         "ivRank": null,
         "ivPercentile": null,
         "rv20": 0.0922,
@@ -8385,11 +8385,11 @@
         "vrp": 0.65,
         "gapShare": 0.309,
         "cpIvSpread": null,
-        "smirk": 9.65,
-        "termSlope": 0.32,
+        "smirk": 9.62,
+        "termSlope": 0.49,
         "straddle": null,
-        "expectedMove": 3025,
-        "skew": 0.0058,
+        "expectedMove": 3033,
+        "skew": 0.0071,
         "gex": {
           "netPct": 25,
           "regime": "pinning",
@@ -8406,7 +8406,7 @@
           "oi": 30,
           "delta": -0.115,
           "distancePct": 9.42,
-          "cushionSigma": 1.79,
+          "cushionSigma": 1.78,
           "probTouch": 0.316,
           "probProfit": 0.885,
           "conviction": 30,
@@ -8419,8 +8419,8 @@
           "probTouchF": 0.221,
           "tailReliance": 0.01,
           "empirical": true,
-          "cvar": -4527.44,
-          "worst": -13317.45,
+          "cvar": -4527.43,
+          "worst": -13317.44,
           "factors": [
             {
               "key": "edge",
@@ -8480,7 +8480,7 @@
             }
           ],
           "notes": [
-            "put smirk 9.65 vol pts (−3)"
+            "put smirk 9.62 vol pts (−3)"
           ]
         }
       ],
@@ -8489,7 +8489,7 @@
           "strike": 50000,
           "type": "PE",
           "ltp": 100,
-          "iv": 0.1936,
+          "iv": 0.1932,
           "oi": 0,
           "prevOi": 0,
           "volume": 30,
@@ -8519,47 +8519,47 @@
           "strike": 56000,
           "type": "CE",
           "ltp": 3020,
-          "iv": 0.1511,
+          "iv": 0.1514,
           "oi": 30,
           "prevOi": 30,
           "volume": 0,
-          "delta": 0.722
+          "delta": 0.721
         },
         {
           "strike": 57000,
           "type": "CE",
           "ltp": 1954,
-          "iv": 0.1108,
+          "iv": 0.1111,
           "oi": 2370,
           "prevOi": 1800,
-          "volume": 1500,
+          "volume": 1530,
           "delta": 0.671
         },
         {
           "strike": 57000,
           "type": "PE",
-          "ltp": 736,
-          "iv": 0.116,
-          "oi": 8160,
+          "ltp": 752.65,
+          "iv": 0.1175,
+          "oi": 8280,
           "prevOi": 2280,
-          "volume": 7920,
-          "delta": -0.335
+          "volume": 8010,
+          "delta": -0.337
         },
         {
           "strike": 57100,
           "type": "PE",
           "ltp": 1051.45,
-          "iv": 0.1432,
+          "iv": 0.1427,
           "oi": 30,
           "prevOi": 30,
           "volume": 0,
-          "delta": -0.369
+          "delta": -0.37
         },
         {
           "strike": 57400,
           "type": "CE",
           "ltp": 1700,
-          "iv": 0.1105,
+          "iv": 0.1108,
           "oi": 30,
           "prevOi": 30,
           "volume": 0,
@@ -8569,37 +8569,37 @@
           "strike": 57500,
           "type": "CE",
           "ltp": 1697.85,
-          "iv": 0.1159,
+          "iv": 0.1161,
           "oi": 0,
           "prevOi": 0,
           "volume": 60,
-          "delta": 0.606
+          "delta": 0.605
         },
         {
           "strike": 58000,
           "type": "CE",
           "ltp": 1365,
-          "iv": 0.1108,
+          "iv": 0.111,
           "oi": 4650,
           "prevOi": 3870,
-          "volume": 1710,
-          "delta": 0.546
+          "volume": 1740,
+          "delta": 0.545
         },
         {
           "strike": 58000,
           "type": "PE",
-          "ltp": 1111,
-          "iv": 0.1123,
-          "oi": 2010,
+          "ltp": 1110,
+          "iv": 0.112,
+          "oi": 2040,
           "prevOi": 1260,
-          "volume": 1290,
+          "volume": 1320,
           "delta": -0.455
         },
         {
           "strike": 58500,
           "type": "CE",
           "ltp": 1100,
-          "iv": 0.1091,
+          "iv": 0.1093,
           "oi": 600,
           "prevOi": 300,
           "volume": 420,
@@ -8609,17 +8609,17 @@
           "strike": 59000,
           "type": "CE",
           "ltp": 898.6,
-          "iv": 0.1102,
+          "iv": 0.1104,
           "oi": 5040,
           "prevOi": 4140,
           "volume": 2610,
-          "delta": 0.417
+          "delta": 0.416
         },
         {
           "strike": 59000,
           "type": "PE",
           "ltp": 1650,
-          "iv": 0.1122,
+          "iv": 0.112,
           "oi": 0,
           "prevOi": 0,
           "volume": 30,
@@ -8629,21 +8629,21 @@
           "strike": 59600,
           "type": "CE",
           "ltp": 677.1,
-          "iv": 0.1097,
+          "iv": 0.1098,
           "oi": 30,
           "prevOi": 30,
           "volume": 60,
-          "delta": 0.343
+          "delta": 0.342
         },
         {
           "strike": 60000,
           "type": "CE",
-          "ltp": 544.1,
-          "iv": 0.1084,
-          "oi": 5430,
+          "ltp": 590,
+          "iv": 0.1079,
+          "oi": 5490,
           "prevOi": 4710,
-          "volume": 5640,
-          "delta": 0.295
+          "volume": 6120,
+          "delta": 0.293
         }
       ],
       "verdict": {
@@ -8695,25 +8695,25 @@
           {
             "key": "skewSig",
             "label": "IV skew",
-            "s": -0.14,
+            "s": -0.18,
             "weight": 0.08,
-            "reading": "25∆-ish skew 0.6 vol pts",
+            "reading": "25∆-ish skew 0.7 vol pts",
             "present": true
           },
           {
             "key": "vixSig",
             "label": "VIX trend (inverse)",
-            "s": -0.14,
+            "s": -0.13,
             "weight": 0.1,
-            "reading": "VIX 5d 2.2%",
+            "reading": "VIX 5d 2%",
             "present": true
           },
           {
             "key": "basisSig",
             "label": "Futures basis",
-            "s": 1,
+            "s": 0.99,
             "weight": 0.08,
-            "reading": "basis 200.4 pts",
+            "reading": "basis 170.4 pts",
             "present": true
           }
         ]
@@ -8855,7 +8855,7 @@
     },
     {
       "t": "2026-09-01",
-      "v": 0.1148
+      "v": 0.1164
     }
   ],
   "verdict": {
@@ -8885,7 +8885,7 @@
         "label": "OI flow (put vs call writing)",
         "s": -0.73,
         "weight": 0.17,
-        "reading": "ΔOI put +1.3L vs call +8.6L",
+        "reading": "ΔOI put +1.3L vs call +8.4L",
         "present": true
       },
       {
@@ -8907,32 +8907,32 @@
       {
         "key": "skewSig",
         "label": "IV skew",
-        "s": -0.35,
+        "s": -0.4,
         "weight": 0.08,
-        "reading": "25∆-ish skew 1.4 vol pts",
+        "reading": "25∆-ish skew 1.6 vol pts",
         "present": true
       },
       {
         "key": "vixSig",
         "label": "VIX trend (inverse)",
-        "s": -0.14,
+        "s": -0.13,
         "weight": 0.1,
-        "reading": "VIX 5d 2.2%",
+        "reading": "VIX 5d 2%",
         "present": true
       },
       {
         "key": "basisSig",
         "label": "Futures basis",
-        "s": 1,
+        "s": 0.99,
         "weight": 0.08,
-        "reading": "basis 200.4 pts",
+        "reading": "basis 170.4 pts",
         "present": true
       }
     ]
   },
   "structure": {
     "priceChgPct": -0.0106,
-    "oiChgPct": -0.0027,
+    "oiChgPct": -0.0039,
     "label": "Indecisive",
     "bias": "neutral",
     "strength": "weak",
