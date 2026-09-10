@@ -16,7 +16,7 @@ const TIPS = {
   pOtmRn: "Risk-neutral probability the option expires out of the money, approximated as 1-|delta|.",
   edge: "Premium minus the option's fair value under our vol forecast, as a percentage of margin. Negative means the market is paying you less than the risk is worth — selling it is negative expectancy.",
   touch: "Probability the strike is tested at ANY point before expiry, not merely at expiry. Roughly twice the chance of finishing in the money.",
-  oi: "Open interest: contracts currently live at this strike. Thin open interest means wide spreads and difficult exits.",
+  oi: "Open interest: SHARES currently live at this strike, not contracts \u2014 divide by the lot size for positions. Thin open interest means wide spreads and difficult exits.",
 };
 
 function Th({ children, tip, right }: { children: ComponentChildren; tip: string; right?: boolean }) {

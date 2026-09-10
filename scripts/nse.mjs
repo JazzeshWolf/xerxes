@@ -69,6 +69,15 @@ export async function fetchNseChain(symbol) {
           oi,
           prevOi: Number.isFinite(chg) ? oi - chg : null,
           volume: Number(o.totalTradedVolume ?? 0) || 0,
+          // Top of book, for parity with the Upstox mapper so a fallback
+          // snapshot doesn't lose the quote gate. Note NSE's inconsistent
+          // casing: `bidprice` lowercase, `askPrice` camel. Null, never 0 —
+          // the gate distinguishes "no book" from "bid of zero".
+          bid: posOrNull(o.bidprice ?? o.bidPrice),
+          ask: posOrNull(o.askPrice ?? o.askprice),
+          bidQty: posOrNull(o.bidQty),
+          askQty: posOrNull(o.askQty),
+          close: null, // NSE's chain payload carries no previous close per strike
           delta: null,
           theta: null,
           pop: null,
@@ -85,6 +94,9 @@ export async function fetchNseChain(symbol) {
 }
 
 /** "24-Jul-2026" -> "2026-07-24" */
+/** Positive finite number, else null — an absent or zeroed quote must not read as 0. */
+const posOrNull = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
+
 function nseDateToIso(s) {
   if (!s) return null;
   const m = String(s).match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);

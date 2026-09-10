@@ -262,6 +262,48 @@ information from the first run, which is why the feature shipped useful on day o
 The cross-universe list caps **2 strikes per symbol** — without it one rich name's
 strike ladder fills the whole list with near-identical trades.
 
+#### The stale-quote trap (found in production — the gate must stay upstream)
+
+The screener ranked `ICICIBANK 2026-10-27 CE 1530` at conviction 83, #2 overall,
+quoting ₹8,995/lot off an `ltp` of 12.85 that had **not traded once that
+session** — neighbours printed 5.55 and 4.20, and its IV was 1.39× the median of
+the strikes that did trade. Across that day's `candidates.json`, **16 of 48 rows
+had `volume === 0`** and 8 of 48 had outlier IV, concentrated in the far month.
+
+It was a *selection bias*, not noise: `edge = ltp − fair` carries the heaviest
+weight (0.24), so a stale-high print mechanically produces a large apparent edge
+and the ranking sorted **toward the most-wrong prices**. The stale IV also
+corrupted `delta`, so the `maxDelta` filter was reading greeks derived from a
+price nobody traded.
+
+Three things must not be undone:
+
+1. **`oi` and `volume` from the exchange are SHARES, not lots.** Every positive
+   OI in the live data is an exact multiple of the name's lot size. The old
+   `MIN_STRIKE_OI = 250` was therefore not lax but **inert** — below one lot for
+   almost the whole universe, biting only tiny-lot names like DIXON (lot 50).
+   The floor now lives in `QUOTE_DEFAULTS.minOiLots`, in lots, in one place.
+2. **The gate runs inside `sellCandidates`, upstream of `candidates.slice(0, 24)`.**
+   Gate after that slice and a block of 24 stale strikes becomes a handful; gate
+   before it and 24 *tradable* strikes get picked. It also runs **before** iv/delta
+   are derived, for the delta-corruption reason above.
+3. **`quoteContext.bookOpen` is what makes the gate post-close-safe.** After 15:30
+   IST every bid/ask is absent, so a gate demanding a live quote would reject the
+   entire universe. `volume` is a session cumulative that survives the close, and
+   is the fallback. A test pins this; if it ever goes, the post-close run empties.
+
+Hard exclusion is affordable because the pool is far larger than the 24 shown
+(1048 current / 715 next when this was found) — stale strikes get **replaced**,
+not subtracted. The run log prints `quote gate: kept N (dropped …)` for the same
+reason the news backlog is printed: a gate that silently over-fires is
+indistinguishable from a thin market.
+
+`bid`/`ask` are ingested from `market_data` (Upstox) and `bidprice`/`askPrice`
+(NSE) at no extra API call, and published through both `slimChain`s. `markAt`
+stays `"ltp"` until a live run confirms what the book contains after the close;
+flipping it to `"bid"` is what makes `creditPerLot` the credit a seller could
+actually collect rather than the last print.
+
 #### The far-OTM trap (found in production — do not undo these three things)
 
 The first live run ranked deep-OTM lottery tickets at the top. LICHSGFIN's

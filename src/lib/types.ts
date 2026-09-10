@@ -17,6 +17,9 @@ export interface ChainRow {
   oi: number;
   prevOi: number | null;
   volume: number;
+  /** Top of book. Optional: snapshots published before the quote gate lack them. */
+  bid?: number | null;
+  ask?: number | null;
   delta: number | null;
 }
 
@@ -97,6 +100,22 @@ export interface CandidateRowData {
   type: "CE" | "PE";
   ltp: number;
   probProfit: number;
+  // --- per-strike quote evidence (optional: older published files lack these).
+  // The row's `liquidity` badge is a NAME-level bucket; these are the only
+  // fields that say anything about whether THIS strike trades.
+  /** The price a seller is credited at. Equals `ltp` until the mark becomes the bid. */
+  mark?: number | null;
+  markSource?: "bid" | "mid" | "ltp" | null;
+  /** Contracts traded this session. 0 means the `ltp` is a leftover print. */
+  volume?: number | null;
+  /** Open interest in LOTS. Exchange `oi` is a SHARE count, which is easy to misread. */
+  oiLots?: number | null;
+  spreadPct?: number | null;
+  /** This strike's IV over the median of the nearest strikes that actually traded. */
+  ivZ?: number | null;
+  quoteQuality?: number | null;
+  bid?: number | null;
+  ask?: number | null;
   delta?: number | null;
   iv?: number | null;
   oi?: number | null;
@@ -164,6 +183,20 @@ export interface SellCandidate {
   worst?: number | null;
   factors?: ConvictionFactor[];
   notes?: string[];
+  // --- per-strike quote evidence (optional: older files lack these) ----------
+  /** The price a seller is credited at. Equals `ltp` until the mark becomes the bid. */
+  mark?: number | null;
+  markSource?: "bid" | "mid" | "ltp" | null;
+  /** Contracts traded this session. 0 means the `ltp` is a leftover print. */
+  volume?: number | null;
+  /** Open interest in LOTS. Exchange `oi` is a SHARE count, which is easy to misread. */
+  oiLots?: number | null;
+  spreadPct?: number | null;
+  /** This strike's IV over the median of the nearest strikes that actually traded. */
+  ivZ?: number | null;
+  quoteQuality?: number | null;
+  bid?: number | null;
+  ask?: number | null;
 }
 
 export interface Factor {
@@ -361,7 +394,22 @@ export interface StockCandidate {
   /** Present via the spread in `build-stocks.mjs`; declared so the UI may read it. */
   oi?: number | null;
   creditPerLot: number | null;
+  /**
+   * NAME-level liquidity bucket for this expiry's cohort — NOT a claim about
+   * this strike. Per-strike liquidity is `volume` / `oiLots` / `quoteQuality`.
+   */
   liquidity: string | null;
+  // --- per-strike quote evidence (optional: older files lack these) ----------
+  mark?: number | null;
+  markSource?: "bid" | "mid" | "ltp" | null;
+  volume?: number | null;
+  /** Open interest in LOTS. Exchange `oi` is a SHARE count. */
+  oiLots?: number | null;
+  spreadPct?: number | null;
+  ivZ?: number | null;
+  quoteQuality?: number | null;
+  bid?: number | null;
+  ask?: number | null;
   // --- predictive layer (optional so a cached older candidates.json still renders)
   conviction?: number;
   band?: ConvictionBand;

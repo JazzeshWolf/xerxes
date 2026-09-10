@@ -139,6 +139,9 @@ export function pickIndex(instruments, assetSymbol, foSegment, todayIso) {
  * { strike, type, ltp, iv, oi, prevOi, volume, delta, theta, pop }.
  * Also returns the spot the exchange stamped on the chain.
  */
+/** Positive finite number, else null — an absent or zeroed quote must not read as 0. */
+const numOrNull = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
+
 export async function optionChain(token, underlyingKey, expiryIso) {
   const url = `${BASE}/option/chain?instrument_key=${encodeURIComponent(underlyingKey)}&expiry_date=${expiryIso}`;
   try {
@@ -168,6 +171,17 @@ export async function optionChain(token, underlyingKey, expiryIso) {
           oi,
           prevOi: Number.isFinite(Number(md.prev_oi)) ? Number(md.prev_oi) : null,
           volume: Number(md.volume ?? 0) || 0,
+          // Top of book. Normalised to null rather than 0, because the quote
+          // gate turns on telling "there is no book" (post-close) apart from
+          // "the bid is zero", and the feed sends 0 for both.
+          bid: numOrNull(md.bid_price ?? md.bidPrice),
+          ask: numOrNull(md.ask_price ?? md.askPrice),
+          bidQty: numOrNull(md.bid_qty ?? md.bidQty),
+          askQty: numOrNull(md.ask_qty ?? md.askQty),
+          // Previous close: `volume === 0 && ltp === close` proves the print is
+          // a carried-forward close, the strongest stale signal available given
+          // /option/chain carries no per-strike last-trade timestamp.
+          close: numOrNull(md.close_price ?? md.closePrice),
           delta: Number.isFinite(Number(gk.delta)) ? Number(gk.delta) : null,
           theta: Number.isFinite(Number(gk.theta)) ? Number(gk.theta) : null,
           pop: Number.isFinite(Number(gk.pop)) ? Number(gk.pop) : null,

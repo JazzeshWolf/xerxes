@@ -128,6 +128,24 @@ export function CandidateRow({
             )}
           </div>
 
+          {/* This strike's OWN market. The row's `liquidity` badge is a
+              name-level bucket for the expiry cohort, so before this there was
+              nothing on screen saying whether THIS strike actually trades. */}
+          {(c.volume != null || c.bid != null) && (
+            <div className="text-[9px] leading-relaxed text-white/40">
+              {c.bid != null && c.ask != null ? `bid ₹${c.bid} / ask ₹${c.ask}` : "no live book"}
+              {c.spreadPct != null ? ` · ${Math.round(c.spreadPct * 100)}% wide` : ""}
+              {c.volume != null ? ` · vol ${fmt(c.volume)}` : ""}
+              {c.oiLots != null ? ` · ${fmt(c.oiLots)} lots OI` : ""}
+              {c.markSource === "bid" && c.mark != null ? ` · credit at bid ₹${c.mark} (last ₹${c.ltp})` : ""}
+            </div>
+          )}
+          {c.volume === 0 && (
+            <div className="text-[9px] leading-relaxed text-amber-300">
+              No trades in this strike today — the price above is a leftover print, not a live market.
+            </div>
+          )}
+
           {factors.length > 0 && (
             <div className="space-y-1">
               {factors.map((f) => (
