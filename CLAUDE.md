@@ -287,10 +287,17 @@ Three things must not be undone:
    Gate after that slice and a block of 24 stale strikes becomes a handful; gate
    before it and 24 *tradable* strikes get picked. It also runs **before** iv/delta
    are derived, for the delta-corruption reason above.
-3. **`quoteContext.bookOpen` is what makes the gate post-close-safe.** After 15:30
-   IST every bid/ask is absent, so a gate demanding a live quote would reject the
-   entire universe. `volume` is a session cumulative that survives the close, and
-   is the fallback. A test pins this; if it ever goes, the post-close run empties.
+3. **`quoteContext.bookOpen` decides which branch the gate takes, and the
+   volume fallback is UNTESTED IN PRODUCTION.** The design assumed bid/ask vanish
+   after 15:30 IST, so `volume` — a session cumulative that survives the close —
+   was built as the fallback that keeps a post-close run from rejecting the whole
+   universe. **Measured 2026-09-10 at 17:58 IST: that assumption is wrong.** The
+   book persists after the close (ICICIBANK 27-Oct CE 1530 still quoted bid 4.00 /
+   ask 5.35), so `bookOpen` evaluated **true** and the gate took the two-sided-quote
+   branch. The gate is post-close-safe either way, but for a weaker reason than
+   originally written: the fallback is pinned only by a unit test and has never
+   actually fired live. **If a post-close run ever comes back thin, check this
+   first** — that is the path with no production evidence behind it.
 
 Hard exclusion is affordable because the pool is far larger than the 24 shown
 (1048 current / 715 next when this was found) — stale strikes get **replaced**,
@@ -299,10 +306,18 @@ reason the news backlog is printed: a gate that silently over-fires is
 indistinguishable from a thin market.
 
 `bid`/`ask` are ingested from `market_data` (Upstox) and `bidprice`/`askPrice`
-(NSE) at no extra API call, and published through both `slimChain`s. `markAt`
-stays `"ltp"` until a live run confirms what the book contains after the close;
-flipping it to `"bid"` is what makes `creditPerLot` the credit a seller could
-actually collect rather than the last print.
+(NSE) at no extra API call, and published through both `slimChain`s. They are
+populated, and populated post-close — so `markAt: "bid"` is viable whenever
+wanted. It is held at `"ltp"` **by choice, not for want of evidence**: the gate
+has already removed the strikes where the last print was badly wrong, and
+flipping the mark re-prices every row at once, which would confound the next
+verification.
+
+The size of what LTP still overstates, measured the same day: **3.2× on the stale
+strike** (₹8,995/lot advertised against a ₹2,800 bid), but only **≤1.21× across
+every row that survives the gate**, and under 1.10× for most. That is the case to
+weigh if it is revisited — flipping to `"bid"` is what makes `creditPerLot` the
+credit a seller could actually collect rather than the last print.
 
 #### The far-OTM trap (found in production — do not undo these three things)
 
