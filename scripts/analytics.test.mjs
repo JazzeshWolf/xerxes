@@ -774,3 +774,183 @@ describe("forecastVol gap inflation", () => {
     expect(A.forecastVol(smooth, 30, { inflateGaps: false }).sigma).toBeCloseTo(A.forecastVol(smooth, 30).sigma, 6);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The per-strike quote gate.
+//
+// Found in production: the screener ranked ICICIBANK 2026-10-27 CE 1530 at
+// conviction 83 — the #2 row overall — quoting ₹8,995 credit per lot off an ltp
+// of 12.85 that had not traded once that session. Its neighbours printed 5.55
+// and 4.20. `edge = ltp − fair` carries the heaviest weight in the blend, so a
+// stale-high print mechanically produces a large apparent edge and the ranking
+// sorted TOWARD the most-wrong prices: 16 of 48 published candidates had zero
+// volume, 8 of 48 had IV far above their traded neighbours.
+// ---------------------------------------------------------------------------
+
+/** A traded strike, unless overridden. */
+const qRow = (o = {}) => ({
+  strike: 1520, type: "CE", ltp: 5.55, iv: 0.1965, oi: 67200, volume: 32200,
+  bid: null, ask: null, ...o,
+});
+
+/** The real ICICIBANK 2026-10-27 CE ladder, spot 1381, lot 700. */
+function iciciLadder() {
+  return [
+    qRow({ strike: 1500, ltp: 7.45, iv: 0.1917, oi: 448700, volume: 194600 }),
+    qRow({ strike: 1510, ltp: 6.30, iv: 0.1929, oi: 14700, volume: 4900 }),
+    qRow({ strike: 1520, ltp: 5.55, iv: 0.1965, oi: 67200, volume: 32200 }),
+    qRow({ strike: 1530, ltp: 12.85, iv: 0.2698, oi: 4900, volume: 0 }), // the stale print
+    qRow({ strike: 1540, ltp: 4.20, iv: 0.2014, oi: 33600, volume: 2800 }),
+    qRow({ strike: 1550, ltp: 3.75, iv: 0.2051, oi: 21700, volume: 11200 }),
+    qRow({ strike: 1600, ltp: 2.15, iv: 0.2246, oi: 87500, volume: 34300 }),
+  ];
+}
+
+describe("quoteContext", () => {
+  it("calls a chain with no two-sided quotes anywhere the CLOSED book, not an untradable universe", () => {
+    // THE post-close regression. Every bid/ask is absent after 15:30 IST, so a
+    // gate demanding a live quote would reject the entire universe on the
+    // post-close run — which is most of what the app shows overnight.
+    const ctx = A.quoteContext(iciciLadder());
+    expect(ctx.bookOpen).toBe(false);
+    const rows = A.sellCandidates(iciciLadder(), 1381, 47 / 365, 60, { lotSize: 700, minPremium: 1 });
+    expect(rows.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("only counts strikes that actually traded in the IV reference", () => {
+    const ctx = A.quoteContext(iciciLadder());
+    expect(ctx.traded.CE.map((r) => r.strike)).not.toContain(1530);
+    expect(ctx.traded.CE.map((r) => r.strike)).toContain(1520);
+  });
+});
+
+describe("quoteQuality", () => {
+  const ctx = () => A.quoteContext(iciciLadder());
+
+  it("rejects a strike that never traded and has no live quote", () => {
+    const q = A.quoteQuality(qRow({ strike: 1530, ltp: 12.85, iv: 0.2698, oi: 4900, volume: 0 }), ctx(), { lotSize: 700 });
+    expect(q.tradable).toBe(false);
+    expect(q.reason).toBe("stale-print");
+  });
+
+  it("accepts a live two-sided quote even with no trades today", () => {
+    // A quote you can hit right now IS a market. This is what keeps genuinely
+    // quoted far-month strikes in the list rather than gutting the far expiry.
+    const q = A.quoteQuality(
+      qRow({ strike: 1560, ltp: 5.1, iv: 0.2, oi: 70000, volume: 0, bid: 4.9, ask: 5.3 }),
+      ctx(), { lotSize: 700 },
+    );
+    expect(q.tradable).toBe(true);
+    expect(q.spreadPct).toBeLessThan(0.1);
+  });
+
+  it("rejects a two-sided quote too wide to be a market", () => {
+    const q = A.quoteQuality(
+      qRow({ strike: 1560, ltp: 2, iv: 0.2, oi: 70000, volume: 0, bid: 1, ask: 4 }),
+      ctx(), { lotSize: 700 },
+    );
+    expect(q.tradable).toBe(false);
+    expect(q.reason).toBe("wide-spread");
+  });
+
+  it("rejects IV far above the strikes that actually traded", () => {
+    const q = A.quoteQuality(qRow({ strike: 1530, ltp: 12.85, iv: 0.2698, oi: 700000, volume: 5 }), ctx(), { lotSize: 700 });
+    expect(q.ivZ).toBeGreaterThan(1.25);
+    expect(q.reason).toBe("iv-outlier");
+  });
+
+  it("flags an unusually CHEAP quote but does not reject it — cheap is a bad trade, not an untradable one", () => {
+    const q = A.quoteQuality(qRow({ strike: 1540, ltp: 4.2, iv: 0.12, oi: 700000, volume: 2800 }), ctx(), { lotSize: 700 });
+    expect(q.tradable).toBe(true);
+    expect(q.quality).toBeLessThan(1);
+  });
+
+  it("measures OI in LOTS, not shares — the unit bug that made the old floor inert", () => {
+    // Exchange oi/volume are share counts: every positive OI in the live data is
+    // an exact multiple of the lot. `MIN_STRIKE_OI = 250` therefore sat BELOW a
+    // single lot for almost the whole universe and could never reject anything.
+    const row = qRow({ strike: 1530, ltp: 12.85, iv: 0.1965, oi: 4900, volume: 100 });
+    expect(A.quoteQuality(row, ctx(), { lotSize: 700 }).oiLots).toBe(7);
+    expect(A.quoteQuality(row, ctx(), { lotSize: 700 }).reason).toBe("thin-oi");
+    expect(A.quoteQuality(row, ctx(), { lotSize: 50 }).oiLots).toBe(98);
+    expect(A.quoteQuality(row, ctx(), { lotSize: 50 }).tradable).toBe(true);
+  });
+
+  it("never fabricates a rejection from absent data", () => {
+    // A pre-change published file carries no bid/ask keys at all.
+    const bare = { strike: 1520, type: "CE", ltp: 5.55, iv: 0.1965, oi: 67200, volume: 32200 };
+    expect(A.quoteQuality(bare, ctx(), { lotSize: 700 }).tradable).toBe(true);
+  });
+
+  it("does not apply the IV test with fewer than two traded neighbours", () => {
+    const thin = A.quoteContext([qRow({ strike: 1520, volume: 100 })]);
+    const q = A.quoteQuality(qRow({ strike: 1530, ltp: 12.85, iv: 0.9, oi: 700000, volume: 10 }), thin, { lotSize: 700 });
+    expect(q.ivZ).toBe(null);
+    expect(q.tradable).toBe(true);
+  });
+});
+
+describe("sellCandidates quote gate", () => {
+  it("drops a stale leftover print without gutting the ladder (ICICIBANK 2026-10-27 CE 1530)", () => {
+    const rows = A.sellCandidates(iciciLadder(), 1381, 47 / 365, 60, { lotSize: 700, minPremium: 1 });
+    const strikes = rows.map((r) => r.strike);
+    expect(strikes).not.toContain(1530);
+    expect(strikes).toContain(1520);
+    expect(strikes).toContain(1540);
+    // The point is surgical removal, not a scorched ladder.
+    expect(rows.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("runs the gate BEFORE the delta filter, so a stale IV cannot smuggle a strike past maxDelta", () => {
+    // 1530's stale 27% IV prints δ 0.183 and would clear maxDelta 0.25; its
+    // traded neighbours imply ≈0.12. Gating after the delta test would let the
+    // bad print through on greeks already known to be wrong.
+    const stats = {};
+    A.sellCandidates(iciciLadder(), 1381, 47 / 365, 60, { lotSize: 700, minPremium: 1, stats });
+    expect(stats["stale-print"]).toBeGreaterThanOrEqual(1);
+  });
+
+  it("keeps the stale strike when the gate is disabled — proving the gate is what removes it", () => {
+    const rows = A.sellCandidates(iciciLadder(), 1381, 47 / 365, 60, {
+      lotSize: 700, minPremium: 1, quote: { enabled: false },
+    });
+    expect(rows.map((r) => r.strike)).toContain(1530);
+  });
+
+  it("publishes the evidence on the row so the gate is auditable from candidates.json", () => {
+    const rows = A.sellCandidates(iciciLadder(), 1381, 47 / 365, 60, { lotSize: 700, minPremium: 1 });
+    const r = rows.find((x) => x.strike === 1520);
+    expect(r.volume).toBe(32200);
+    expect(r.oiLots).toBe(96);
+    expect(r.ltp).toBe(5.55); // the raw print is kept as evidence, never overwritten
+    expect(r.mark).toBe(5.55); // markAt "ltp" today
+  });
+
+  it("leaves index behaviour unchanged under INDEX_SELL_OPTS.quote", () => {
+    const chain = fixtureChain();
+    const base = A.sellCandidates(chain, 25000, 7 / 365, 250, { maxDelta: 0.35, minPremium: 1, quote: { enabled: false } });
+    const idx = A.sellCandidates(chain, 25000, 7 / 365, 250, {
+      maxDelta: 0.35, minPremium: 1, quote: A.INDEX_SELL_OPTS.quote,
+    });
+    expect(idx.map((r) => `${r.type}:${r.strike}`)).toEqual(base.map((r) => `${r.type}:${r.strike}`));
+  });
+});
+
+describe("sellConviction quote factor", () => {
+  const base = {
+    type: "CE", strike: 1530, ltp: 5.55, iv: 0.1965, oi: 67200, volume: 32200, lotSize: 700,
+    spot: 1381, t: 47 / 365, sigmaForecast: 0.22, mu: 0,
+  };
+
+  it("scores identically when no quote block is supplied", () => {
+    // The contract that keeps indices, older callers and the existing tests green.
+    expect(A.sellConviction(base).conviction).toBe(A.sellConviction({ ...base, quote: null }).conviction);
+  });
+
+  it("costs conviction for a marginal quote, and says what it cost", () => {
+    const good = A.sellConviction({ ...base, quote: { quality: 1, spreadPct: 0.02, oiLots: 96, volume: 32200 } });
+    const poor = A.sellConviction({ ...base, quote: { quality: 0.1, spreadPct: 0.4, oiLots: 96, volume: 0 } });
+    expect(poor.conviction).toBeLessThan(good.conviction);
+    expect(poor.notes.join(" ")).toMatch(/marginal quote/);
+  });
+});

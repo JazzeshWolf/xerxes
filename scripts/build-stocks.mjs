@@ -45,7 +45,6 @@ const EXPIRY_SLOTS = ["current", "next"]; // ordered[0], ordered[1]
 // A far-month strike is not tradeable just because the name's near month is, so
 // each expiry is ranked against its OWN cohort and gated on its own numbers.
 const TRADEABLE_BUCKETS = ["Medium", "Medium-High", "High"];
-const MIN_STRIKE_OI = 250; // hard floor: below this the strike is a quote, not a market
 const THIN_EXPIRY_CANDIDATES = 8; // fewer than this in a slot → warn the user loudly
 // Per-stock news is fetched for the STALEST few names each full run, not all of
 // them — one Google News query per symbol across the universe every 20 minutes
@@ -85,6 +84,11 @@ const slimChain = (chain) =>
     oi: o.oi,
     prevOi: o.prevOi,
     volume: o.volume,
+    // Top of book. Published because the per-strike quote gate is only
+    // auditable from the artifact if the evidence ships with it. bidQty/askQty/
+    // close stay on the raw row (`_rawChain`), which scoring already reaches.
+    bid: o.bid ?? null,
+    ask: o.ask ?? null,
     delta: o.delta != null ? A.round(o.delta, 3) : null,
   }));
 
@@ -114,9 +118,16 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
   const fc = A.forecastVol(ctx.ohlc ?? [], dte);
   const sigmaForecast = fc?.sigma ?? null;
 
+  const gate = {};
   const candidates = A.sellCandidates(chain, spot, t, expectedMove, {
     maxDelta: 0.25,
     minPremium: Math.max(1, spot * 0.0004),
+    // The per-strike quote gate lives HERE, upstream of the `.slice(0, 24)`
+    // below. Gating after the slice would take a block of 24 stale strikes down
+    // to a handful; gating before it lets 24 *tradable* strikes be picked in the
+    // first place. `lotSize` is required because the OI floor is in lots.
+    lotSize: ctx.lotSize ?? 1,
+    stats: gate,
   });
   return {
     label,
@@ -166,6 +177,7 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
     _t: t,
     _sigmaForecast: sigmaForecast,
     _rawChain: chain,
+    _gate: gate,
   };
 }
 
@@ -193,14 +205,20 @@ function scoreCandidates(block, { spot, lotSize, verdict, gap, term, ivRank, ret
   const scored = [];
   for (const c of block.candidates) {
     const row = byStrike.get(`${c.type}:${c.strike}`);
-    if ((row?.oi ?? c.oi ?? 0) < MIN_STRIKE_OI) continue;
     const conv = A.sellConviction({
       type: c.type,
       strike: c.strike,
-      ltp: c.ltp,
+      // Score the price a seller is actually credited at. Identical to `ltp`
+      // while markAt is "ltp"; the substitution is what carries the bid through
+      // to edge, edgePct, fair, tailReliance and vrp in one place.
+      ltp: c.mark ?? c.ltp,
       iv: c.iv,
       oi: row?.oi ?? c.oi,
-      volume: row?.volume ?? 0,
+      volume: c.volume ?? row?.volume ?? 0,
+      // Per-strike quote verdict from the gate in `sellCandidates`.
+      quote: c.quoteQuality != null
+        ? { quality: c.quoteQuality, spreadPct: c.spreadPct, oiLots: c.oiLots, volume: c.volume ?? 0 }
+        : null,
       lotSize,
       spot,
       t,
@@ -351,7 +369,7 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
   const gap = A.gapProfile(raw.ohlc ?? [], 60);
   for (const e of ordered) {
     const trimmed = trimToWindow(raw.chainsByExpiry[e], spot);
-    expiries[e] = computeExpiry(trimmed, spot, e, "monthly", { ohlc: raw.ohlc });
+    expiries[e] = computeExpiry(trimmed, spot, e, "monthly", { ohlc: raw.ohlc, lotSize: raw.lotSize ?? 1 });
   }
   const defaultExpiry = ordered[0];
   const dflt = expiries[defaultExpiry];
@@ -441,8 +459,8 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
 
   const publicExpiries = {};
   for (const [e, b] of Object.entries(expiries)) {
-    const { _flow, _pcr, _maxPain, _skew, _em, _t, _sigmaForecast, _rawChain, ...pub } = b;
-    void _flow, void _pcr, void _maxPain, void _skew, void _em, void _t, void _sigmaForecast, void _rawChain;
+    const { _flow, _pcr, _maxPain, _skew, _em, _t, _sigmaForecast, _rawChain, _gate, ...pub } = b;
+    void _flow, void _pcr, void _maxPain, void _skew, void _em, void _t, void _sigmaForecast, void _rawChain, void _gate;
     publicExpiries[e] = pub;
   }
 
@@ -485,7 +503,13 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
     verdict,
     structure,
   };
-  return { snap, liquidityRaw: liquidity, liquidityByExpiry, dfltMetrics: dflt.metrics };
+  // Quote-gate counters, summed across this name's expiries. Routed out
+  // separately because `_gate` is stripped from the published block above.
+  const gate = {};
+  for (const b of Object.values(expiries))
+    for (const [k, v] of Object.entries(b._gate ?? {})) gate[k] = (gate[k] ?? 0) + v;
+
+  return { snap, liquidityRaw: liquidity, liquidityByExpiry, dfltMetrics: dflt.metrics, gate };
 }
 
 const fileSlug = (symbol) => symbol.replace(/[^A-Za-z0-9]/g, "_");
@@ -685,9 +709,9 @@ async function main() {
     raw.prevEvents = prev.events;
     raw.prevNewsAsOf = prev.newsAsOf;
     const newsBundle = newsQueue.has(symbol) ? await fetchNewsBundle(symbol, name) : null;
-    const { snap, liquidityRaw, liquidityByExpiry, dfltMetrics } = buildStock(name, raw, vix, prev.ivHistory, newsBundle);
+    const { snap, liquidityRaw, liquidityByExpiry, dfltMetrics, gate } = buildStock(name, raw, vix, prev.ivHistory, newsBundle);
     await writeFile(resolve(STOCKS_DIR, `${slug}.json`), JSON.stringify(snap));
-    return { symbol, name, ok: true, snap, liquidityRaw, liquidityByExpiry, dfltMetrics };
+    return { symbol, name, ok: true, snap, liquidityRaw, liquidityByExpiry, dfltMetrics, gate };
   });
 
   const ok = built.filter((b) => b && b.ok);
@@ -757,7 +781,10 @@ async function main() {
           file: fileSlug(b.symbol),
           expiry: exp.date,
           dte: exp.dte,
-          creditPerLot: A.round(c.ltp * (b.snap.lotSize ?? 1), 0),
+          // The mark, not the last print. With markAt:"ltp" (today) these are
+          // identical; when the bid becomes the mark this is what stops the
+          // screen quoting a credit nobody could collect.
+          creditPerLot: A.round((c.mark ?? c.ltp) * (b.snap.lotSize ?? 1), 0),
           liquidity: bucket,
           vrp: exp.metrics.vrp ?? null,
           ivRank: exp.metrics.ivRank ?? null,
@@ -805,9 +832,20 @@ async function main() {
     (s) => !newsQueue.has(s.symbol) && !prevBySlug[fileSlug(s.symbol)].newsAsOf,
   ).length;
 
+  // Quote-gate telemetry, for the same reason the news backlog is printed: a
+  // gate that silently over-fires is indistinguishable from a thin market. If
+  // `kept` collapses on the post-close run, `bookOpen` is misfiring.
+  const gate = {};
+  for (const b of ok) for (const [k, v] of Object.entries(b.gate ?? {})) gate[k] = (gate[k] ?? 0) + v;
+  const gateLine = Object.entries(gate)
+    .filter(([k]) => k !== "kept")
+    .map(([k, v]) => `${k} ${v}`)
+    .join(", ");
+
   console.log(
     `stocks: built ${ok.length}/${STOCKS.length}; news refreshed for ${[...newsQueue].join(",")} ` +
       `(${neverFetched} live names still awaiting first fetch); ` +
+      `quote gate: kept ${gate.kept ?? 0}${gateLine ? ` (dropped ${gateLine})` : ""}; ` +
       expiryBlocks.map((e) => `${e.slot} ${e.date} ${e.candidates.length} cand${e.thin ? " (thin)" : ""}`).join("; ") +
       `; vix=${vix.value}`,
   );

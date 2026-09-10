@@ -242,6 +242,11 @@ const slimChain = (chain) =>
     oi: o.oi,
     prevOi: o.prevOi,
     volume: o.volume,
+    // Top of book. Published because the per-strike quote gate is only
+    // auditable from the artifact if the evidence ships with it. bidQty/askQty/
+    // close stay on the raw row (`_rawChain`), which scoring already reaches.
+    bid: o.bid ?? null,
+    ask: o.ask ?? null,
     delta: o.delta != null ? A.round(o.delta, 3) : null,
   }));
 
@@ -269,6 +274,11 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
   const candidates = A.sellCandidates(chain, spot, t, expectedMove, {
     maxDelta: 0.25,
     minPremium: Math.max(2, spot * 0.0004),
+    lotSize: ctx.lotSize ?? 1,
+    // Index thresholds, not the single-stock ones: deep OI makes a lot floor
+    // pointless and index wings carry a steeper genuine smile, so the
+    // IV-outlier test needs more room. The stale-print gate still applies.
+    quote: A.INDEX_SELL_OPTS.quote,
   });
   return {
     label,
@@ -428,8 +438,11 @@ function buildIndex(cfg, raw, prev) {
         const row = byStrike.get(`${c.type}:${c.strike}`);
         const conv = A.sellConviction({
           ...A.INDEX_SELL_OPTS,
-          type: c.type, strike: c.strike, ltp: c.ltp, iv: c.iv,
-          oi: row?.oi ?? c.oi, volume: row?.volume ?? 0, lotSize: raw.lotSize ?? 1,
+          type: c.type, strike: c.strike, ltp: c.mark ?? c.ltp, iv: c.iv,
+          oi: row?.oi ?? c.oi, volume: c.volume ?? row?.volume ?? 0, lotSize: raw.lotSize ?? 1,
+          quote: c.quoteQuality != null
+            ? { quality: c.quoteQuality, spreadPct: c.spreadPct, oiLots: c.oiLots, volume: c.volume ?? 0 }
+            : null,
           spot, t: b._t, sigmaForecast: sf, mu, verdict: b.verdict,
           ivRank: null, gap: null, term, smirk: b.metrics.smirk, sample,
         });

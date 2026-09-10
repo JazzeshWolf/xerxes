@@ -448,6 +448,152 @@ function fmtL(n) {
   return n > 0 ? `+${s}` : s;
 }
 
+// --- Per-strike quote quality ----------------------------------------------
+/**
+ * Defaults for the per-strike quote gate, overridden per asset class through the
+ * `quote` key on the sell options (see `INDEX_SELL_OPTS`).
+ */
+export const QUOTE_DEFAULTS = {
+  minOiLots: 10, // OI floor in LOTS — see the unit note on `quoteQuality`
+  maxSpreadPct: 0.25, // (ask−bid)/mid above which a two-sided quote isn't a market
+  ivNeighbours: 4, // nearest traded same-side strikes used as the IV reference
+  minNeighbours: 2, // below this the IV test simply does not apply
+  ivMaxRatio: 1.25, // iv ÷ ivRef above which the print is called stale
+  ivMinRatio: 0.6, // below this: flagged, never rejected — cheap ≠ untradable
+  markAt: "ltp", // "ltp" | "bid"
+  minQuotedShare: 0.4, // share of live rows needing a two-sided quote to call the book OPEN
+  enabled: true,
+};
+
+const medianOf = (xs) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length ? s[Math.floor(s.length / 2)] : null;
+};
+
+/**
+ * Chain-level facts for the quote gate, computed ONCE per (name, expiry) so the
+ * gate stays O(n) rather than O(n²).
+ *
+ * Two things no single strike can establish about itself:
+ *
+ *  - **Is the book open at all.** After the close every bid/ask is absent, so a
+ *    gate that demanded a two-sided quote would reject the entire universe on
+ *    the post-close run. `bookOpen` is what separates "this strike has no
+ *    market" from "the market is shut".
+ *  - **What the strikes that ACTUALLY TRADED printed for IV.** The chain carries
+ *    no per-strike last-trade timestamp, so a traded-IV reference is the only
+ *    thing a lone stale quote can be measured against.
+ *
+ * `volume` is a session cumulative and does not reset at the close, so that
+ * reference survives the post-close run intact — which is what makes the primary
+ * gate safe when the book is shut.
+ */
+export function quoteContext(chain, opts = {}) {
+  const o = { ...QUOTE_DEFAULTS, ...opts };
+  const rows = (Array.isArray(chain) ? chain : []).filter((r) => r && (r.oi > 0 || r.ltp > 0));
+  const byType = { CE: [], PE: [] };
+  let quoted = 0, traded = 0;
+  for (const r of rows) {
+    if (r.bid > 0 && r.ask > 0) quoted++;
+    if ((r.volume ?? 0) > 0) {
+      traded++;
+      if (r.iv > 0 && byType[r.type]) byType[r.type].push({ strike: r.strike, iv: r.iv });
+    }
+  }
+  for (const k of ["CE", "PE"]) byType[k].sort((a, b) => a.strike - b.strike);
+  const n = rows.length;
+  const quotedShare = n ? quoted / n : 0;
+  return {
+    bookOpen: quotedShare >= o.minQuotedShare,
+    quotedShare: round(quotedShare, 3),
+    tradedShare: n ? round(traded / n, 3) : 0,
+    traded: byType,
+  };
+}
+
+/**
+ * Can a seller actually transact this strike, and at what price?
+ *
+ * ⚠️ **`oi` and `volume` from the exchange are in SHARES, not lots.** Every
+ * positive OI in the live data is an exact multiple of the name's lot size, and
+ * the smallest is exactly one lot. That is why the old `MIN_STRIKE_OI = 250`
+ * contract floor was not merely lax but *inert*: against a 700-share lot it sat
+ * below a single lot and could never reject anything, and it bit only tiny-lot
+ * names like DIXON (lot 50). The floor here is in LOTS, the only scale-free unit
+ * across a universe whose lots run 50 to 6500.
+ *
+ * Absent evidence must never fabricate a rejection: a chain carrying no bid/ask
+ * at all (older published files, the NSE fallback, indices) degrades to the
+ * traded test rather than failing everything.
+ */
+export function quoteQuality(o, ctx, { lotSize = 1 } = {}, opts = {}) {
+  const q = { ...QUOTE_DEFAULTS, ...opts };
+  const volume = o?.volume ?? 0;
+  const lot = lotSize > 0 ? lotSize : 1;
+  const oiLots = round((o?.oi ?? 0) / lot, 1);
+  const bid = o?.bid ?? null;
+  const ask = o?.ask ?? null;
+  const twoSided = bid > 0 && ask > 0;
+  const spreadPct = twoSided ? round((ask - bid) / ((ask + bid) / 2), 3) : null;
+
+  // IV against the strikes that actually traded. Measured against ADJACENT
+  // strikes, never ATM, so the genuine volatility smile is differenced out — a
+  // 1.4× jump between neighbours is a bad print, not a smile.
+  const pool = (ctx?.traded?.[o?.type] ?? []).filter((r) => r.strike !== o?.strike);
+  const near = pool
+    .slice()
+    .sort((a, b) => Math.abs(a.strike - o.strike) - Math.abs(b.strike - o.strike))
+    .slice(0, q.ivNeighbours);
+  const ivRef = near.length >= q.minNeighbours ? medianOf(near.map((r) => r.iv)) : null;
+  const ivZ = ivRef > 0 && o?.iv > 0 ? round(o.iv / ivRef, 2) : null;
+
+  const base = {
+    spreadPct,
+    ivZ,
+    ivRef: round(ivRef, 4),
+    oiLots,
+    volume,
+    stale: volume === 0 && !twoSided,
+    carriedClose: volume === 0 && o?.close > 0 && o?.ltp === o.close,
+  };
+  const reject = (reason) => ({ ...base, tradable: false, reason, mark: null, markSource: null, quality: 0 });
+
+  if (!(o?.ltp > 0)) return reject("no-price");
+
+  let markSource;
+  if (twoSided) {
+    // A quote you can hit right now IS a market, whether or not it has printed
+    // today — this is what keeps genuinely quoted far-month strikes in the list.
+    if (spreadPct > q.maxSpreadPct) return reject("wide-spread");
+    markSource = q.markAt === "bid" ? "bid" : "ltp";
+  } else if (volume > 0) {
+    markSource = "ltp"; // a strike that traded has a real level, book open or not
+  } else {
+    return reject("stale-print"); // no trades and no live quote — a leftover print
+  }
+
+  if (ivZ != null && ivZ > q.ivMaxRatio) return reject("iv-outlier");
+  // The OI floor is checked LAST on purpose. A strike can fail several of these
+  // at once — ICICIBANK 1530 was both never-traded and 7 lots deep — and the
+  // reason we report should be the most explanatory one. "Nobody traded this"
+  // is the defect; thin OI is a quality filter on strikes that do trade.
+  if (oiLots < q.minOiLots) return reject("thin-oi");
+
+  const mark = markSource === "bid" ? bid : o.ltp;
+  const sSpread = spreadPct == null ? 1 : clamp(1 - spreadPct / q.maxSpreadPct, 0, 1);
+  const sTurn = volume > 0 ? clamp((Math.log10(volume * mark * lot) - 5) / 3, 0, 1) : 0;
+  const sOi = oiLots > 0 ? clamp((Math.log10(oiLots) - 1) / 2, 0, 1) : 0;
+  const sIv = ivZ == null ? 1 : clamp(1 - Math.abs(ivZ - 1) / 0.25, 0, 1);
+  return {
+    ...base,
+    tradable: true,
+    reason: null,
+    mark,
+    markSource,
+    quality: round(sSpread * 0.3 + sTurn * 0.3 + sOi * 0.2 + sIv * 0.2, 2),
+  };
+}
+
 // --- Sell candidates --------------------------------------------------------
 /**
  * Rank OTM strikes an option seller would actually consider: outside the
@@ -456,27 +602,67 @@ function fmtL(n) {
  * Puts first, then calls; within a side, ranked by expected credit retained
  * (premium × P(expire OTM)) so the richest acceptable strike tops the list.
  */
-export function sellCandidates(chain, spot, t, expectedMove, { maxDelta = 0.25, minPremium = 2 } = {}) {
+export function sellCandidates(
+  chain,
+  spot,
+  t,
+  expectedMove,
+  { maxDelta = 0.25, minPremium = 2, lotSize = 1, quote = {}, stats = null } = {},
+) {
   if (!(spot > 0) || !(t > 0)) return [];
+  const qopts = { ...QUOTE_DEFAULTS, ...quote };
+  const ctx = quoteContext(chain, qopts);
   const out = [];
   for (const o of chain) {
     if (!(o.ltp > 0) || !(o.oi > 0)) continue;
     const otm = o.type === "CE" ? o.strike > spot : o.strike < spot;
     if (!otm) continue;
-    const iv = o.iv ?? impliedVol(o.ltp, spot, o.strike, t, o.type);
+    // The quote gate runs BEFORE iv/delta are derived, and that order is
+    // load-bearing: a stale IV corrupts the delta `maxDelta` filters on, so
+    // gating afterwards lets a bad print smuggle itself through on greeks we
+    // already know are wrong. Seen live — ICICIBANK 2026-10-27 CE 1530 printed
+    // δ 0.183 off a stale 27% IV where its traded neighbours implied ≈0.12.
+    const q = quoteQuality(o, ctx, { lotSize }, qopts);
+    // Telemetry is opt-in and filled in place: the caller gets the rejection
+    // reasons without a second pass and without changing the return shape. A
+    // silently over-firing gate is indistinguishable from a genuinely thin
+    // market, which is exactly how the last one hid.
+    if (stats) stats[q.tradable ? "kept" : q.reason] = (stats[q.tradable ? "kept" : q.reason] ?? 0) + 1;
+    if (qopts.enabled && !q.tradable) continue;
+    const mark = q.mark ?? o.ltp;
+    // When the mark is not the last print, IV must be re-solved from the price
+    // we are actually using, or vrp and delta describe a different trade.
+    const iv =
+      q.markSource === "bid"
+        ? impliedVol(mark, spot, o.strike, t, o.type) ?? o.iv
+        : o.iv ?? impliedVol(o.ltp, spot, o.strike, t, o.type);
     if (!(iv > 0)) continue;
-    const delta = o.delta ?? bsDelta(spot, o.strike, t, iv, o.type);
+    const delta =
+      q.markSource === "bid"
+        ? bsDelta(spot, o.strike, t, iv, o.type)
+        : o.delta ?? bsDelta(spot, o.strike, t, iv, o.type);
     if (delta == null || Math.abs(delta) > maxDelta) continue;
-    if (o.ltp < minPremium) continue;
+    if (mark < minPremium) continue;
     const distance = Math.abs(o.strike - spot);
     const cushionSigma = expectedMove > 0 ? distance / expectedMove : null;
     const pot = probTouch(spot, o.strike, t, iv);
     out.push({
       strike: o.strike,
       type: o.type,
-      ltp: o.ltp,
+      ltp: o.ltp, // the raw print — kept as the evidence, never overwritten
+      mark: round(mark, 2), // what a seller is credited at
+      markSource: q.markSource,
       iv: round(iv, 4),
       oi: o.oi,
+      // Per-strike liquidity evidence, published so the gate is auditable from
+      // candidates.json rather than by parsing a factor's reading string.
+      volume: o.volume ?? 0,
+      oiLots: q.oiLots,
+      spreadPct: q.spreadPct,
+      ivZ: q.ivZ,
+      quoteQuality: q.quality,
+      bid: o.bid ?? null,
+      ask: o.ask ?? null,
       delta: round(delta, 3),
       distancePct: round((distance / spot) * 100, 2),
       cushionSigma: round(cushionSigma, 2),
@@ -484,7 +670,7 @@ export function sellCandidates(chain, spot, t, expectedMove, { maxDelta = 0.25, 
       probProfit: round(1 - Math.abs(delta), 3), // ≈ P(expire OTM)
     });
   }
-  const evKeep = (r) => r.ltp * r.probProfit;
+  const evKeep = (r) => r.mark * r.probProfit;
   return out.sort((a, b) => (a.type === b.type ? evKeep(b) - evKeep(a) : a.type === "PE" ? -1 : 1));
 }
 
@@ -1007,7 +1193,16 @@ export { SELL_FACTORS };
  * at a 5-day horizon and ~3.2 at 10 days, versus ~2.96 (i.e. normal) at 21+ —
  * so on weekly index expiries Black-Scholes genuinely underprices the wings.
  */
-export const INDEX_SELL_OPTS = { marginPct: 0.08, physicallySettled: false };
+export const INDEX_SELL_OPTS = {
+  marginPct: 0.08,
+  physicallySettled: false,
+  // The stale-print gate applies to indices too — a far weekly wing goes stale
+  // the same way a single-stock one does. The thresholds are loosened rather
+  // than the gate disabled: index OI is deep enough that a lot floor adds
+  // nothing, and index wings carry a steeper genuine smile than stocks, so the
+  // IV-outlier test needs more room before it calls a print stale.
+  quote: { minOiLots: 0, ivMaxRatio: 1.5 },
+};
 
 /**
  * Blended 0-100 conviction that selling this strike into this expiry pays.
@@ -1027,6 +1222,9 @@ export function sellConviction(inp) {
     type, strike: K, ltp, iv, oi = 0, volume = 0, lotSize = 1,
     spot: S, t, sigmaForecast: sf, mu = 0, verdict = null,
     ivRank = null, gap = null, term = null, smirk = null, sample = null,
+    // Per-strike quote verdict from `quoteQuality`. Optional on purpose: absent,
+    // every factor below behaves exactly as it did before the gate existed.
+    quote = null,
     // Single stocks settle physically and their margin proxy is ~15% of spot.
     // INDEX options settle in CASH and margin far less relative to notional, so
     // both differ there — see `INDEX_SELL_OPTS`.
@@ -1108,7 +1306,17 @@ export function sellConviction(inp) {
   if (oiNotional > 0 || turnover > 0) {
     const sOi = oiNotional > 0 ? clamp((Math.log10(oiNotional) - 6) / 3, 0, 1) : 0;
     const sTurn = turnover > 0 ? clamp((Math.log10(turnover) - 5) / 3, 0, 1) : 0;
-    sig.liquidity = { s: sOi * 0.6 + sTurn * 0.4, reading: `OI ${fmtL(oi)} · vol ${fmtL(volume)}` };
+    // With a quote verdict in hand the blend gains the book itself; without one
+    // this is byte-for-byte the previous behaviour, which is what keeps indices,
+    // older callers and the existing tests unchanged.
+    sig.liquidity = quote
+      ? {
+          s: sOi * 0.45 + sTurn * 0.3 + clamp(quote.quality ?? 0, 0, 1) * 0.25,
+          reading:
+            `OI ${fmtL(oi)} (${quote.oiLots ?? "?"} lots) · vol ${fmtL(volume)}` +
+            (quote.spreadPct != null ? ` · ${round(quote.spreadPct * 100, 0)}% wide` : " · no live book"),
+        }
+      : { s: sOi * 0.6 + sTurn * 0.4, reading: `OI ${fmtL(oi)} · vol ${fmtL(volume)}` };
   }
 
   const present = SELL_FACTORS.filter((f) => sig[f.key]);
@@ -1165,6 +1373,16 @@ export function sellConviction(inp) {
     add(`put smirk ${smirk} vol pts`, cut);
   }
 
+  // A marginal book. The hard gate in `sellCandidates` removes strikes nobody
+  // could trade at all; this prices the ones it lets through on thin evidence —
+  // a wide quote, or open interest with barely any turnover behind it.
+  if (quote && quote.quality != null && quote.quality < 0.5) {
+    const cut = clamp((0.5 - quote.quality) / 0.5, 0, 1) * 0.25;
+    mult *= 1 - cut;
+    const how = quote.spreadPct != null ? `${round(quote.spreadPct * 100, 0)}% spread` : "no live book";
+    add(`marginal quote: ${how}${quote.volume ? "" : ", no trades today"}`, cut);
+  }
+
   // Tail reliance. When the modelled fair value is a sliver of the premium, the
   // whole "edge" is a claim that a tail event won't happen — and the tail is
   // precisely where any model is least believable. Such strikes also peg the
@@ -1218,5 +1436,7 @@ export function sellConviction(inp) {
     // Index options settle in CASH, so the flag is simply absent there rather
     // than false — there is no delivery to warn about.
     deliveryRisk: physicallySettled && pProfit != null ? pProfit < 0.85 : null,
+    /** Per-strike quote verdict, so the gate's evidence reaches candidates.json. */
+    quote: quote ?? null,
   };
 }
