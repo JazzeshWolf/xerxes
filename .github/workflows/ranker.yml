@@ -105,6 +105,15 @@ jobs:
           pip install -r nse-ranker/requirements-kronos.txt \
             --extra-index-url https://download.pytorch.org/whl/cpu
 
+      # `from model import ...` is the thing that actually has to work, and when
+      # it silently did not the run still spent ~15 min fetching history before
+      # dying. One second here, at the point the failure belongs.
+      - name: Verify Kronos imports
+        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        env:
+          PYTHONPATH: ${{ github.workspace }}/nse-ranker:${{ github.workspace }}/nse-ranker/vendor/Kronos
+        run: python -c "from model import Kronos, KronosTokenizer, KronosPredictor; print('Kronos imports OK')"
+
       # The weights are ~100MB and unchanged between runs; downloading them
       # every day would dominate the job.
       - name: Cache HuggingFace weights
@@ -117,7 +126,7 @@ jobs:
       - name: Build ranks
         env:
           UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
-          PYTHONPATH: nse-ranker:nse-ranker/vendor/Kronos
+          PYTHONPATH: ${{ github.workspace }}/nse-ranker:${{ github.workspace }}/nse-ranker/vendor/Kronos
           # CPU inference: cap threads to the runner's real core count. Letting
           # torch spawn more threads than cores makes it slower, not faster.
           OMP_NUM_THREADS: "2"

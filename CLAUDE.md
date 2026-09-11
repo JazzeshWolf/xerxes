@@ -529,6 +529,36 @@ Things that will bite:
   egress policy in the build sandbox). Its first real run is CI.
 - Kronos is vendored at a pinned commit by the workflow; `nse-ranker/vendor/` is
   gitignored.
+- **`PYTHONPATH` in both ranker workflows must be ABSOLUTE** (`${{ github.workspace }}/...`).
+  Both steps run with `working-directory: nse-ranker`, so the relative
+  `PYTHONPATH: nse-ranker/vendor/Kronos` they originally carried resolved to
+  `nse-ranker/nse-ranker/vendor/Kronos` and never existed. The clone succeeded,
+  the import could not — and because the engine is only constructed *after* the
+  universe is fetched, every run burned ~15 min of history calls before dying on
+  `ModuleNotFoundError: No module named 'model'`. It ran that way from mid-August
+  to 11 Sep: **every scheduled daily and weekly-validation run failed**, and the
+  published ranks sat frozen at `tradeDate 2026-08-11` for a month while the
+  Actions tab showed a tidy row of red Xs nobody was reading. The `Verify Kronos
+  imports` step now fails in ~1 s at the point the breakage belongs; don't remove
+  it, and don't make those paths relative again.
+
+### What validation has actually measured
+
+One real walk-forward has completed (25 Aug 2026, **bootstrap** engine, 58
+rebalances — comfortably past `MIN_REBALANCES`):
+
+| | ICIR |
+|---|---|
+| bootstrap | **0.3024** |
+| 12-1 momentum | **0.3531** |
+
+It clears the `MIN_ICIR` 0.30 bar and then **loses to free momentum by 0.05**, so
+`edgeOverMomentum` is −0.05 against a +0.05 requirement and the verdict is
+`UNVALIDATED`. The tab is correctly gated shut on that. Read it as the gate
+working, not as a bug to tune away: 58 rebalances is enough that this is a
+measurement, not noise. **Kronos has still never run**, so it remains the only
+untested thing that could clear the bar — and beating momentum, not beating 0.30,
+is the bar that actually binds.
 
 ## Backlog (not started)
 

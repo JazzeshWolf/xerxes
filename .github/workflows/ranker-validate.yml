@@ -83,6 +83,15 @@ jobs:
           pip install -r nse-ranker/requirements-kronos.txt \
             --extra-index-url https://download.pytorch.org/whl/cpu
 
+      # `from model import ...` is the thing that actually has to work, and when
+      # it silently did not the run still spent ~15 min fetching history before
+      # dying. One second here, at the point the failure belongs.
+      - name: Verify Kronos imports
+        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        env:
+          PYTHONPATH: ${{ github.workspace }}/nse-ranker:${{ github.workspace }}/nse-ranker/vendor/Kronos
+        run: python -c "from model import Kronos, KronosTokenizer, KronosPredictor; print('Kronos imports OK')"
+
       - name: Cache HuggingFace weights
         if: (github.event.inputs.engine || 'kronos') == 'kronos'
         uses: actions/cache@v4
@@ -93,7 +102,7 @@ jobs:
       - name: Walk-forward validation
         env:
           UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
-          PYTHONPATH: nse-ranker:nse-ranker/vendor/Kronos
+          PYTHONPATH: ${{ github.workspace }}/nse-ranker:${{ github.workspace }}/nse-ranker/vendor/Kronos
           OMP_NUM_THREADS: "2"
           MKL_NUM_THREADS: "2"
         working-directory: nse-ranker
