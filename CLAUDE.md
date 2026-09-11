@@ -588,9 +588,41 @@ It clears the `MIN_ICIR` 0.30 bar and then **loses to free momentum by 0.05**, s
 `edgeOverMomentum` is −0.05 against a +0.05 requirement and the verdict is
 `UNVALIDATED`. The tab is correctly gated shut on that. Read it as the gate
 working, not as a bug to tune away: 58 rebalances is enough that this is a
-measurement, not noise. **Kronos has still never run**, so it remains the only
-untested thing that could clear the bar — and beating momentum, not beating 0.30,
-is the bar that actually binds.
+measurement, not noise.
+
+**Kronos itself was finally measured on 11 Sep 2026** — Kronos-mini,
+`sample_count=4`, 28 evenly-spaced rebalance dates (the cheap end of the ladder,
+which is all that fits one CI job):
+
+| arm | ICIR | mean IC | t |
+|---|---|---|---|
+| **Kronos-mini** | **−0.335** | −0.029 | −1.77 |
+| momentum_12_1 | 0.166 | 0.016 | 0.88 |
+| reversal_5d | −0.080 | −0.007 | −0.42 |
+| random | 0.170 | 0.007 | 0.90 |
+
+It scored **negative** — the ranking was mildly *inverse* to what happened. At
+t = −1.77 that is not significant, so the honest claim is "no skill found", not
+"reliably backwards", and **inverting the signal on this evidence would be
+textbook overfitting** — don't.
+
+Two caveats that genuinely limit it, and one that doesn't:
+
+- It is **mini at 4 samples**, not small at 30. Sampling noise pushes IC toward
+  zero, though, not below it, so noise alone doesn't tidily explain a negative.
+- **On these 28 dates momentum scored 0.166 against random's 0.170** — i.e. the
+  free benchmark had no edge either over this particular subset. So this sample
+  discriminates much less well than the 58-date bootstrap run, and the
+  "loses to momentum" framing is weaker here than the headline suggests.
+- What it is *not* is a runtime artifact: the run completed all 28 planned dates
+  (`stoppedEarly: false`), so nothing was cut short.
+
+**The open question is now expensive and the prior is bad.** Settling it properly
+means Kronos-small at full sample count — days of CPU, needing a sharded
+workflow. Weigh that against a signal that currently points the wrong way. The
+cheap alternative on the table: the ranker is engine-agnostic, so momentum can be
+the engine (0.35 ICIR over the full 58 dates, runs in seconds) with the
+neutralisation, deciles, gate and UI all unchanged.
 
 ## Backlog (not started)
 
