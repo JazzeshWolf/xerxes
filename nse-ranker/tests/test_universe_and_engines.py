@@ -179,3 +179,64 @@ def test_importing_the_package_does_not_pull_in_torch():
     r = subprocess.run([sys.executable, "-c", code], capture_output=True,
                        cwd=os.path.join(REPO_ROOT, "nse-ranker"))
     assert r.returncode == 0, r.stderr.decode()
+
+
+# --- Kronos batch planning ---------------------------------------------------
+#
+# `predict_batch` refuses a batch whose series differ in length. MIN_BARS (260)
+# admits names with far fewer bars than MAX_CONTEXT (512), so on the first live
+# Kronos run four of seven batches each caught a short name and the engine NaN'd
+# all 32 of their members -- 114 of 210 names silently vanished from the
+# ranking, RELIANCE, TCS and INFY among them. Breadth is the edge, so this is
+# the invariant that matters most about batching.
+
+
+def _plan(lengths, batch_size=32, max_context=512):
+    from ranker.engines.kronos import plan_batches
+
+    return plan_batches(lengths, batch_size, max_context)
+
+
+def test_every_batch_has_one_consistent_length():
+    # The production shape: mostly full-context names, a handful short.
+    lengths = {f"S{i:03d}": 512 for i in range(210)}
+    for sym, n in zip(("S007", "S042", "S100", "S150", "S201"),
+                      (338, 469, 503, 454, 430)):
+        lengths[sym] = n
+
+    for chunk, ctx in _plan(lengths):
+        assert ctx == min(min(lengths[s], 512) for s in chunk)
+        assert ctx > 0
+
+
+def test_no_name_is_dropped_by_batching():
+    lengths = {f"S{i:03d}": 512 for i in range(210)}
+    lengths["S007"] = 338
+    lengths["S042"] = 469
+
+    planned = [s for chunk, _ in _plan(lengths) for s in chunk]
+    assert sorted(planned) == sorted(lengths), "breadth is the edge -- lose no name"
+    assert len(planned) == len(set(planned)), "no name forecast twice"
+
+
+def test_a_short_name_does_not_truncate_the_full_length_ones():
+    # The regression that matters: one 338-bar name must not drag the whole
+    # universe down to 338 bars of context.
+    lengths = {f"S{i:03d}": 512 for i in range(210)}
+    lengths["S007"] = 338
+
+    plan = _plan(lengths)
+    full = [ctx for _, ctx in plan if ctx == 512]
+    assert len(full) >= len(plan) - 1, "only the batch holding the short name loses context"
+    assert sum(len(c) for c, ctx in plan if ctx == 512) >= 209 - 32
+
+
+def test_context_is_capped_at_max_context():
+    # A name with 6 years of history still only feeds the model its window.
+    lengths = {"A": 1500, "B": 1500, "C": 900}
+    assert all(ctx <= 512 for _, ctx in _plan(lengths))
+
+
+def test_batches_respect_the_size_limit():
+    lengths = {f"S{i:03d}": 512 for i in range(210)}
+    assert all(len(c) <= 32 for c, _ in _plan(lengths))

@@ -542,6 +542,38 @@ Things that will bite:
   imports` step now fails in ~1 s at the point the breakage belongs; don't remove
   it, and don't make those paths relative again.
 
+#### The batch-length trap (found on the first live Kronos run)
+
+`predict_batch` **refuses a batch whose series differ in length** — "Parallel
+prediction requires all series to have consistent historical lengths". `MIN_BARS`
+(260) admits names with far fewer bars than `MAX_CONTEXT` (512), and the engine
+used to feed it symbols in **alphabetical** order, so the short names scattered
+across batches. Each one took its whole batch of 32 down with it: the engine
+catches the failure and writes `median_return = NaN` for every member, by design,
+to degrade rather than abort — and NaN rows drop out of the ranking downstream.
+
+Measured on the 2026-09-11 run: four of seven batches each caught a short name
+(338, 469, 503/454/453, 430/465 bars), so **114 of 210 names silently vanished**
+and `universeCount` published as **96**. RELIANCE, TCS and INFY were among the
+missing. Nothing failed — the job was green, the guard saw a fresh `asOf`, and it
+force-pushed a ranking over half the universe.
+
+`config.py` had documented the invariant all along (*"Equal to MAX_CONTEXT so
+every series in a batch is the same length — `predict_batch` requires that"*) but
+nothing enforced it, and it could not be tested: `_forecast_chunk` imports pandas,
+which is deliberately absent from the core test deps. Hence `plan_batches()` — a
+pure function, ordering symbols by usable length and truncating each batch to its
+shortest member — which the tests in `test_universe_and_engines.py` pin without
+any model stack. Every symbol lands in exactly one batch; only the batch
+straddling a length boundary loses context.
+
+**Two things follow.** A green ranker run does not prove a full universe — check
+`universeCount` in `index.json`, the same way a green stocks run doesn't prove
+fresh data. And because `ranker-data` is force-pushed as an orphan and the seed
+step copies the previous run in first, **a name that fails to rank keeps its old
+detail file and republishes it as though current** — after that run, RELIANCE.json
+on the branch was month-old bootstrap data sitting next to a Kronos index.
+
 ### What validation has actually measured
 
 One real walk-forward has completed (25 Aug 2026, **bootstrap** engine, 58
