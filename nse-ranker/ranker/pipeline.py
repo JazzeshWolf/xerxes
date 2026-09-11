@@ -378,6 +378,10 @@ def run_validation(
     pred_len: int = C.PRED_LEN,
     universe_limit: int | None = None,
     vendor_path: str | None = None,
+    sample_count: int | None = None,
+    kronos_model: str = "small",
+    max_rebalances: int | None = None,
+    budget_min: float | None = None,
 ) -> dict:
     today = dt.date.today().isoformat()
     print(f"[validate] {today} engine={engine_name}")
@@ -403,17 +407,30 @@ def run_validation(
         ),
     }
 
-    engine = get_engine(engine_name, vendor_path=vendor_path)
+    model_id, tokenizer_id = (
+        (C.KRONOS_MINI_MODEL, C.KRONOS_MINI_TOKENIZER) if kronos_model == "mini"
+        else (C.KRONOS_MODEL, C.KRONOS_TOKENIZER)
+    )
+    engine_kwargs: dict = {"vendor_path": vendor_path}
+    if engine_name == "kronos":
+        engine_kwargs.update(model_id=model_id, tokenizer_id=tokenizer_id)
+        if sample_count:
+            engine_kwargs["sample_count"] = sample_count
+    engine = get_engine(engine_name, **engine_kwargs)
+
     result = walk_forward(
         panel, sector_of, engine, pred_len=pred_len,
         membership=load_snapshots(os.path.join(out_dir, "universe-snapshots")) or None,
+        max_rebalances=max_rebalances,
+        budget_sec=(budget_min * 60.0) if budget_min else None,
     )
     gate = verdict(result)
 
     payload = {
         "asOf": _now(),
         "engine": engine_name,
-        "model": C.KRONOS_MODEL if engine_name == "kronos" else "block-bootstrap",
+        "model": model_id if engine_name == "kronos" else "block-bootstrap",
+        "sampleCount": (sample_count or C.SAMPLE_COUNT) if engine_name == "kronos" else None,
         "verdict": gate,
         "dataDepth": depth,
         "corporateActions": corpactions.audit(ca),

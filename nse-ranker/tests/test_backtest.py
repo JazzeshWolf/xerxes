@@ -225,3 +225,76 @@ def test_verdict_requires_enough_rebalances():
         },
     }
     assert verdict(fake)["validated"] is False
+
+
+# ---------------------------------------------------------------------------
+# Thinning the walk-forward for runtime
+#
+# A full-fidelity Kronos validation is days of CPU -- far past any CI job. The
+# escape hatches are an evenly-spaced subset of rebalance dates and a wall-clock
+# budget. Both change what got measured, so both must be honest about it: the
+# danger is a thinned run that silently reports as though it were complete, or
+# one that measures only the oldest stretch of history and calls it the period.
+# ---------------------------------------------------------------------------
+
+
+def test_subsampling_spans_the_whole_period(planted_panel):
+    full = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+    )
+    thin = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+        max_rebalances=max(4, full["rebalances"] // 3),
+    )
+    assert thin["rebalances"] < full["rebalances"], "the point is to run fewer"
+    # The last thinned date must sit near the end of the full run, not a third
+    # of the way in -- otherwise we measured only the oldest regime.
+    assert thin["perDate"][-1]["date"] >= full["perDate"][full["rebalances"] // 2]["date"]
+    assert thin["perDate"][0]["date"] == full["perDate"][0]["date"]
+
+
+def test_a_thinned_run_says_so(planted_panel):
+    full_n = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+    )["rebalances"]
+    run = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+        max_rebalances=max(4, full_n // 3),
+    )
+    s = run["sampling"]
+    assert s["subsampled"] is True
+    assert s["ran"] == run["rebalances"] and s["planned"] == full_n
+    assert "TURNOVER" in s["note"], "the turnover caveat must travel with the number"
+
+
+def test_an_untouched_run_is_not_marked_thinned(signal_run):
+    s = signal_run["sampling"]
+    assert s["subsampled"] is False and s["stoppedEarly"] is False
+    assert s["ran"] == s["planned"] == signal_run["rebalances"]
+
+
+def test_an_exhausted_budget_stops_and_admits_it(planted_panel):
+    # Budget of zero: the loop must stop at once rather than run to completion.
+    run = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+        budget_sec=-1.0,
+    )
+    assert run["sampling"]["stoppedEarly"] is True
+    assert run["rebalances"] == 0
+
+
+def test_thinning_still_measures_the_planted_signal(planted_panel):
+    # Fewer dates means a noisier estimate, not a different answer -- a real
+    # signal must survive the thinning, or the cheap read is worthless.
+    run = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+        max_rebalances=12,
+    )
+    assert run["arms"]["engine"]["ic"]["meanIC"] > 0.10
+    assert abs(run["arms"]["random"]["ic"]["meanIC"]) < 0.05

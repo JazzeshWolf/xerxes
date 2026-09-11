@@ -27,6 +27,24 @@ on:
         description: "Truncate the universe (smoke test only)"
         required: false
         default: ""
+      kronos_model:
+        description: "Kronos pairing (mini is much faster, lower fidelity)"
+        required: false
+        default: "small"
+        type: choice
+        options: ["small", "mini"]
+      sample_count:
+        description: "Kronos samples per forecast (blank = 30)"
+        required: false
+        default: ""
+      max_rebalances:
+        description: "Thin the walk-forward to at most N dates (blank = all)"
+        required: false
+        default: ""
+      budget_min:
+        description: "Wall-clock budget for the walk-forward, minutes"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -97,7 +115,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-${{ runner.os }}-kronos-small-v1
+          key: hf-${{ runner.os }}-kronos-${{ github.event.inputs.kronos_model || 'small' }}-v1
 
       - name: Walk-forward validation
         env:
@@ -108,9 +126,20 @@ jobs:
         working-directory: nse-ranker
         run: |
           ARGS="--engine ${{ github.event.inputs.engine || 'kronos' }}"
+          ARGS="$ARGS --kronos-model ${{ github.event.inputs.kronos_model || 'small' }}"
           if [ -n "${{ github.event.inputs.limit }}" ]; then
             ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
           fi
+          if [ -n "${{ github.event.inputs.sample_count }}" ]; then
+            ARGS="$ARGS --sample-count ${{ github.event.inputs.sample_count }}"
+          fi
+          if [ -n "${{ github.event.inputs.max_rebalances }}" ]; then
+            ARGS="$ARGS --max-rebalances ${{ github.event.inputs.max_rebalances }}"
+          fi
+          if [ -n "${{ github.event.inputs.budget_min }}" ]; then
+            ARGS="$ARGS --budget-min ${{ github.event.inputs.budget_min }}"
+          fi
+          echo "args: $ARGS"
           python -m ranker.cli validate $ARGS --out ../public/data/ranker
 
       # Surface the headline in the run summary so the result is readable

@@ -27,6 +27,8 @@ that differs between arms is where the score came from.
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 
 from . import config as C
@@ -89,6 +91,8 @@ def walk_forward(
     membership: dict[str, set[str]] | None = None,
     seed: int = C.BOOTSTRAP_SEED,
     progress: bool = True,
+    max_rebalances: int | None = None,
+    budget_sec: float | None = None,
 ) -> dict:
     """Run the walk-forward and return everything the report needs.
 
@@ -97,6 +101,17 @@ def walk_forward(
     survivorship bias is reported rather than hidden.
     """
     idxs = rebalance_dates(panel, pred_len, every, C.MIN_BARS)
+    planned = len(idxs)
+    # A Kronos walk-forward re-forecasts the whole universe at every date, which
+    # at full sample count runs to days of CPU -- far past any CI job. Rather
+    # than let such a run die at the timeout with nothing to show, take an EVENLY
+    # SPACED subset so the measurement still spans the whole period instead of
+    # only its oldest stretch, and stop cleanly on a wall-clock budget.
+    if max_rebalances and max_rebalances < len(idxs):
+        step = len(idxs) / float(max_rebalances)
+        idxs = [idxs[int(k * step)] for k in range(max_rebalances)]
+    deadline = (time.monotonic() + budget_sec) if budget_sec else None
+    stopped_early = False
     arms = ["engine", *BENCHMARKS.keys()]
     ics: dict[str, list[float]] = {a: [] for a in arms}
     legs: dict[str, list[dict]] = {a: [] for a in arms}
@@ -106,6 +121,10 @@ def walk_forward(
     pit_dates = 0
 
     for n, i in enumerate(idxs):
+        if deadline and time.monotonic() > deadline:
+            stopped_early = True
+            print(f"  budget reached -- stopping after {len(per_date)} of {len(idxs)}")
+            break
         date = panel.dates[i]
 
         # -- point-in-time universe ----------------------------------------
@@ -177,6 +196,18 @@ def walk_forward(
         "predLen": pred_len,
         "rebalanceEvery": every,
         "overlapping": overlapping,
+        "sampling": {
+            "planned": planned,
+            "ran": len(per_date),
+            "stoppedEarly": stopped_early,
+            "subsampled": bool(max_rebalances and max_rebalances < planned),
+            "note": (
+                "When `ran` is below `planned` the rebalance dates were thinned "
+                "or cut short for runtime. IC is unaffected -- each date is still "
+                "an independent draw -- but TURNOVER is measured across wider "
+                "gaps than a live monthly rebalance and is therefore understated."
+            ),
+        },
         "arms": {
             arm: {
                 "ic": summarize(ics[arm], overlapping=overlapping),
