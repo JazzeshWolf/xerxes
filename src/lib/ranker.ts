@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Kronos cross-sectional ranker — types and pure derivations.
+// Cross-sectional ranker — types and pure derivations.
 //
 // The product is the RANKING, not any single name's forecast. Everything here
 // is built around that: rows carry a rank, a decile and a percentile, and the
@@ -33,6 +33,18 @@ export interface RankerRow {
   implication: string;
 }
 
+/** How the published number should be READ. A generative engine forecasts a
+ *  return over the horizon; a factor engine (12-1 momentum) emits a trailing
+ *  ranking score with no horizon at all. Printing the second under a heading
+ *  that says "Forecast" would be a plain misstatement, so the publisher says
+ *  which it is. Absent on older payloads — treat a missing descriptor as a
+ *  forecast, which is what every payload before this field was. */
+export interface SignalDescriptor {
+  kind: "forecastReturn" | "factor";
+  label: string;
+  window: string;
+}
+
 export interface NeutralizationDiag {
   before: { betaRankCorr: number | null; sectorR2: number | null };
   after: { betaRankCorr: number | null; sectorR2: number | null };
@@ -48,6 +60,15 @@ export interface SkillVerdict {
   bar: number;
   reasons: string[];
   summary: string;
+  /** True when the engine IS one of the benchmarks, which makes
+   *  `edgeOverMomentum` 0.00 by construction and meaningless. The publisher
+   *  then gates on `edgeOverRandom` instead. */
+  isOwnBenchmark?: boolean;
+  randomIcir?: number | null;
+  edgeOverRandom?: number | null;
+  /** Why a passing verdict still deserves scepticism — the factor was chosen
+   *  because it won on the history we hold. */
+  selectionCaveat?: string;
 }
 
 export interface RankerIndex {
@@ -63,6 +84,7 @@ export interface RankerIndex {
   skill: SkillVerdict | null;
   validated: boolean;
   rows: RankerRow[];
+  signal?: SignalDescriptor;
   demo?: boolean;
 }
 
@@ -118,6 +140,7 @@ export interface RankerDetail {
   lean: Lean;
   implication: string;
   quantiles: Record<string, number>;
+  signal?: SignalDescriptor;
   /** A few illustrative draws. Texture behind the band — never the band itself. */
   paths: number[][];
   /** Per-step 10th/50th/90th percentile prices, computed from EVERY sample. */
@@ -195,7 +218,20 @@ export function parseIndex(raw: unknown): RankerIndex | null {
     // file would have.
     validated: skill ? skill.validated : false,
     rows,
+    signal: parseSignal(o.signal),
     demo: o.demo === true,
+  };
+}
+
+function parseSignal(raw: unknown): SignalDescriptor | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const kind = o.kind === "factor" ? "factor" : o.kind === "forecastReturn" ? "forecastReturn" : null;
+  if (!kind) return undefined;
+  return {
+    kind,
+    label: typeof o.label === "string" ? o.label : "",
+    window: typeof o.window === "string" ? o.window : "",
   };
 }
 
@@ -211,6 +247,10 @@ function parseVerdict(raw: unknown): SkillVerdict | null {
     bar: isNum(o.bar) ? o.bar : 0,
     reasons: Array.isArray(o.reasons) ? o.reasons.filter((r): r is string => typeof r === "string") : [],
     summary: typeof o.summary === "string" ? o.summary : "",
+    isOwnBenchmark: o.isOwnBenchmark === true,
+    randomIcir: isNum(o.randomIcir) ? o.randomIcir : null,
+    edgeOverRandom: isNum(o.edgeOverRandom) ? o.edgeOverRandom : null,
+    selectionCaveat: typeof o.selectionCaveat === "string" ? o.selectionCaveat : undefined,
   };
 }
 
