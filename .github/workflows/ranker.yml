@@ -19,9 +19,9 @@ on:
       engine:
         description: "Forecast engine: kronos (real) or bootstrap (baseline)"
         required: false
-        default: "kronos"
+        default: "momentum"
         type: choice
-        options: ["kronos", "bootstrap"]
+        options: ["momentum", "bootstrap", "kronos"]
       limit:
         description: "Truncate the universe (SMOKE TESTS ONLY — cutting breadth trades away the edge)"
         required: false
@@ -92,7 +92,7 @@ jobs:
       # PYTHONPATH. Pinned by commit so an upstream push cannot silently change
       # what the forecasts mean.
       - name: Vendor Kronos
-        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        if: (github.event.inputs.engine || 'momentum') == 'kronos'
         run: |
           COMMIT=$(python3 -c "import sys;sys.path.insert(0,'nse-ranker');from ranker import config;print(config.KRONOS_COMMIT)")
           git clone https://github.com/shiyu-coder/Kronos.git nse-ranker/vendor/Kronos
@@ -100,7 +100,7 @@ jobs:
           echo "Kronos at $(git -C nse-ranker/vendor/Kronos rev-parse HEAD)"
 
       - name: Install Kronos deps (CPU wheels)
-        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        if: (github.event.inputs.engine || 'momentum') == 'kronos'
         run: |
           pip install -r nse-ranker/requirements-kronos.txt \
             --extra-index-url https://download.pytorch.org/whl/cpu
@@ -109,7 +109,7 @@ jobs:
       # it silently did not the run still spent ~15 min fetching history before
       # dying. One second here, at the point the failure belongs.
       - name: Verify Kronos imports
-        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        if: (github.event.inputs.engine || 'momentum') == 'kronos'
         env:
           PYTHONPATH: ${{ github.workspace }}/nse-ranker:${{ github.workspace }}/nse-ranker/vendor/Kronos
         run: python -c "from model import Kronos, KronosTokenizer, KronosPredictor; print('Kronos imports OK')"
@@ -117,7 +117,7 @@ jobs:
       # The weights are ~100MB and unchanged between runs; downloading them
       # every day would dominate the job.
       - name: Cache HuggingFace weights
-        if: (github.event.inputs.engine || 'kronos') == 'kronos'
+        if: (github.event.inputs.engine || 'momentum') == 'kronos'
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
@@ -133,7 +133,7 @@ jobs:
           MKL_NUM_THREADS: "2"
         working-directory: nse-ranker
         run: |
-          ARGS="--engine ${{ github.event.inputs.engine || 'kronos' }}"
+          ARGS="--engine ${{ github.event.inputs.engine || 'momentum' }}"
           if [ -n "${{ github.event.inputs.limit }}" ]; then
             ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
             echo "::warning::Universe truncated — smoke test only, not a publishable ranking."

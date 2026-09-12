@@ -242,6 +242,17 @@ MIN_ICIR = 0.30
 #: merely ties momentum is not worth the compute -- say so plainly.
 MIN_ICIR_EDGE_OVER_MOMENTUM = 0.05
 
+#: When the ENGINE IS ITSELF a benchmark -- as it is when the ranker runs on 12-1
+#: momentum -- the edge-over-momentum test above is vacuous: the engine arm and
+#: the momentum arm compute the same number, so the edge is 0.00 by construction
+#: and nothing could ever validate. The question "does this earn its compute over
+#: the free alternative?" simply does not apply to the free alternative itself.
+#: What replaces it is the question that DOES still apply: is the signal real at
+#: all? Hence a required margin over the `random` arm, which is the true null.
+#: Same 0.05 as the momentum bar, for the same reason -- it is the smallest gap
+#: worth calling a difference at the 24-60 rebalances a few years of history buys.
+MIN_ICIR_EDGE_OVER_RANDOM = 0.05
+
 #: Minimum rebalance dates before any skill claim is made at all. Below this the
 #: t-stat is not interpretable and the tab stays unvalidated regardless of ICIR.
 MIN_REBALANCES = 24

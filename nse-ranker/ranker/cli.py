@@ -180,7 +180,7 @@ def _demo(root: str, out: str) -> int:
     print("[demo] running walk-forward on synthetic data…")
     result = walk_forward(panel, {m.symbol: m.sector for m in members}, engine,
                           pred_len=C.PRED_LEN, progress=False)
-    gate = verdict(result)
+    gate = verdict(result, engine_name="bootstrap")
 
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     skill = {

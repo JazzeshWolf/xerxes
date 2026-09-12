@@ -66,6 +66,20 @@ class Engine:
 
     name = "base"
 
+    #: Generative engines take a per-symbol bar window and simulate forward.
+    #: A cross-sectional FACTOR cannot: the panel's date axis is the union of
+    #: every symbol's dates, so a bar-indexed lookback silently misaligns for
+    #: any name with a trading gap. An engine that sets this True implements
+    #: `forecast_panel(panel, i, pred_len)` instead of `forecast`.
+    uses_panel = False
+
+    #: How the published number should be read. Generative engines produce a
+    #: forecast return over the horizon; factor engines produce a ranking score
+    #: with no horizon at all, and the UI must not present the two alike.
+    signal_kind = "forecastReturn"
+    signal_label = ""
+    signal_window = ""
+
     def forecast(self, series: dict[str, list[Bar]], pred_len: int) -> dict[str, Forecast]:
         raise NotImplementedError
 
