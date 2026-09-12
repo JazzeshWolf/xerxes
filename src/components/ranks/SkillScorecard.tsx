@@ -46,10 +46,29 @@ export function SkillScorecard({
   const rnd = skill?.arms?.random;
   const icir = v?.icir ?? null;
   const bar = v?.bar ?? 0.3;
+  // When the engine IS a benchmark, "edge over momentum" is 0.00 by
+  // construction and the publisher compares against the random null instead.
+  const ownBenchmark = v?.isOwnBenchmark === true;
+  const edge = ownBenchmark ? (v?.edgeOverRandom ?? null) : (v?.edgeOverMomentum ?? null);
 
   return (
     <>
       <SkillBanner state={state} />
+
+      {/* The caveat that outranks the numbers. A factor engine was CHOSEN
+          because it scored best on the history we hold, so a passing verdict
+          is in-sample by construction. Sits directly under the banner because
+          a reader who stops after the headline must still see it. */}
+      {v?.selectionCaveat && (
+        <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2.5">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+            Selected in-sample
+          </div>
+          <div className="text-[10px] leading-relaxed mt-1 text-white/70">
+            {v.selectionCaveat}
+          </div>
+        </div>
+      )}
 
       <Card
         title="Measured skill"
@@ -92,30 +111,39 @@ export function SkillScorecard({
           <>
             <div className="grid grid-cols-3 gap-3">
               <Stat
-                label="Kronos ICIR"
+                label="Engine ICIR"
                 value={num(icir)}
                 tone={icir == null ? null : icir >= bar ? "up" : "down"}
               />
-              <Stat label="12-1 momentum" value={num(mom?.ic?.icir)} />
               <Stat
-                label="Edge"
-                value={num(v?.edgeOverMomentum)}
-                tone={
-                  v?.edgeOverMomentum == null
-                    ? null
-                    : v.edgeOverMomentum > 0
-                      ? "up"
-                      : "down"
-                }
+                label={ownBenchmark ? "Random null" : "12-1 momentum"}
+                value={num(ownBenchmark ? rnd?.ic?.icir : mom?.ic?.icir)}
+              />
+              <Stat
+                label={ownBenchmark ? "Edge over noise" : "Edge"}
+                value={num(edge)}
+                tone={edge == null ? null : edge > 0 ? "up" : "down"}
               />
             </div>
             <div className="text-[10px] text-white/45 mt-2 leading-relaxed">
-              12-1 momentum is free — no model, no GPU, no pre-training. A ranker
-              that only ties it has bought nothing for its compute.
-              {rnd?.ic?.icir != null && (
+              {ownBenchmark ? (
                 <>
-                  {" "}The random benchmark scores {num(rnd.ic.icir)}, which is what
-                  this harness reports when there is provably no signal.
+                  The engine <em>is</em> the 12-1 momentum benchmark, so “edge over
+                  momentum” is 0.00 by construction and means nothing. What it is
+                  held to instead is the random null — the score this harness
+                  reports when there is provably no signal
+                  {rnd?.ic?.icir != null && <> ({num(rnd.ic.icir)} here)</>}.
+                </>
+              ) : (
+                <>
+                  12-1 momentum is free — no model, no GPU, no pre-training. A ranker
+                  that only ties it has bought nothing for its compute.
+                  {rnd?.ic?.icir != null && (
+                    <>
+                      {" "}The random benchmark scores {num(rnd.ic.icir)}, which is what
+                      this harness reports when there is provably no signal.
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -186,7 +214,7 @@ export function SkillScorecard({
             />
           </div>
           <div className="text-[10px] text-white/45 mt-2 leading-relaxed">
-            Raw forecasts are dominated by market beta — if the model likes the
+            Raw scores are dominated by market beta — if the engine likes the
             index it likes everything, and the "ranking" is a leveraged index bet
             in disguise. These are the numbers after cross-sectional demeaning,
             beta-neutralisation and sector-neutralisation.{" "}

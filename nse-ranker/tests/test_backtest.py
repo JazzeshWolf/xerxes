@@ -225,3 +225,139 @@ def test_verdict_requires_enough_rebalances():
         },
     }
     assert verdict(fake)["validated"] is False
+
+
+# ---------------------------------------------------------------------------
+# Thinning the walk-forward for runtime
+#
+# A full-fidelity Kronos validation is days of CPU -- far past any CI job. The
+# escape hatches are an evenly-spaced subset of rebalance dates and a wall-clock
+# budget. Both change what got measured, so both must be honest about it: the
+# danger is a thinned run that silently reports as though it were complete, or
+# one that measures only the oldest stretch of history and calls it the period.
+# ---------------------------------------------------------------------------
+
+
+def test_subsampling_spans_the_whole_period(planted_panel):
+    full = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+    )
+    thin = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+        max_rebalances=max(4, full["rebalances"] // 3),
+    )
+    assert thin["rebalances"] < full["rebalances"], "the point is to run fewer"
+    # The last thinned date must sit near the end of the full run, not a third
+    # of the way in -- otherwise we measured only the oldest regime.
+    assert thin["perDate"][-1]["date"] >= full["perDate"][full["rebalances"] // 2]["date"]
+    assert thin["perDate"][0]["date"] == full["perDate"][0]["date"]
+
+
+def test_a_thinned_run_says_so(planted_panel):
+    full_n = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+    )["rebalances"]
+    run = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+        max_rebalances=max(4, full_n // 3),
+    )
+    s = run["sampling"]
+    assert s["subsampled"] is True
+    assert s["ran"] == run["rebalances"] and s["planned"] == full_n
+    assert "TURNOVER" in s["note"], "the turnover caveat must travel with the number"
+
+
+def test_an_untouched_run_is_not_marked_thinned(signal_run):
+    s = signal_run["sampling"]
+    assert s["subsampled"] is False and s["stoppedEarly"] is False
+    assert s["ran"] == s["planned"] == signal_run["rebalances"]
+
+
+def test_an_exhausted_budget_stops_and_admits_it(planted_panel):
+    # Budget of zero: the loop must stop at once rather than run to completion.
+    run = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+        budget_sec=-1.0,
+    )
+    assert run["sampling"]["stoppedEarly"] is True
+    assert run["rebalances"] == 0
+
+
+def test_thinning_still_measures_the_planted_signal(planted_panel):
+    # Fewer dates means a noisier estimate, not a different answer -- a real
+    # signal must survive the thinning, or the cheap read is worthless.
+    run = walk_forward(
+        planted_panel["panel"], planted_panel["sector_of"], TrailingReturnEngine(),
+        pred_len=21, lookback=C.LOOKBACK_BARS, every=21, progress=False,
+        max_rebalances=12,
+    )
+    assert run["arms"]["engine"]["ic"]["meanIC"] > 0.10
+    assert abs(run["arms"]["random"]["ic"]["meanIC"]) < 0.05
+
+
+# ---------------------------------------------------------------------------
+# The gate when the engine IS one of the benchmarks
+#
+# Running the ranker on 12-1 momentum makes the engine arm and the
+# `momentum_12_1` arm the same number, so "beat momentum by 0.05" is 0.00 by
+# construction and would fail the signal for tying ITSELF -- the feature dead on
+# arrival for a reason that says nothing about its quality. The substitute has to
+# be a real bar, not an exemption: beat the random null instead.
+# ---------------------------------------------------------------------------
+
+
+def _gate_fixture(engine_icir, mom_icir, rnd_icir, n=40):
+    return {
+        "overlapping": False,
+        "neutralization": {"verdict": "Neutralisation is working: ..."},
+        "arms": {
+            "engine": {"ic": {"icir": engine_icir, "n": n}},
+            "momentum_12_1": {"ic": {"icir": mom_icir, "n": n}},
+            "random": {"ic": {"icir": rnd_icir, "n": n}},
+        },
+    }
+
+
+def test_momentum_engine_is_not_failed_for_tying_itself():
+    # Engine and benchmark identical, as they must be when the engine IS the
+    # benchmark. The old gate failed this unconditionally.
+    v = verdict(_gate_fixture(0.35, 0.35, 0.17), engine_name="momentum")
+    assert v["validated"] is True, v["reasons"]
+    assert v["edgeOverMomentum"] == pytest.approx(0.0)
+    assert v["comparedAgainst"] == "random"
+
+
+def test_momentum_engine_still_fails_when_it_cannot_beat_noise():
+    # The substitute bar must bite. 0.20 against a 0.17 null is not a signal.
+    v = verdict(_gate_fixture(0.20, 0.20, 0.17), engine_name="momentum")
+    assert v["validated"] is False
+    assert any("random null" in r for r in v["reasons"])
+
+
+def test_a_benchmark_engine_still_has_to_clear_the_icir_bar():
+    # Beating noise handsomely is not enough on its own.
+    v = verdict(_gate_fixture(0.22, 0.22, 0.02), engine_name="momentum")
+    assert v["validated"] is False
+    assert any("below the" in r for r in v["reasons"])
+
+
+def test_a_model_engine_is_still_judged_against_momentum():
+    # The exemption must not leak to engines that are NOT the benchmark.
+    v = verdict(_gate_fixture(0.60, 0.58, 0.10), engine_name="kronos")
+    assert v["validated"] is False
+    assert any("momentum" in r for r in v["reasons"])
+    assert v["comparedAgainst"] == "momentum_12_1"
+    assert "selectionCaveat" not in v
+
+
+def test_the_in_sample_selection_caveat_travels_with_the_verdict():
+    # Momentum was chosen BECAUSE it won on this history. A passing verdict that
+    # doesn't say so is the dishonest outcome.
+    v = verdict(_gate_fixture(0.35, 0.35, 0.17), engine_name="momentum")
+    assert v["isOwnBenchmark"] is True
+    assert "SELECTED" in v["selectionCaveat"]

@@ -15,8 +15,9 @@ from __future__ import annotations
 
 from .base import Engine, Forecast
 from .bootstrap import BootstrapEngine
+from .momentum import MomentumEngine
 
-__all__ = ["Engine", "Forecast", "BootstrapEngine", "get_engine"]
+__all__ = ["Engine", "Forecast", "BootstrapEngine", "MomentumEngine", "get_engine"]
 
 
 def get_engine(name: str, **kwargs) -> Engine:
@@ -26,6 +27,8 @@ def get_engine(name: str, **kwargs) -> Engine:
         return BootstrapEngine(
             **{k: v for k, v in kwargs.items() if k in ("paths", "seed")}
         )
+    if key in ("momentum", "momentum_12_1"):
+        return MomentumEngine()
     if key == "kronos":
         from .kronos import KronosEngine  # noqa: PLC0415 - deliberately lazy
 
@@ -34,4 +37,6 @@ def get_engine(name: str, **kwargs) -> Engine:
             "sample_count", "batch_size", "path_samples", "device",
         )
         return KronosEngine(**{k: v for k, v in kwargs.items() if k in allowed})
-    raise ValueError(f"unknown engine {name!r} (expected 'bootstrap' or 'kronos')")
+    raise ValueError(
+        f"unknown engine {name!r} (expected 'momentum', 'bootstrap' or 'kronos')"
+    )

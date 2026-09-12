@@ -53,6 +53,30 @@ class KronosUnavailable(RuntimeError):
     """Raised when the model, tokenizer or vendored repo cannot be loaded."""
 
 
+def plan_batches(
+    lengths: dict[str, int], batch_size: int, max_context: int
+) -> list[tuple[list[str], int]]:
+    """Group symbols into batches `predict_batch` will accept.
+
+    It refuses a batch whose series differ in length, and MIN_BARS admits names
+    with far fewer bars than max_context -- so ordering by usable length is what
+    keeps a short name from poisoning the 31 full-length names it would
+    otherwise share a batch with. Each batch is then truncated to its shortest
+    member, which after the ordering is a few bars at most except in the one
+    batch that straddles a length boundary.
+
+    Returns (symbols, context_length) pairs. Breadth is never traded away: every
+    symbol appears in exactly one batch.
+    """
+    usable = {s: min(n, max_context) for s, n in lengths.items()}
+    ordered = sorted(usable, key=lambda s: (usable[s], s))
+    out: list[tuple[list[str], int]] = []
+    for start in range(0, len(ordered), batch_size):
+        chunk = ordered[start: start + batch_size]
+        out.append((chunk, min(usable[s] for s in chunk)))
+    return out
+
+
 class KronosEngine(Engine):
     name = "kronos"
 
@@ -112,13 +136,16 @@ class KronosEngine(Engine):
         self, series: dict[str, list[Bar]], pred_len: int, with_paths: bool = False
     ) -> dict[str, Forecast]:
         predictor = self._load()
-        symbols = sorted(series)
         out: dict[str, Forecast] = {}
 
-        for start in range(0, len(symbols), self.batch_size):
-            chunk = symbols[start: start + self.batch_size]
+        plan = plan_batches(
+            {s: len(b) for s, b in series.items()}, self.batch_size, self.max_context
+        )
+        for chunk, ctx in plan:
             try:
-                out.update(self._forecast_chunk(predictor, chunk, series, pred_len, with_paths))
+                out.update(
+                    self._forecast_chunk(predictor, chunk, series, pred_len, with_paths, ctx)
+                )
             except Exception as exc:  # noqa: BLE001
                 # One bad batch must not lose the other 180 names -- breadth is
                 # the edge, so we degrade rather than abort.
@@ -132,12 +159,14 @@ class KronosEngine(Engine):
                     )
         return out
 
-    def _forecast_chunk(self, predictor, chunk, series, pred_len, with_paths) -> dict[str, Forecast]:
+    def _forecast_chunk(
+        self, predictor, chunk, series, pred_len, with_paths, ctx
+    ) -> dict[str, Forecast]:
         import pandas as pd
 
         df_list, x_ts, y_ts, last_closes = [], [], [], {}
         for sym in chunk:
-            bars = series[sym][-self.max_context:]
+            bars = series[sym][-ctx:]
             last_closes[sym] = float(bars[-1].c)
             df_list.append(
                 pd.DataFrame(

@@ -3,7 +3,7 @@ import { getJson, pagesUrl, rawRankerUrl } from "../lib/dataSource";
 import { parseIndex, parseSkill, type RankerDetail, type RankerIndex, type RankerSkill } from "../lib/ranker";
 
 // ---------------------------------------------------------------------------
-// Kronos ranker data. Mirrors `useDashboard()` in store.ts — same fallback
+// Ranker data. Mirrors `useDashboard()` in store.ts — same fallback
 // ladder (raw.githubusercontent first, Pages copy second), same cache-busting,
 // same alive-guard on unmount.
 //

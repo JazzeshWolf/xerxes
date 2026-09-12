@@ -8,7 +8,7 @@ import { DecileTable } from "./DecileTable";
 import { NameDetail } from "./NameDetail";
 
 // ---------------------------------------------------------------------------
-// The Kronos tab: a cross-sectional ranking of the NSE F&O universe.
+// The Ranks tab: a cross-sectional ranking of the NSE F&O universe.
 //
 // It is a TOP-LEVEL route rather than a tab inside an instrument dashboard,
 // because it is not a view of an instrument. The existing TabBar holds
@@ -23,7 +23,7 @@ import { NameDetail } from "./NameDetail";
 
 type Section = "skill" | "ranks";
 
-export function KronosView({ onBack }: { onBack: () => void }) {
+export function RanksView({ onBack }: { onBack: () => void }) {
   const { index, skill, loading, missing, error, refresh } = useRanker();
   const [section, setSection] = useState<Section>("skill");
   const [openSymbol, setOpenSymbol] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export function KronosView({ onBack }: { onBack: () => void }) {
       <header className="flex items-center justify-between px-4 pt-4 pb-2">
         <button onClick={onBack} className="flex items-center gap-1.5 active:opacity-70">
           <span className="text-white/40 text-sm">←</span>
-          <span className="text-base font-semibold">Kronos</span>
+          <span className="text-base font-semibold">Ranks</span>
         </button>
         <div className="flex items-center gap-2">
           <span className="text-[9px] text-white/45 tnum">
@@ -68,11 +68,11 @@ export function KronosView({ onBack }: { onBack: () => void }) {
             <div className="text-[10px] mt-2 text-white/45 leading-relaxed max-w-xs mx-auto">
               {error
                 ? "The published ranker data could not be read, so nothing is shown rather than a partial table."
-                : "The Kronos ranker builds after the NSE close. Once its first run publishes, the decile ranking appears here."}
+                : "The ranker builds after the NSE close. Once its first run publishes, the decile ranking appears here."}
               {missing && !error && (
                 <>
                   {" "}
-                  Run the <span className="text-white/60">Kronos NSE F&amp;O ranker</span>{" "}
+                  Run the <span className="text-white/60">NSE F&amp;O ranker</span>{" "}
                   workflow to populate it.
                 </>
               )}
@@ -85,6 +85,7 @@ export function KronosView({ onBack }: { onBack: () => void }) {
             row={openRow}
             total={index.universeCount}
             state={state}
+            signal={index.signal}
             onBack={() => setOpenSymbol(null)}
           />
         )}

@@ -313,3 +313,61 @@ describe("coneFor — the band must agree with the headline forecast", () => {
     expect(cone.lo).toHaveLength(2);
   });
 });
+
+describe("signal descriptor", () => {
+  // A factor engine emits a TRAILING return; a generative engine forecasts a
+  // future one. They land in the same field, so the descriptor is the only
+  // thing stopping the UI captioning a 12-month lookback as a "Forecast".
+  it("parses a factor descriptor off the index", () => {
+    const idx = parseIndex({
+      ...payload(100),
+      signal: { kind: "factor", label: "12-1 momentum", window: "trailing 252 sessions" },
+    });
+    expect(idx!.signal?.kind).toBe("factor");
+    expect(idx!.signal?.label).toBe("12-1 momentum");
+  });
+
+  it("leaves the descriptor undefined on older payloads", () => {
+    // Every payload before this field existed was a generative forecast, so an
+    // absent descriptor must not be read as "factor".
+    expect(parseIndex(payload(100))!.signal).toBeUndefined();
+  });
+
+  it("rejects a descriptor with an unknown kind", () => {
+    const idx = parseIndex({ ...payload(100), signal: { kind: "vibes", label: "x", window: "y" } });
+    expect(idx!.signal).toBeUndefined();
+  });
+});
+
+describe("verdict when the engine is its own benchmark", () => {
+  const v = (extra: Record<string, unknown>) =>
+    parseIndex({
+      ...payload(100),
+      skill: {
+        validated: true,
+        icir: 0.35,
+        momentumIcir: 0.35,
+        edgeOverMomentum: 0,
+        bar: 0.3,
+        reasons: [],
+        summary: "Measured skill clears the stated bar.",
+        ...extra,
+      },
+    })!.skill;
+
+  it("carries the benchmark-as-engine fields", () => {
+    const s = v({ isOwnBenchmark: true, randomIcir: 0.17, edgeOverRandom: 0.18 });
+    expect(s!.isOwnBenchmark).toBe(true);
+    expect(s!.edgeOverRandom).toBe(0.18);
+    expect(s!.randomIcir).toBe(0.17);
+  });
+
+  it("carries the in-sample selection caveat", () => {
+    const s = v({ isOwnBenchmark: true, selectionCaveat: "SELECTED because it won" });
+    expect(s!.selectionCaveat).toContain("SELECTED");
+  });
+
+  it("defaults isOwnBenchmark to false for a model engine", () => {
+    expect(v({})!.isOwnBenchmark).toBe(false);
+  });
+});

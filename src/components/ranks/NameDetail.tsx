@@ -1,4 +1,4 @@
-import { coneFor, type RankerDetail, type RankerRow, type SkillState } from "../../lib/ranker";
+import { coneFor, type RankerDetail, type RankerRow, type SignalDescriptor, type SkillState } from "../../lib/ranker";
 import { useRankerDetail } from "../../state/rankerStore";
 import { fmt, fmtPct } from "../../lib/format";
 import { C } from "../../lib/palette";
@@ -24,14 +24,21 @@ export function NameDetail({
   row,
   total,
   state,
+  signal,
   onBack,
 }: {
   row: RankerRow;
   total: number;
   state: SkillState;
+  signal?: SignalDescriptor;
   onBack: () => void;
 }) {
   const { detail, loading } = useRankerDetail(row.symbol);
+  // Prefer the detail file's own descriptor — it was written by the run that
+  // produced these numbers. Fall back to the index's. Absent on payloads from
+  // before this field existed, which were all generative forecasts.
+  const sig = detail?.signal ?? signal;
+  const factor = sig?.kind === "factor";
 
   return (
     <>
@@ -54,7 +61,7 @@ export function NameDetail({
         <div className="grid grid-cols-4 gap-3">
           <Stat label="Rank" value={`${row.rank}`} sub={`of ${total}`} />
           <Stat
-            label="Forecast"
+            label={factor ? (sig?.label || "Factor") : "Forecast"}
             value={fmtPct(row.forecastReturn * 100, 1)}
             tone={row.forecastReturn > 0 ? "up" : "down"}
           />
@@ -75,8 +82,19 @@ export function NameDetail({
 
       {loading && <div className="text-center text-white/40 py-8 text-sm">Loading detail…</div>}
 
-      {detail && <ConeChart detail={detail} lastClose={row.lastClose} />}
-      {detail && <DistributionCard detail={detail} />}
+      {detail && !factor && <ConeChart detail={detail} lastClose={row.lastClose} />}
+      {detail && !factor && <DistributionCard detail={detail} />}
+      {detail && factor && (
+        <Card title="What produced this rank">
+          <div className="text-[11px] text-white/60 leading-relaxed">
+            {sig?.label || "This engine"} is a ranking <em>factor</em>, not a
+            simulated forecast: the number above is the stock's own{" "}
+            {sig?.window || "trailing return"}, which is why there is no cone
+            and no distribution to draw. It buys a place in the cross-section, not
+            a claim about where this name is going.
+          </div>
+        </Card>
+      )}
       {detail?.recent?.length ? <RecentBars detail={detail} /> : null}
 
       {!loading && !detail && (
@@ -90,10 +108,10 @@ export function NameDetail({
       )}
 
       <div className="text-[10px] text-white/45 leading-relaxed px-1">
-        One name's forecast is not the product. The ranking works — if it works at
+        One name's score is not the product. The ranking works — if it works at
         all — because it is applied across the whole universe at once:
         IR ≈ IC × √breadth. An IC of 0.03 on this stock is noise; the same IC
-        across ~190 stocks is a strategy. Never size a position on this chart.
+        across {total} stocks is a strategy. Never size a position on this alone.
       </div>
     </>
   );

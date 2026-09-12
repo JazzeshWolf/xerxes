@@ -257,6 +257,15 @@ def _implication(decile: int) -> str:
     return "No lean — neither side favoured by the ranking"
 
 
+def _model_label(engine_name: str, engine) -> str:
+    """What actually produced the scores, for the payload's `model` field."""
+    if engine_name == "kronos":
+        return C.KRONOS_MODEL
+    if getattr(engine, "signal_kind", "") == "factor":
+        return engine.signal_label or engine_name
+    return "block-bootstrap"
+
+
 def run_daily(
     repo_root: str,
     token: str,
@@ -294,7 +303,12 @@ def run_daily(
 
     engine = get_engine(engine_name, vendor_path=vendor_path)
     t0 = time.time()
-    if engine_name == "kronos":
+    if engine.uses_panel:
+        forecasts = {
+            s: f for s, f in engine.forecast_panel(panel, i, pred_len).items()
+            if s in window
+        }
+    elif engine_name == "kronos":
         forecasts = engine.forecast(window, pred_len, with_paths=True)
     else:
         forecasts = engine.forecast(window, pred_len)
@@ -307,9 +321,21 @@ def run_daily(
         "asOf": _now(),
         "tradeDate": panel.dates[i],
         "engine": engine_name,
-        "model": C.KRONOS_MODEL if engine_name == "kronos" else "block-bootstrap",
+        "model": _model_label(engine_name, engine),
         "predLen": pred_len,
-        "horizonLabel": f"{pred_len} trading days",
+        # A trailing factor has no forecast horizon; saying "21 trading days"
+        # over a 12-month lookback would be a plain lie in the UI.
+        "horizonLabel": (
+            engine.signal_window if engine.signal_kind == "factor"
+            else f"{pred_len} trading days"
+        ),
+        # What the published number MEANS. Without this the UI shows a trailing
+        # 12-month return under a heading that says "Forecast".
+        "signal": {
+            "kind": engine.signal_kind,
+            "label": engine.signal_label or engine_name,
+            "window": engine.signal_window,
+        },
         "universeCount": len(rows),
         "neutralization": diag,
         "corporateActions": ca_audit,
@@ -320,12 +346,13 @@ def run_daily(
 
     os.makedirs(out_dir, exist_ok=True)
     _write(os.path.join(out_dir, C.INDEX_FILE), payload)
-    _write_details(out_dir, rows, forecasts, panel)
+    _write_details(out_dir, rows, forecasts, panel, payload['signal'])
     print(f"[daily] wrote {len(rows)} ranks -> {out_dir}")
     return payload
 
 
-def _write_details(out_dir: str, rows: list[dict], forecasts: dict, panel) -> None:
+def _write_details(out_dir: str, rows: list[dict], forecasts: dict, panel,
+                   signal: dict | None = None) -> None:
     """Per-name detail: sample paths and recent OHLCV, one small file each.
 
     Split out of index.json deliberately -- inlining paths and 60 bars for 190
@@ -346,7 +373,10 @@ def _write_details(out_dir: str, rows: list[dict], forecasts: dict, panel) -> No
                 "rank": r["rank"],
                 "decile": r["decile"],
                 "percentile": r["percentile"],
+                # Kept under this name because the UI's row parser rejects a
+                # payload without it. `signal.kind` is what says how to read it.
                 "forecastReturn": r["forecastReturn"],
+                "signal": signal or {},
                 "lastClose": r["lastClose"],
                 "lean": r["lean"],
                 "implication": r["implication"],
@@ -378,6 +408,10 @@ def run_validation(
     pred_len: int = C.PRED_LEN,
     universe_limit: int | None = None,
     vendor_path: str | None = None,
+    sample_count: int | None = None,
+    kronos_model: str = "small",
+    max_rebalances: int | None = None,
+    budget_min: float | None = None,
 ) -> dict:
     today = dt.date.today().isoformat()
     print(f"[validate] {today} engine={engine_name}")
@@ -403,17 +437,30 @@ def run_validation(
         ),
     }
 
-    engine = get_engine(engine_name, vendor_path=vendor_path)
+    model_id, tokenizer_id = (
+        (C.KRONOS_MINI_MODEL, C.KRONOS_MINI_TOKENIZER) if kronos_model == "mini"
+        else (C.KRONOS_MODEL, C.KRONOS_TOKENIZER)
+    )
+    engine_kwargs: dict = {"vendor_path": vendor_path}
+    if engine_name == "kronos":
+        engine_kwargs.update(model_id=model_id, tokenizer_id=tokenizer_id)
+        if sample_count:
+            engine_kwargs["sample_count"] = sample_count
+    engine = get_engine(engine_name, **engine_kwargs)
+
     result = walk_forward(
         panel, sector_of, engine, pred_len=pred_len,
         membership=load_snapshots(os.path.join(out_dir, "universe-snapshots")) or None,
+        max_rebalances=max_rebalances,
+        budget_sec=(budget_min * 60.0) if budget_min else None,
     )
-    gate = verdict(result)
+    gate = verdict(result, engine_name=engine_name)
 
     payload = {
         "asOf": _now(),
         "engine": engine_name,
-        "model": C.KRONOS_MODEL if engine_name == "kronos" else "block-bootstrap",
+        "model": model_id if engine_name == "kronos" else "block-bootstrap",
+        "sampleCount": (sample_count or C.SAMPLE_COUNT) if engine_name == "kronos" else None,
         "verdict": gate,
         "dataDepth": depth,
         "corporateActions": corpactions.audit(ca),

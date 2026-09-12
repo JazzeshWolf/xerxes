@@ -3,7 +3,7 @@
 //
 // The repo path and the three data branches were previously inlined as string
 // literals in `state/store.ts`. They are factored out here because a fourth
-// consumer (the Kronos ranker) now needs the same repo with a different branch,
+// consumer (the ranker) now needs the same repo with a different branch,
 // and a second hardcoded "JazzeshWolf/xerxes" would be one more place to miss
 // when anything moves.
 //
@@ -36,7 +36,7 @@ export const pagesUrl = (file: string) => `${import.meta.env.BASE_URL}data/${fil
 /** Stock screener data — JSON sits at the branch root on the orphan branch. */
 export const rawStockUrl = (file: string) => raw(STOCKS_BRANCH, `${file}.json`);
 
-/** Kronos ranker data — same layout as stocks, on its own orphan branch. */
+/** Ranker data — same layout as stocks, on its own orphan branch. */
 export const rawRankerUrl = (file: string) => raw(RANKER_BRANCH, `${file}.json`);
 
 /** Cache-busted JSON fetch. Shared so every caller fails the same way. */

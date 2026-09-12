@@ -179,3 +179,154 @@ def test_importing_the_package_does_not_pull_in_torch():
     r = subprocess.run([sys.executable, "-c", code], capture_output=True,
                        cwd=os.path.join(REPO_ROOT, "nse-ranker"))
     assert r.returncode == 0, r.stderr.decode()
+
+
+# --- Kronos batch planning ---------------------------------------------------
+#
+# `predict_batch` refuses a batch whose series differ in length. MIN_BARS (260)
+# admits names with far fewer bars than MAX_CONTEXT (512), so on the first live
+# Kronos run four of seven batches each caught a short name and the engine NaN'd
+# all 32 of their members -- 114 of 210 names silently vanished from the
+# ranking, RELIANCE, TCS and INFY among them. Breadth is the edge, so this is
+# the invariant that matters most about batching.
+
+
+def _plan(lengths, batch_size=32, max_context=512):
+    from ranker.engines.kronos import plan_batches
+
+    return plan_batches(lengths, batch_size, max_context)
+
+
+def test_every_batch_has_one_consistent_length():
+    # The production shape: mostly full-context names, a handful short.
+    lengths = {f"S{i:03d}": 512 for i in range(210)}
+    for sym, n in zip(("S007", "S042", "S100", "S150", "S201"),
+                      (338, 469, 503, 454, 430)):
+        lengths[sym] = n
+
+    for chunk, ctx in _plan(lengths):
+        assert ctx == min(min(lengths[s], 512) for s in chunk)
+        assert ctx > 0
+
+
+def test_no_name_is_dropped_by_batching():
+    lengths = {f"S{i:03d}": 512 for i in range(210)}
+    lengths["S007"] = 338
+    lengths["S042"] = 469
+
+    planned = [s for chunk, _ in _plan(lengths) for s in chunk]
+    assert sorted(planned) == sorted(lengths), "breadth is the edge -- lose no name"
+    assert len(planned) == len(set(planned)), "no name forecast twice"
+
+
+def test_a_short_name_does_not_truncate_the_full_length_ones():
+    # The regression that matters: one 338-bar name must not drag the whole
+    # universe down to 338 bars of context.
+    lengths = {f"S{i:03d}": 512 for i in range(210)}
+    lengths["S007"] = 338
+
+    plan = _plan(lengths)
+    full = [ctx for _, ctx in plan if ctx == 512]
+    assert len(full) >= len(plan) - 1, "only the batch holding the short name loses context"
+    assert sum(len(c) for c, ctx in plan if ctx == 512) >= 209 - 32
+
+
+def test_context_is_capped_at_max_context():
+    # A name with 6 years of history still only feeds the model its window.
+    lengths = {"A": 1500, "B": 1500, "C": 900}
+    assert all(ctx <= 512 for _, ctx in _plan(lengths))
+
+
+def test_batches_respect_the_size_limit():
+    lengths = {f"S{i:03d}": 512 for i in range(210)}
+    assert all(len(c) <= 32 for c, _ in _plan(lengths))
+
+
+# --- the momentum engine -----------------------------------------------------
+#
+# The ranker runs on 12-1 momentum, and the backtest scores it against a
+# `momentum_12_1` BENCHMARK arm. If the engine computed the factor its own way
+# the two could disagree, and the measured ICIR would then describe something
+# other than what the daily job ships.
+#
+# The trap that makes this non-obvious: `Panel.bars_upto` filters by DATE and
+# then slices, while the panel's date axis is the union of every symbol's dates.
+# For a name that halted for a few sessions, `bars[-22]` is NOT
+# `panel.closes[:, i - 21]` -- so the tempting `closes[-22] / closes[-253] - 1`
+# is quietly wrong for exactly the gappy names. Hence the engine delegates to the
+# benchmark rather than reimplementing it, and hence this test uses a panel that
+# CONTAINS a gap: without one it would pass either way and prove nothing.
+
+
+def _walk(dates, s0, seed):
+    from ranker.upstox import Bar
+
+    rng = np.random.default_rng(seed)
+    px, out = s0, []
+    for t in dates:
+        px *= float(np.exp(rng.normal(0.0004, 0.012)))
+        out.append(Bar(t=t, o=px, h=px * 1.01, l=px * 0.99, c=px, v=1000.0))
+    return out
+
+
+@pytest.fixture(scope="module")
+def gappy_panel():
+    from ranker.panel import build_panel
+
+    dates = [f"2024-{1 + d // 28:02d}-{1 + d % 28:02d}" for d in range(400)]
+    bars = {"DENSE1": _walk(dates, 100.0, 1), "DENSE2": _walk(dates, 250.0, 2)}
+    # Halts for ten sessions, inside the 12-1 lookback window.
+    bars["GAPPY"] = _walk([d for k, d in enumerate(dates) if not (300 <= k < 310)], 80.0, 3)
+    return build_panel(bars)
+
+
+def test_momentum_engine_matches_its_own_benchmark_exactly(gappy_panel):
+    from ranker.benchmarks import momentum_12_1
+
+    i = gappy_panel.n_dates - 1
+    bench = momentum_12_1(gappy_panel, i)
+    got = get_engine("momentum").forecast_panel(gappy_panel, i, 21)
+
+    for k, sym in enumerate(gappy_panel.symbols):
+        assert sym in got, f"{sym} dropped"
+        assert got[sym].median_return == pytest.approx(float(bench[k]), abs=1e-12), sym
+
+
+def test_a_bar_indexed_momentum_would_have_diverged(gappy_panel):
+    # Pins the REASON for the delegation. If this ever stops diverging the panel
+    # fixture has lost its gap and the test above is no longer proving anything.
+    from ranker.benchmarks import momentum_12_1
+
+    i = gappy_panel.n_dates - 1
+    bench = dict(zip(gappy_panel.symbols, momentum_12_1(gappy_panel, i)))
+    closes = [b.c for b in gappy_panel.bars["GAPPY"]]
+    naive = closes[-1 - C.MOMENTUM_SKIP] / closes[-1 - C.MOMENTUM_LOOKBACK] - 1.0
+    assert abs(naive - float(bench["GAPPY"])) > 1e-6, (
+        "the gapped symbol no longer exposes the bar-vs-panel misalignment"
+    )
+
+
+def test_momentum_engine_declares_itself_a_factor():
+    # The UI reads this to avoid printing a trailing 12-month return under a
+    # heading that says "Forecast".
+    e = get_engine("momentum")
+    assert e.uses_panel is True
+    assert e.signal_kind == "factor"
+    assert get_engine("bootstrap").uses_panel is False
+    assert get_engine("bootstrap").signal_kind == "forecastReturn"
+
+
+def test_momentum_engine_refuses_the_bar_interface():
+    # Calling `forecast` would silently give the wrong answer for gappy names,
+    # so it must raise rather than quietly compute something plausible.
+    with pytest.raises(NotImplementedError, match="Panel"):
+        get_engine("momentum").forecast({}, 21)
+
+
+def test_momentum_engine_drops_names_with_no_usable_close(gappy_panel):
+    # `_write` serialises with allow_nan=False, so a NaN close would blow up only
+    # after a full run. Names without one must never reach the payload.
+    i = gappy_panel.n_dates - 1
+    for f in get_engine("momentum").forecast_panel(gappy_panel, i, 21).values():
+        assert np.isfinite(f.median_return) and np.isfinite(f.last_close)
+        assert f.last_close > 0

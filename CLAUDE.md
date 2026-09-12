@@ -496,11 +496,20 @@ Refresh this whenever SEBI/NSE revise the F&O list. The tell is
 
 ---
 
-## The Kronos ranker (`nse-ranker/`, `ranker-data` branch)
+## The ranker (`nse-ranker/`, `ranker-data` branch)
+
+**Kronos was retired on 12 Sep 2026 — the engine is now 12-1 momentum.** The
+model measured ICIR −0.335 (see below), and cost ~4 CPU-hours per daily run to
+produce that. Everything around it was kept: the walk-forward harness, the
+neutralisation, the deciles, the gate and the UI are all engine-agnostic and the
+harness had just proved its worth by catching a bad model. Kronos is **disabled,
+not deleted** — the engine, its tests and the vendoring step remain, and it is
+still dispatchable by hand; only the workflow defaults changed. The route is now
+called **Ranks** (`src/components/ranks/`, `RanksView`).
 
 Ranks the F&O universe into deciles so you know **which side of a name's chain to
 sell**. Top decile → sell puts, bottom → sell calls. Reached from
-`InstrumentPicker` as its own top-level route (`KronosView`), NOT as a `TabBar`
+`InstrumentPicker` as its own top-level route (`RanksView`), NOT as a `TabBar`
 tab — TabBar holds per-instrument tabs, and a ranking across 190 names is a
 sibling of the stock screener, not a seventh view of NIFTY. `TabBar.tsx` and
 every index component are untouched by it.
@@ -529,6 +538,127 @@ Things that will bite:
   egress policy in the build sandbox). Its first real run is CI.
 - Kronos is vendored at a pinned commit by the workflow; `nse-ranker/vendor/` is
   gitignored.
+- **A factor engine scores from the `Panel`, never from `list[Bar]`.**
+  `Panel.bars_upto` filters by DATE then slices, while the panel's date axis is
+  the union of every symbol's dates — so for a name that halted a few sessions,
+  `bars[-22]` is NOT `closes[:, i-21]`. Measured on a synthetic gapped series the
+  tempting `closes[-22]/closes[-253]-1` returns 0.0254 where the benchmark
+  returns 0.0139, enough to move a name several deciles. `MomentumEngine`
+  therefore **delegates to `benchmarks.momentum_12_1` itself** rather than
+  reimplementing it, so the engine arm and the benchmark arm are the same number
+  by construction. Engines declare `uses_panel`; both pipelines dispatch on it.
+  Pinned by `test_a_bar_indexed_momentum_would_have_diverged`.
+- **`verdict()` must not fail an engine for tying itself.** With momentum as the
+  engine, `edgeOverMomentum` is 0.00 by construction — the old gate would have
+  failed it forever, for a reason saying nothing about its quality. When the
+  engine IS a benchmark the gate substitutes *beat the random null by 0.05*
+  (`MIN_ICIR_EDGE_OVER_RANDOM`) and sets `isOwnBenchmark` + `selectionCaveat`.
+  That is a substitute bar, not an exemption; don't weaken it to an exemption.
+- **A factor is not a forecast, and the payload says so.** 12-1 momentum emits a
+  TRAILING return that lands in the same `forecastReturn` field a generative
+  engine's forward forecast does. The `signal: {kind,label,window}` descriptor is
+  what stops the UI captioning it "Forecast". **Do not rename or drop
+  `forecastReturn`** — `parseRow` rejects a payload without it and `parseIndex`
+  discards anything under 20 rows, so the tab would go blank, not degrade.
+- **`PYTHONPATH` in both ranker workflows must be ABSOLUTE** (`${{ github.workspace }}/...`).
+  Both steps run with `working-directory: nse-ranker`, so the relative
+  `PYTHONPATH: nse-ranker/vendor/Kronos` they originally carried resolved to
+  `nse-ranker/nse-ranker/vendor/Kronos` and never existed. The clone succeeded,
+  the import could not — and because the engine is only constructed *after* the
+  universe is fetched, every run burned ~15 min of history calls before dying on
+  `ModuleNotFoundError: No module named 'model'`. It ran that way from mid-August
+  to 11 Sep: **every scheduled daily and weekly-validation run failed**, and the
+  published ranks sat frozen at `tradeDate 2026-08-11` for a month while the
+  Actions tab showed a tidy row of red Xs nobody was reading. The `Verify Kronos
+  imports` step now fails in ~1 s at the point the breakage belongs; don't remove
+  it, and don't make those paths relative again.
+
+#### The batch-length trap (found on the first live Kronos run)
+
+`predict_batch` **refuses a batch whose series differ in length** — "Parallel
+prediction requires all series to have consistent historical lengths". `MIN_BARS`
+(260) admits names with far fewer bars than `MAX_CONTEXT` (512), and the engine
+used to feed it symbols in **alphabetical** order, so the short names scattered
+across batches. Each one took its whole batch of 32 down with it: the engine
+catches the failure and writes `median_return = NaN` for every member, by design,
+to degrade rather than abort — and NaN rows drop out of the ranking downstream.
+
+Measured on the 2026-09-11 run: four of seven batches each caught a short name
+(338, 469, 503/454/453, 430/465 bars), so **114 of 210 names silently vanished**
+and `universeCount` published as **96**. RELIANCE, TCS and INFY were among the
+missing. Nothing failed — the job was green, the guard saw a fresh `asOf`, and it
+force-pushed a ranking over half the universe.
+
+`config.py` had documented the invariant all along (*"Equal to MAX_CONTEXT so
+every series in a batch is the same length — `predict_batch` requires that"*) but
+nothing enforced it, and it could not be tested: `_forecast_chunk` imports pandas,
+which is deliberately absent from the core test deps. Hence `plan_batches()` — a
+pure function, ordering symbols by usable length and truncating each batch to its
+shortest member — which the tests in `test_universe_and_engines.py` pin without
+any model stack. Every symbol lands in exactly one batch; only the batch
+straddling a length boundary loses context.
+
+**Two things follow.** A green ranker run does not prove a full universe — check
+`universeCount` in `index.json`, the same way a green stocks run doesn't prove
+fresh data. And because `ranker-data` is force-pushed as an orphan and the seed
+step copies the previous run in first, **a name that fails to rank keeps its old
+detail file and republishes it as though current** — after that run, RELIANCE.json
+on the branch was month-old bootstrap data sitting next to a Kronos index.
+
+### What validation has actually measured
+
+One real walk-forward has completed (25 Aug 2026, **bootstrap** engine, 58
+rebalances — comfortably past `MIN_REBALANCES`):
+
+| | ICIR |
+|---|---|
+| bootstrap | **0.3024** |
+| 12-1 momentum | **0.3531** |
+
+It clears the `MIN_ICIR` 0.30 bar and then **loses to free momentum by 0.05**, so
+`edgeOverMomentum` is −0.05 against a +0.05 requirement and the verdict is
+`UNVALIDATED`. The tab is correctly gated shut on that. Read it as the gate
+working, not as a bug to tune away: 58 rebalances is enough that this is a
+measurement, not noise.
+
+**Kronos itself was finally measured on 11 Sep 2026** — Kronos-mini,
+`sample_count=4`, 28 evenly-spaced rebalance dates (the cheap end of the ladder,
+which is all that fits one CI job):
+
+| arm | ICIR | mean IC | t |
+|---|---|---|---|
+| **Kronos-mini** | **−0.335** | −0.029 | −1.77 |
+| momentum_12_1 | 0.166 | 0.016 | 0.88 |
+| reversal_5d | −0.080 | −0.007 | −0.42 |
+| random | 0.170 | 0.007 | 0.90 |
+
+It scored **negative** — the ranking was mildly *inverse* to what happened. At
+t = −1.77 that is not significant, so the honest claim is "no skill found", not
+"reliably backwards", and **inverting the signal on this evidence would be
+textbook overfitting** — don't.
+
+Two caveats that genuinely limit it, and one that doesn't:
+
+- It is **mini at 4 samples**, not small at 30. Sampling noise pushes IC toward
+  zero, though, not below it, so noise alone doesn't tidily explain a negative.
+- **On these 28 dates momentum scored 0.166 against random's 0.170** — i.e. the
+  free benchmark had no edge either over this particular subset. So this sample
+  discriminates much less well than the 58-date bootstrap run, and the
+  "loses to momentum" framing is weaker here than the headline suggests.
+- What it is *not* is a runtime artifact: the run completed all 28 planned dates
+  (`stoppedEarly: false`), so nothing was cut short.
+
+**That settled it.** Proving Kronos properly would mean Kronos-small at full
+sample count — days of CPU and a sharded workflow — to chase a signal pointing
+the wrong way, and even a winning Kronos had to justify ~4 CPU-hours a day
+against a millisecond-cheap rule. So momentum became the engine instead.
+
+**Read momentum's 0.35 with the caveat that ships beside it.** It was SELECTED
+because it won on the history we hold; that is in-sample, and the months it was
+not chosen on are the real test. It is also not stable across cuts — 0.35 over
+the 58-date run, but 0.166 over the 28 dates sampled on 11 Sep, where `random`
+scored 0.170. The UI renders this caveat under the banner whenever
+`selectionCaveat` is present. Don't quietly drop it if the number looks good.
 
 ## Backlog (not started)
 

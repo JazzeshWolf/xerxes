@@ -150,9 +150,19 @@ export function DecileTable({
         {state.actionable ? (
           <>
             Top decile = lean bullish = prefer selling puts; bottom decile = lean
-            bearish = prefer selling calls. The forecast percentage is the
-            model's median over {index.horizonLabel} and is shown for context —
-            the <em>rank</em> is the product, not the number.
+            bearish = prefer selling calls.{" "}
+            {index.signal?.kind === "factor" ? (
+              <>
+                The percentage is each name's {index.signal.window || "trailing return"} —
+                the input the ranking is built from, not a prediction.
+              </>
+            ) : (
+              <>
+                The forecast percentage is the engine's median over{" "}
+                {index.horizonLabel} and is shown for context.
+              </>
+            )}{" "}
+            The <em>rank</em> is the product, not the number.
           </>
         ) : (
           <>

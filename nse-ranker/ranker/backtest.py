@@ -27,6 +27,8 @@ that differs between arms is where the score came from.
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 
 from . import config as C
@@ -89,6 +91,8 @@ def walk_forward(
     membership: dict[str, set[str]] | None = None,
     seed: int = C.BOOTSTRAP_SEED,
     progress: bool = True,
+    max_rebalances: int | None = None,
+    budget_sec: float | None = None,
 ) -> dict:
     """Run the walk-forward and return everything the report needs.
 
@@ -97,6 +101,17 @@ def walk_forward(
     survivorship bias is reported rather than hidden.
     """
     idxs = rebalance_dates(panel, pred_len, every, C.MIN_BARS)
+    planned = len(idxs)
+    # A Kronos walk-forward re-forecasts the whole universe at every date, which
+    # at full sample count runs to days of CPU -- far past any CI job. Rather
+    # than let such a run die at the timeout with nothing to show, take an EVENLY
+    # SPACED subset so the measurement still spans the whole period instead of
+    # only its oldest stretch, and stop cleanly on a wall-clock budget.
+    if max_rebalances and max_rebalances < len(idxs):
+        step = len(idxs) / float(max_rebalances)
+        idxs = [idxs[int(k * step)] for k in range(max_rebalances)]
+    deadline = (time.monotonic() + budget_sec) if budget_sec else None
+    stopped_early = False
     arms = ["engine", *BENCHMARKS.keys()]
     ics: dict[str, list[float]] = {a: [] for a in arms}
     legs: dict[str, list[dict]] = {a: [] for a in arms}
@@ -106,6 +121,10 @@ def walk_forward(
     pit_dates = 0
 
     for n, i in enumerate(idxs):
+        if deadline and time.monotonic() > deadline:
+            stopped_early = True
+            print(f"  budget reached -- stopping after {len(per_date)} of {len(idxs)}")
+            break
         date = panel.dates[i]
 
         # -- point-in-time universe ----------------------------------------
@@ -134,7 +153,16 @@ def walk_forward(
         window = {s: b for s, b in window.items() if len(b) >= C.MIN_BARS}
         if len(window) < 30:
             continue
-        forecasts = engine.forecast(window, pred_len)
+        # A factor engine scores from the panel, but the window still decides
+        # WHICH names are eligible -- keep that selection identical either way
+        # or the rebalance count drifts from what was measured.
+        if engine.uses_panel:
+            forecasts = {
+                s: f for s, f in engine.forecast_panel(panel, i, pred_len).items()
+                if s in window
+            }
+        else:
+            forecasts = engine.forecast(window, pred_len)
         raw = np.array(
             [
                 forecasts[s].median_return if s in forecasts else np.nan
@@ -177,6 +205,18 @@ def walk_forward(
         "predLen": pred_len,
         "rebalanceEvery": every,
         "overlapping": overlapping,
+        "sampling": {
+            "planned": planned,
+            "ran": len(per_date),
+            "stoppedEarly": stopped_early,
+            "subsampled": bool(max_rebalances and max_rebalances < planned),
+            "note": (
+                "When `ran` is below `planned` the rebalance dates were thinned "
+                "or cut short for runtime. IC is unaffected -- each date is still "
+                "an independent draw -- but TURNOVER is measured across wider "
+                "gaps than a live monthly rebalance and is therefore understated."
+            ),
+        },
         "arms": {
             arm: {
                 "ic": summarize(ics[arm], overlapping=overlapping),
@@ -233,18 +273,33 @@ def _summarize_diagnostics(rows: list[dict]) -> dict:
     }
 
 
-def verdict(result: dict) -> dict:
+def verdict(result: dict, engine_name: str = "") -> dict:
     """Turn the backtest into the gate the UI reads.
 
-    Deliberately blunt. Two ways to fail, and the momentum one is the one that
-    matters commercially: a model that ties 12-1 momentum has bought nothing for
-    its 12 billion training candles.
+    Deliberately blunt. The commercially important failure is ties with 12-1
+    momentum: a model that only matches a free factor has bought nothing for its
+    compute.
+
+    **Unless the engine IS that factor.** When the ranker runs on momentum
+    itself, the engine arm and the `momentum_12_1` arm are the same number, the
+    edge is 0.00 by construction, and gating on it would fail the signal for
+    tying itself -- the feature would be dead on arrival for a reason that says
+    nothing about its quality. So in that case the vacuous question is swapped
+    for the one that still bites: is this better than the `random` null at all?
+    The momentum row is still reported either way; it is just not a pass/fail.
     """
     engine_ic = result["arms"]["engine"]["ic"]
     mom_ic = result["arms"].get("momentum_12_1", {}).get("ic", {})
+    rnd_ic = result["arms"].get("random", {}).get("ic", {})
     icir = engine_ic.get("icir")
     mom_icir = mom_ic.get("icir")
+    rnd_icir = rnd_ic.get("icir")
     n = engine_ic.get("n") or 0
+
+    # Is the engine under test the very benchmark it would be measured against?
+    is_own_benchmark = (engine_name or "").lower() in (
+        "momentum", "momentum_12_1",
+    )
 
     reasons: list[str] = []
     if n < C.MIN_REBALANCES:
@@ -256,7 +311,17 @@ def verdict(result: dict) -> dict:
         reasons.append("ICIR could not be computed")
     elif icir < C.MIN_ICIR:
         reasons.append(f"ICIR {icir:.2f} is below the {C.MIN_ICIR:.2f} bar")
-    if icir is not None and mom_icir is not None:
+
+    if is_own_benchmark:
+        if icir is not None and rnd_icir is not None:
+            edge = icir - rnd_icir
+            if edge < C.MIN_ICIR_EDGE_OVER_RANDOM:
+                reasons.append(
+                    f"ICIR beats the random null by only {edge:+.2f} (need "
+                    f"{C.MIN_ICIR_EDGE_OVER_RANDOM:+.2f}) -- this signal is not "
+                    "distinguishable from noise"
+                )
+    elif icir is not None and mom_icir is not None:
         edge = icir - mom_icir
         if edge < C.MIN_ICIR_EDGE_OVER_MOMENTUM:
             reasons.append(
@@ -264,16 +329,20 @@ def verdict(result: dict) -> dict:
                 f"{C.MIN_ICIR_EDGE_OVER_MOMENTUM:+.2f}) -- momentum is free, so "
                 "this model is not earning its compute"
             )
+
     if result.get("overlapping"):
         reasons.append("rebalances overlap the forecast horizon, so ICIR is inflated")
     if not result.get("neutralization", {}).get("verdict", "").startswith("Neutralisation is working"):
         reasons.append("neutralisation did not pass on every rebalance")
 
-    return {
+    out = {
         "validated": not reasons,
         "icir": icir,
         "momentumIcir": mom_icir,
+        "randomIcir": rnd_icir,
         "edgeOverMomentum": _r(icir - mom_icir) if icir is not None and mom_icir is not None else None,
+        "edgeOverRandom": _r(icir - rnd_icir) if icir is not None and rnd_icir is not None else None,
+        "comparedAgainst": "random" if is_own_benchmark else "momentum_12_1",
         "bar": C.MIN_ICIR,
         "reasons": reasons,
         "summary": (
@@ -282,6 +351,19 @@ def verdict(result: dict) -> dict:
             else "UNVALIDATED -- " + "; ".join(reasons)
         ),
     }
+    if is_own_benchmark:
+        # The caveat that matters more than the number. This factor was picked
+        # BECAUSE it won on the history we happen to hold; that is in-sample
+        # selection, and the months it was not chosen on are the real test.
+        out["isOwnBenchmark"] = True
+        out["selectionCaveat"] = (
+            "The engine IS the 12-1 momentum benchmark, so 'edge over momentum' "
+            "is 0.00 by construction and the gate compares against the random "
+            "null instead. Read the result knowing this factor was SELECTED "
+            "because it scored best on the history available -- forward "
+            "performance, on rebalances it was not chosen on, is the real test."
+        )
+    return out
 
 
 def _r(x) -> float | None:

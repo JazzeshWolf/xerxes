@@ -46,7 +46,11 @@ def render(skill: dict) -> str:
     w(f"| **ICIR** (the number that matters) | **{_n(v.get('icir'))}** |")
     w(f"| Bar it must clear | {_n(v.get('bar'))} |")
     w(f"| 12-1 momentum ICIR | {_n(v.get('momentumIcir'))} |")
-    w(f"| **Edge over momentum** | **{_n(v.get('edgeOverMomentum'))}** |")
+    if v.get("isOwnBenchmark"):
+        w(f"| Random-null ICIR | {_n(v.get('randomIcir'))} |")
+        w(f"| **Edge over the random null** | **{_n(v.get('edgeOverRandom'))}** |")
+    else:
+        w(f"| **Edge over momentum** | **{_n(v.get('edgeOverMomentum'))}** |")
     w(f"| Mean IC | {_n(ic.get('meanIC'))} |")
     w(f"| IC std | {_n(ic.get('stdIC'))} |")
     w(f"| t-stat | {_n(ic.get('tStat'))} |")
@@ -75,7 +79,7 @@ def render(skill: dict) -> str:
         if not arm:
             continue
         a_ic, a_sp = arm.get("ic", {}), arm.get("spread", {})
-        label = "**Kronos/engine**" if name == "engine" else name
+        label = "**engine (under test)**" if name == "engine" else name
         w(f"| {label} | {_n(a_ic.get('icir'))} | {_n(a_ic.get('meanIC'))} | "
           f"{_n(a_ic.get('tStat'))} | {_pct(a_sp.get('meanGrossPerRebalance'))} | "
           f"{_pct((a_sp.get('net') or {}).get('meanNetPerRebalance'))} |")
@@ -85,6 +89,9 @@ def render(skill: dict) -> str:
       "commercially: it is free, and a model that cannot beat it is not earning "
       "its compute.")
     w("")
+    if v.get("selectionCaveat"):
+        w(f"> **Read this first.** {v['selectionCaveat']}")
+        w("")
 
     # ---- costs -----------------------------------------------------------
     w("## Decile spread and costs")

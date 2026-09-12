@@ -5,7 +5,7 @@ import { INDEX_META } from "./lib/types";
 import { InstrumentPicker } from "./components/InstrumentPicker";
 import { StockScreenerView } from "./components/StockScreenerView";
 import { StockDashboard } from "./components/StockDashboard";
-import { KronosView } from "./components/kronos/KronosView";
+import { RanksView } from "./components/ranks/RanksView";
 import { SpotStrip } from "./components/SpotStrip";
 import { VerdictCard } from "./components/VerdictCard";
 import { HorizonBiasCard } from "./components/HorizonBiasCard";
@@ -36,33 +36,33 @@ export function App() {
 
   const [stocksOpen, setStocksOpen] = useState(false);
   const [stock, setStock] = useState<{ file: string; name: string; expiry?: string } | null>(null);
-  const [kronosOpen, setKronosOpen] = useState(false);
+  const [ranksOpen, setRanksOpen] = useState(false);
 
   const pick = (i: IndexKey) => {
     localStorage.setItem(LS_KEY, i);
     setStocksOpen(false);
     setStock(null);
-    setKronosOpen(false);
+    setRanksOpen(false);
     setInstrument(i);
   };
   const openStocks = () => {
     localStorage.removeItem(LS_KEY);
     setInstrument(null);
     setStock(null);
-    setKronosOpen(false);
+    setRanksOpen(false);
     setStocksOpen(true);
   };
-  const openKronos = () => {
+  const openRanks = () => {
     localStorage.removeItem(LS_KEY);
     setInstrument(null);
     setStock(null);
     setStocksOpen(false);
-    setKronosOpen(true);
+    setRanksOpen(true);
   };
 
   // Cross-sectional ranker — its own route, sharing no state with the index or
   // stock screener routes. A failure to load its data cannot affect either.
-  if (kronosOpen) return <KronosView onBack={() => setKronosOpen(false)} />;
+  if (ranksOpen) return <RanksView onBack={() => setRanksOpen(false)} />;
 
   // Stocks section (kept entirely separate from the index route).
   if (stock)
@@ -79,7 +79,7 @@ export function App() {
     return <StockScreenerView onOpen={(file, name, expiry) => setStock({ file, name, expiry })} onBack={() => setStocksOpen(false)} />;
 
   if (!instrument)
-    return <InstrumentPicker onPick={pick} onPickStocks={openStocks} onPickKronos={openKronos} />;
+    return <InstrumentPicker onPick={pick} onPickStocks={openStocks} onPickRanks={openRanks} />;
   return <Dashboard instrument={instrument} onSwitch={() => setInstrument(null)} />;
 }
 

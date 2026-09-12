@@ -51,6 +51,18 @@ def main(argv: list[str] | None = None) -> int:
                         "breadth trades away the edge)")
     p.add_argument("--vendor", default=os.environ.get("KRONOS_VENDOR_PATH"),
                    help="path to the vendored Kronos repo (for PYTHONPATH)")
+    # Runtime knobs for the walk-forward. A full-fidelity Kronos validation is
+    # days of CPU; these are the documented ladder (fewer samples, then the
+    # smaller model) for getting a lower-fidelity read inside one CI job.
+    p.add_argument("--sample-count", type=int, default=None,
+                   help="Kronos samples per forecast (default %d)" % C.SAMPLE_COUNT)
+    p.add_argument("--kronos-model", choices=["small", "mini"], default="small",
+                   help="which released Kronos pairing to load")
+    p.add_argument("--max-rebalances", type=int, default=None,
+                   help="evenly thin the walk-forward to at most N dates")
+    p.add_argument("--budget-min", type=float, default=None,
+                   help="wall-clock budget for the walk-forward; stops cleanly "
+                        "and reports what completed")
     args = p.parse_args(argv)
 
     root = _repo_root()
@@ -71,7 +83,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "validate":
         skill = run_validation(root, _token(), out, engine_name=args.engine,
                                pred_len=args.pred_len, universe_limit=args.limit,
-                               vendor_path=args.vendor)
+                               vendor_path=args.vendor,
+                               sample_count=args.sample_count,
+                               kronos_model=args.kronos_model,
+                               max_rebalances=args.max_rebalances,
+                               budget_min=args.budget_min)
         md = report_mod.render(skill)
         path = os.path.join(out, "REPORT.md")
         os.makedirs(out, exist_ok=True)
@@ -164,7 +180,7 @@ def _demo(root: str, out: str) -> int:
     print("[demo] running walk-forward on synthetic data…")
     result = walk_forward(panel, {m.symbol: m.sector for m in members}, engine,
                           pred_len=C.PRED_LEN, progress=False)
-    gate = verdict(result)
+    gate = verdict(result, engine_name="bootstrap")
 
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     skill = {
