@@ -516,8 +516,11 @@ every index component are untouched by it.
 
 **It ships gated shut, deliberately.** The tab's default is "skill not yet
 measured": lean column muted, every implication prefixed *Unproven*. It unlocks
-only when a real `skill.json` reports ICIR ≥ `MIN_ICIR` **and** beating 12-1
-momentum. Read `nse-ranker/README.md` before changing anything here — the honest
+only when a real `skill.json` reports ICIR ≥ `MIN_ICIR` **and** clears the
+comparison bar — beating 12-1 momentum by `MIN_ICIR_EDGE_OVER_MOMENTUM`, or,
+when the engine IS that benchmark, beating the random null by
+`MIN_ICIR_EDGE_OVER_RANDOM`. **As of 12 Sep 2026 nothing has cleared it**, and
+the tab is locked. Read `nse-ranker/README.md` before changing anything here — the honest
 statement of what was and was not measured lives there, and the gate is the whole
 point of the design.
 
@@ -653,12 +656,38 @@ sample count — days of CPU and a sharded workflow — to chase a signal pointi
 the wrong way, and even a winning Kronos had to justify ~4 CPU-hours a day
 against a millisecond-cheap rule. So momentum became the engine instead.
 
-**Read momentum's 0.35 with the caveat that ships beside it.** It was SELECTED
-because it won on the history we hold; that is in-sample, and the months it was
-not chosen on are the real test. It is also not stable across cuts — 0.35 over
-the 58-date run, but 0.166 over the 28 dates sampled on 11 Sep, where `random`
-scored 0.170. The UI renders this caveat under the banner whenever
-`selectionCaveat` is present. Don't quietly drop it if the number looks good.
+**Then momentum was measured as the engine, on 12 Sep 2026 — and it failed too**
+(58 rebalances, full universe):
+
+| arm | ICIR | mean IC | t |
+|---|---|---|---|
+| **momentum (engine)** | **0.266** | 0.028 | 2.03 |
+| momentum_12_1 (benchmark) | 0.265 | 0.027 | 2.02 |
+| reversal_5d | 0.013 | 0.001 | 0.10 |
+| random | 0.109 | 0.007 | 0.83 |
+
+`UNVALIDATED -- ICIR 0.27 is below the 0.30 bar`. It clears the *noise* test
+easily (+0.157 over random, t = 2.03, so the signal is real) and fails the
+*absolute* one. The tab stays locked.
+
+**The instability is the headline, not the number.** The same 12-1 benchmark, on
+nearly the same data, in under three weeks: **0.353** (25 Aug, 58 dates) →
+**0.166** (11 Sep, 28 dates) → **0.265** (12 Sep, 58 dates). A factor swinging by
+2× across measurement dates is exactly the in-sample-selection risk momentum was
+picked in spite of. The UI renders `selectionCaveat` under the banner for this
+reason; don't quietly drop it if a future number looks good.
+
+**Do not lower `MIN_ICIR` to make this pass.** The bar was set as a PRIOR before
+anything was measured, which is the only thing that makes it meaningful. Moving
+it to 0.25 after seeing 0.266 is the "tune until it passes" failure the whole
+gate exists to prevent. If it is ever revisited the argument has to come from
+what return the strategy needs to clear costs — not from the number we got.
+
+**The decile spread is positive even so**: 0.74% gross per rebalance, **0.62% net
+of costs**, at 28% turnover — roughly 7%/yr unlevered. That is arguably the more
+decision-relevant number than ICIR, and it survives the cost stack. Weigh it
+against the README's warning that the short leg is not shortable in Indian equity
+delivery, so a real implementation is single-stock futures.
 
 ## Backlog (not started)
 
