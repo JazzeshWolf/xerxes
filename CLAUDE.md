@@ -563,6 +563,20 @@ Things that will bite:
   what stops the UI captioning it "Forecast". **Do not rename or drop
   `forecastReturn`** — `parseRow` rejects a payload without it and `parseIndex`
   discards anything under 20 rows, so the tab would go blank, not degrade.
+  Every place that *renders* that number must branch on `signal.kind`: the
+  `DecileTable` column header, its per-decile mean, and `NameDetail`'s headline
+  stat. Missing one is not cosmetic — shipped on 12 Sep with the column still
+  headed "FCST", ADANIENSOL read **"+109.4% · Sell puts"** on a day it was 21%
+  off its high, which is indistinguishable from the app predicting a double.
+- **The skip month is a blind spot, and users will find it.** 12-1 measures the
+  252 sessions ending *21 sessions ago* (`MOMENTUM_SKIP`), so the most recent
+  month is invisible to the signal by construction — deliberate, because
+  short-term reversal runs opposite to momentum and mixing them weakens both.
+  The consequence is that a name which has just crashed can rank top decile:
+  ADANIENSOL on 2026-09-11 scored +109.4% over a window ending 2026-08-13 at
+  ₹1583, having since fallen to ₹1373 (−13.3% inside the skipped month, −21.2%
+  from its peak). The decile footer now says this outright. Do not "fix" it by
+  shortening the skip — that is a different, worse factor.
 - **`PYTHONPATH` in both ranker workflows must be ABSOLUTE** (`${{ github.workspace }}/...`).
   Both steps run with `working-directory: nse-ranker`, so the relative
   `PYTHONPATH: nse-ranker/vendor/Kronos` they originally carried resolved to

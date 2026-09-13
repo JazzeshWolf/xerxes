@@ -42,6 +42,10 @@ export function DecileTable({
 }) {
   const [q, setQ] = useState("");
   const [only, setOnly] = useState<"all" | "edges">("edges");
+  // A factor engine's number is a TRAILING return. Heading it "Fcst" reads as a
+  // prediction, which is how a name that just crashed appears to be forecast
+  // +109%: the 12-1 window ends a month ago and cannot see the fall.
+  const factor = index.signal?.kind === "factor";
 
   const groups = useMemo(() => decileGroups(index.rows), [index.rows]);
   const needle = q.trim().toUpperCase();
@@ -96,7 +100,8 @@ export function DecileTable({
           title={`Decile ${g.decile}${g.decile === 10 ? " — most bullish" : g.decile === 1 ? " — most bearish" : ""}`}
           right={
             <span className="text-[9px] text-white/40 tnum">
-              {g.rows.length} names · mean {fmtPct(g.meanForecast * 100, 1)}
+              {g.rows.length} names · {factor ? "past 12m " : ""}mean{" "}
+              {fmtPct(g.meanForecast * 100, 1)}
             </span>
           }
         >
@@ -104,7 +109,7 @@ export function DecileTable({
             <div className="grid grid-cols-[28px_1fr_54px_44px_64px] gap-1.5 text-[9px] uppercase tracking-wide text-white/35 px-1 pb-1">
               <span>#</span>
               <span>Name</span>
-              <span className="text-right">Fcst</span>
+              <span className="text-right">{factor ? "Past 12m" : "Fcst"}</span>
               <span className="text-right">Pctl</span>
               <span className="text-right">Action</span>
             </div>
@@ -154,7 +159,11 @@ export function DecileTable({
             {index.signal?.kind === "factor" ? (
               <>
                 The percentage is each name's {index.signal.window || "trailing return"} —
-                the input the ranking is built from, not a prediction.
+                where it <em>has been</em>, not a prediction of where it is going.
+                Note what that window excludes: the most recent month is skipped
+                by construction, so a name can top this list having already
+                fallen hard in the weeks the signal cannot see. Check the chart
+                before acting on any row.
               </>
             ) : (
               <>
