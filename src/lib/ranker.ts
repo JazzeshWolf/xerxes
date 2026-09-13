@@ -45,6 +45,21 @@ export interface SignalDescriptor {
   window: string;
 }
 
+/** Which expiry a `predLen`-trading-day view should be sold into, from the
+ *  exchange's own dates rather than a "last Thursday" rule. Both sides are
+ *  given because the operator chooses; `matched` is only which sits closer to
+ *  the horizon the ranking was actually measured over. Null when the instrument
+ *  master carried no live futures — the UI then says nothing rather than guessing. */
+export interface ExpiryGuide {
+  horizonTradingDays: number;
+  targetDate: string;
+  /** Non-null by construction: `parseExpiry` returns undefined without it, so a
+   *  guide that exists always has a series to name. */
+  current: { date: string; daysToExpiry: number };
+  next: { date: string; daysToExpiry: number } | null;
+  matched: "current" | "next" | null;
+}
+
 export interface NeutralizationDiag {
   before: { betaRankCorr: number | null; sectorR2: number | null };
   after: { betaRankCorr: number | null; sectorR2: number | null };
@@ -85,6 +100,7 @@ export interface RankerIndex {
   validated: boolean;
   rows: RankerRow[];
   signal?: SignalDescriptor;
+  expiry?: ExpiryGuide;
   demo?: boolean;
 }
 
@@ -219,7 +235,30 @@ export function parseIndex(raw: unknown): RankerIndex | null {
     validated: skill ? skill.validated : false,
     rows,
     signal: parseSignal(o.signal),
+    expiry: parseExpiry(o.expiry),
     demo: o.demo === true,
+  };
+}
+
+function parseExpiry(raw: unknown): ExpiryGuide | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const leg = (v: unknown) => {
+    if (!v || typeof v !== "object") return null;
+    const l = v as Record<string, unknown>;
+    return typeof l.date === "string" && isNum(l.daysToExpiry)
+      ? { date: l.date, daysToExpiry: l.daysToExpiry }
+      : null;
+  };
+  const current = leg(o.current);
+  // No live futures in the master means no honest guidance to give.
+  if (!current) return undefined;
+  return {
+    horizonTradingDays: isNum(o.horizonTradingDays) ? o.horizonTradingDays : 21,
+    targetDate: typeof o.targetDate === "string" ? o.targetDate : "",
+    current,
+    next: leg(o.next),
+    matched: o.matched === "next" ? "next" : o.matched === "current" ? "current" : null,
   };
 }
 

@@ -330,3 +330,81 @@ def test_momentum_engine_drops_names_with_no_usable_close(gappy_panel):
     for f in get_engine("momentum").forecast_panel(gappy_panel, i, 21).values():
         assert np.isfinite(f.median_return) and np.isfinite(f.last_close)
         assert f.last_close > 0
+
+
+# --- which expiry a rank should be sold into ---------------------------------
+#
+# The ranking is a forward view over PRED_LEN trading days -- that is the only
+# horizon the walk-forward measured, so it is the only one the ranking says
+# anything about. A tab that says "sell puts" without naming a tenor leaves the
+# operator to guess, and the obvious guess (the nearest expiry) is wrong in the
+# last week of a series, when it is days away and the view is a month long.
+#
+# Dates come from the instrument master rather than a "last Thursday" rule: NSE
+# has moved its expiry weekday, and a hard-coded calendar would drift silently.
+
+
+REAL_EXPIRIES = ["2026-09-29", "2026-10-27", "2026-11-24"]
+
+
+def _chosen(today, expiries=REAL_EXPIRIES, pred_len=21):
+    from ranker.universe import choose_expiry
+
+    return choose_expiry(expiries, today, pred_len)
+
+
+def test_mid_series_the_current_expiry_matches_a_21_day_view():
+    r = _chosen("2026-09-12")
+    assert r["matched"] == "current"
+    assert r["current"]["date"] == "2026-09-29"
+    assert r["current"]["daysToExpiry"] == 17
+
+
+def test_close_to_expiry_it_rolls_to_next():
+    # 4 days from expiry, against a ~29-calendar-day horizon: selling the front
+    # series would be a different trade from the one that was measured.
+    r = _chosen("2026-09-25")
+    assert r["matched"] == "next"
+    assert r["current"]["daysToExpiry"] == 4
+    assert r["next"]["date"] == "2026-10-27"
+
+
+def test_an_expired_series_is_never_offered():
+    # Past dates must not appear as "current" the morning after expiry.
+    r = _chosen("2026-09-30")
+    assert r["current"]["date"] == "2026-10-27"
+    assert r["current"]["daysToExpiry"] > 0
+
+
+def test_both_sides_are_always_reported_not_just_the_match():
+    # The operator chooses; the payload states both and how far each is.
+    r = _chosen("2026-09-12")
+    assert r["current"] and r["next"]
+    assert r["horizonTradingDays"] == 21
+
+
+def test_a_longer_horizon_prefers_the_further_expiry():
+    # Guidance must follow PRED_LEN, not be hardcoded to the front month.
+    assert _chosen("2026-09-12", pred_len=45)["matched"] == "next"
+
+
+def test_it_degrades_rather_than_guessing_when_the_master_is_bare():
+    r = _chosen("2026-09-12", expiries=[])
+    assert r["current"] is None and r["matched"] is None
+    r2 = _chosen("2026-09-12", expiries=["2026-09-29"])
+    assert r2["next"] is None and r2["matched"] == "current"
+
+
+def test_live_expiries_takes_only_unexpired_single_stock_futures():
+    from ranker.universe import live_expiries
+
+    rows = [
+        {"segment": "NSE_FO", "instrument_type": "FUT", "asset_symbol": "RELIANCE", "expiry": "2026-09-29"},
+        {"segment": "NSE_FO", "instrument_type": "FUT", "asset_symbol": "TCS", "expiry": "2026-09-29"},
+        {"segment": "NSE_FO", "instrument_type": "FUT", "asset_symbol": "INFY", "expiry": "2026-10-27"},
+        {"segment": "NSE_FO", "instrument_type": "FUT", "asset_symbol": "SBIN", "expiry": "2026-08-25"},   # past
+        {"segment": "NSE_FO", "instrument_type": "CE", "asset_symbol": "WIPRO", "expiry": "2026-12-29"},   # option
+        {"segment": "NSE_EQ", "instrument_type": "EQ", "asset_symbol": "ITC", "expiry": "2026-12-29"},     # cash
+        {"segment": "NSE_FO", "instrument_type": "FUT", "asset_symbol": "NIFTY", "expiry": "2026-09-29"},  # index
+    ]
+    assert live_expiries(rows, "2026-09-12") == ["2026-09-29", "2026-10-27"]

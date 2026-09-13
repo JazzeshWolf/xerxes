@@ -371,3 +371,55 @@ describe("verdict when the engine is its own benchmark", () => {
     expect(v({})!.isOwnBenchmark).toBe(false);
   });
 });
+
+describe("expiry guidance", () => {
+  // "Sell puts" without a tenor is half an instruction. The ranking was measured
+  // over a fixed forward horizon, so an expiry far outside it is a different
+  // trade from the one the backtest scored.
+  const withExpiry = (e: unknown) => parseIndex({ ...payload(100), expiry: e })!.expiry;
+
+  it("parses both sides and the match", () => {
+    const g = withExpiry({
+      horizonTradingDays: 21,
+      targetDate: "2026-10-11",
+      current: { date: "2026-09-29", daysToExpiry: 17 },
+      next: { date: "2026-10-27", daysToExpiry: 45 },
+      matched: "current",
+    });
+    expect(g!.matched).toBe("current");
+    expect(g!.current.daysToExpiry).toBe(17);
+    expect(g!.next!.date).toBe("2026-10-27");
+  });
+
+  it("keeps a next-series match", () => {
+    const g = withExpiry({
+      horizonTradingDays: 21,
+      targetDate: "2026-10-24",
+      current: { date: "2026-09-29", daysToExpiry: 4 },
+      next: { date: "2026-10-27", daysToExpiry: 32 },
+      matched: "next",
+    });
+    expect(g!.matched).toBe("next");
+  });
+
+  it("drops guidance entirely when there is no live series", () => {
+    // Better to say nothing than to invent a tenor.
+    expect(withExpiry({ current: null, next: null, matched: null })).toBeUndefined();
+    expect(withExpiry(undefined)).toBeUndefined();
+  });
+
+  it("tolerates a missing next series", () => {
+    const g = withExpiry({
+      horizonTradingDays: 21,
+      targetDate: "2026-10-11",
+      current: { date: "2026-09-29", daysToExpiry: 17 },
+      next: null,
+      matched: "current",
+    });
+    expect(g!.next).toBeNull();
+  });
+
+  it("rejects a malformed leg rather than rendering a bad date", () => {
+    expect(withExpiry({ current: { date: "2026-09-29" }, matched: "current" })).toBeUndefined();
+  });
+});

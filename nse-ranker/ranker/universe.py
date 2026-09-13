@@ -171,6 +171,81 @@ def _expiry_iso(e) -> str | None:
         return None
 
 
+def live_expiries(instruments: list[dict], today_iso: str) -> list[str]:
+    """Distinct un-expired NSE_FO futures expiry dates, oldest first.
+
+    Read from the instrument master the universe is already derived from, so the
+    ranker never has to guess the exchange calendar. That matters: NSE has moved
+    its expiry weekday more than once, and a hard-coded "last Thursday" rule
+    would quietly drift wrong. These are the exchange's own dates.
+
+    Single-stock monthly expiries are common across names, so this is a
+    universe-level list rather than a per-symbol one.
+    """
+    out: set[str] = set()
+    for r in instruments:
+        if str(r.get("segment") or "").upper() != "NSE_FO":
+            continue
+        itype = str(r.get("instrument_type") or r.get("instrumentType") or "").upper()
+        if "FUT" not in itype:
+            continue
+        sym = str(r.get("asset_symbol") or r.get("assetSymbol") or r.get("name") or "").upper()
+        if not sym or sym in INDEX_UNDERLYINGS:
+            continue
+        e = _expiry_iso(r.get("expiry"))
+        if e is not None and e >= today_iso:
+            out.add(e)
+    return sorted(out)
+
+
+def choose_expiry(expiries: list[str], today_iso: str, pred_len: int) -> dict:
+    """Which expiry a `pred_len`-trading-day view should be sold into.
+
+    The ranking is a forward view over `pred_len` trading days -- that is the
+    horizon the walk-forward measured, so it is also the only horizon the ranking
+    says anything about. Selling an expiry far outside it means holding risk the
+    signal was never tested over.
+
+    Returns the two the operator actually chooses between (the nearest expiry and
+    the one after it), each with calendar days to expiry, plus which one sits
+    closest to the horizon. `matched` is guidance, not a recommendation -- the
+    caller states both and says how far each is.
+    """
+    import datetime as _dt
+
+    today = _dt.date.fromisoformat(today_iso)
+    # ~5 trading days per 7 calendar days. Approximate on purpose: the exact
+    # count depends on holidays we do not have a calendar for, and the number is
+    # only used to pick the nearer of two dates, never to price anything.
+    target = today + _dt.timedelta(days=round(pred_len * 7 / 5))
+
+    future = [e for e in expiries if e >= today_iso]
+    if not future:
+        return {"horizonTradingDays": pred_len, "targetDate": target.isoformat(),
+                "current": None, "next": None, "matched": None}
+
+    def block(iso: str) -> dict:
+        d = _dt.date.fromisoformat(iso)
+        return {"date": iso, "daysToExpiry": (d - today).days}
+
+    current = block(future[0])
+    nxt = block(future[1]) if len(future) > 1 else None
+
+    matched = "current"
+    if nxt is not None:
+        target_dte = (target - today).days
+        if abs(nxt["daysToExpiry"] - target_dte) < abs(current["daysToExpiry"] - target_dte):
+            matched = "next"
+
+    return {
+        "horizonTradingDays": pred_len,
+        "targetDate": target.isoformat(),
+        "current": current,
+        "next": nxt,
+        "matched": matched,
+    }
+
+
 def check_size(members: list[Member]) -> None:
     """Fail loudly on an implausible universe rather than ranking a broken one."""
     n = len(members)

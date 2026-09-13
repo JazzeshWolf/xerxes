@@ -35,7 +35,9 @@ from .ranking import deciles, percentiles, winsorize
 from .universe import (
     Member,
     check_size,
+    choose_expiry,
     derive_fo_universe,
+    live_expiries,
     load_sector_map,
     load_snapshots,
     save_snapshot,
@@ -54,7 +56,12 @@ def _now() -> str:
 # ---------------------------------------------------------------------------
 
 
-def load_universe(repo_root: str, today: str) -> list[Member]:
+def load_universe(repo_root: str, today: str, want_expiries: bool = False):
+    """The F&O universe, and optionally the exchange's live expiry dates.
+
+    The expiries come from the same instrument master the universe is derived
+    from, so the ranker never guesses the exchange calendar.
+    """
     sector_map = load_sector_map(repo_root)
     instruments = fetch_instruments()
     if not instruments:
@@ -67,6 +74,8 @@ def load_universe(repo_root: str, today: str) -> list[Member]:
         )
     members = derive_fo_universe(instruments, today, sector_map)
     check_size(members)
+    if want_expiries:
+        return members, live_expiries(instruments, today)
     return members
 
 
@@ -323,12 +332,17 @@ def run_daily(
         "engine": engine_name,
         "model": _model_label(engine_name, engine),
         "predLen": pred_len,
-        # A trailing factor has no forecast horizon; saying "21 trading days"
-        # over a 12-month lookback would be a plain lie in the UI.
-        "horizonLabel": (
-            engine.signal_window if engine.signal_kind == "factor"
-            else f"{pred_len} trading days"
-        ),
+        # The HOLDING horizon, forward -- not the signal's lookback. These are
+        # different things and conflating them loses the only number that says
+        # which expiry to sell: `walk_forward` scores against
+        # `forward_return(i, pred_len)`, so pred_len is what the ranking was
+        # measured over regardless of how far back the signal itself looks. The
+        # lookback lives in `signal.window`.
+        "horizonLabel": f"{pred_len} trading days",
+        # Which expiry a pred_len view should be sold into, from the exchange's
+        # own dates. Without this the tab says "sell puts" and leaves the
+        # operator to guess the tenor the ranking was never measured over.
+        "expiry": choose_expiry(expiries, panel.dates[i], pred_len),
         # What the published number MEANS. Without this the UI shows a trailing
         # 12-month return under a heading that says "Forecast".
         "signal": {

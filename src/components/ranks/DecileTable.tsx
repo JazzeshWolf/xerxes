@@ -1,6 +1,6 @@
 import { useMemo, useState } from "preact/hooks";
-import { decileGroups, leanTone, type RankerIndex, type RankerRow, type SkillState } from "../../lib/ranker";
-import { fmt, fmtPct } from "../../lib/format";
+import { decileGroups, leanTone, type ExpiryGuide, type RankerIndex, type RankerRow, type SkillState } from "../../lib/ranker";
+import { fmt, fmtExpiry, fmtPct } from "../../lib/format";
 import { Card, Badge } from "../ui";
 
 // ---------------------------------------------------------------------------
@@ -29,6 +29,49 @@ function LeanCell({ row, actionable }: { row: RankerRow; actionable: boolean }) 
       : "text-rose-300"
     : "text-white/45"; // unvalidated: never render a lean as a live instruction
   return <span className={cls}>{LEAN_LABEL[row.lean]}</span>;
+}
+
+/** Which expiry a rank should actually be sold into.
+ *
+ *  "Sell puts" without a tenor is not an instruction, it is half of one. The
+ *  ranking was measured over a fixed forward horizon, so an expiry far outside
+ *  that horizon is a different trade from the one the backtest scored — most
+ *  visibly in the last week of a series, when the front month is days away and
+ *  the view is a month long. */
+function ExpiryGuidance({ guide, actionable }: { guide: ExpiryGuide; actionable: boolean }) {
+  const pick = guide.matched === "next" && guide.next ? guide.next : guide.current;
+  const other = guide.matched === "next" ? guide.current : guide.next;
+  if (!pick) return null;
+  const label = guide.matched === "next" ? "Next expiry" : "Current expiry";
+
+  return (
+    <Card title="Which expiry">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className="text-sm font-semibold text-white/90">{fmtExpiry(pick.date)}</span>
+        <span className="text-[10px] text-white/45">
+          {label} · {pick.daysToExpiry}d out
+        </span>
+      </div>
+      <div className="text-[10px] text-white/45 mt-2 leading-relaxed">
+        The ranking is a <strong>{guide.horizonTradingDays} trading day</strong> view — that
+        is the horizon it was measured over, so it is the only one it speaks to.
+        {other && (
+          <>
+            {" "}The {guide.matched === "next" ? "current" : "next"} series
+            ({fmtExpiry(other.date)}, {other.daysToExpiry}d) is the other side of the
+            choice; it sits further from that horizon
+            {guide.matched === "next" && guide.current
+              ? " — the front month is too close to expiry to express a month-long view"
+              : ""}
+            .
+          </>
+        )}{" "}
+        Selling a tenor well outside the horizon is a different trade from the one
+        the backtest scored.
+        {!actionable && " None of this is validated yet — see the Skill tab."}
+      </div>
+    </Card>
+  );
 }
 
 export function DecileTable({
@@ -93,6 +136,8 @@ export function DecileTable({
           ))}
         </div>
       )}
+
+      {index.expiry && <ExpiryGuidance guide={index.expiry} actionable={state.actionable} />}
 
       {visible.map((g) => (
         <Card
