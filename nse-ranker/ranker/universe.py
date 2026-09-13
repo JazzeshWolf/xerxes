@@ -213,22 +213,34 @@ def choose_expiry(expiries: list[str], today_iso: str, pred_len: int) -> dict:
     """
     import datetime as _dt
 
-    today = _dt.date.fromisoformat(today_iso)
+    empty = {"horizonTradingDays": pred_len, "targetDate": None,
+             "current": None, "next": None, "matched": None}
+    try:
+        today = _dt.date.fromisoformat(today_iso[:10])
+    except (TypeError, ValueError):
+        # Guidance is a convenience sitting in the PUBLISH path. A malformed
+        # date must cost the card, never the run -- the ranking itself does not
+        # depend on knowing the expiry calendar.
+        return empty
     # ~5 trading days per 7 calendar days. Approximate on purpose: the exact
     # count depends on holidays we do not have a calendar for, and the number is
     # only used to pick the nearer of two dates, never to price anything.
     target = today + _dt.timedelta(days=round(pred_len * 7 / 5))
 
-    future = [e for e in expiries if e >= today_iso]
+    future = sorted(e for e in expiries if isinstance(e, str) and e >= today_iso)
     if not future:
-        return {"horizonTradingDays": pred_len, "targetDate": target.isoformat(),
-                "current": None, "next": None, "matched": None}
+        return {**empty, "targetDate": target.isoformat()}
 
-    def block(iso: str) -> dict:
-        d = _dt.date.fromisoformat(iso)
+    def block(iso: str) -> dict | None:
+        try:
+            d = _dt.date.fromisoformat(iso[:10])
+        except (TypeError, ValueError):
+            return None
         return {"date": iso, "daysToExpiry": (d - today).days}
 
     current = block(future[0])
+    if current is None:
+        return {**empty, "targetDate": target.isoformat()}
     nxt = block(future[1]) if len(future) > 1 else None
 
     matched = "current"

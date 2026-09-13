@@ -31,6 +31,44 @@ function LeanCell({ row, actionable }: { row: RankerRow; actionable: boolean }) 
   return <span className={cls}>{LEAN_LABEL[row.lean]}</span>;
 }
 
+type SortField = "rank" | "name" | "past" | "pctl";
+
+/** A tappable column header.
+ *
+ *  The active field is brightened and the rest dimmed — the same convention the
+ *  stock screener uses, added there because a bold badge on an inactive column
+ *  made sorted lists look wrong. */
+function SortHead({
+  field,
+  active,
+  dir,
+  onSort,
+  right,
+  children,
+}: {
+  field: SortField;
+  active: SortField;
+  dir: "asc" | "desc";
+  onSort: (f: SortField) => void;
+  right?: boolean;
+  children: preact.ComponentChildren;
+}) {
+  const on = active === field;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(field)}
+      className={`uppercase tracking-wide active:opacity-60 ${right ? "text-right" : "text-left"} ${
+        on ? "text-white/70 font-semibold" : "text-white/35"
+      }`}
+      aria-label={`Sort by ${field}`}
+    >
+      {children}
+      {on && <span className="ml-0.5">{dir === "asc" ? "\u2191" : "\u2193"}</span>}
+    </button>
+  );
+}
+
 /** Which expiry a rank should actually be sold into.
  *
  *  "Sell puts" without a tenor is not an instruction, it is half of one. The
@@ -85,6 +123,21 @@ export function DecileTable({
 }) {
   const [q, setQ] = useState("");
   const [only, setOnly] = useState<"all" | "edges">("edges");
+  // Sorting reorders WITHIN each decile, never across them. The decile is the
+  // product here — dissolving it into one flat list on a column tap would show
+  // a ranking the model never produced.
+  const [sort, setSort] = useState<SortField>("rank");
+  const [dir, setDir] = useState<"asc" | "desc">("asc");
+
+  const onSort = (f: SortField) => {
+    if (f === sort) {
+      setDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSort(f);
+    // Sensible first press per field: best-first for the numbers, A→Z for names.
+    setDir(f === "name" || f === "rank" ? "asc" : "desc");
+  };
   // A factor engine's number is a TRAILING return. Heading it "Fcst" reads as a
   // prediction, which is how a name that just crashed appears to be forecast
   // +109%: the 12-1 window ends a month ago and cannot see the fall.
@@ -93,9 +146,28 @@ export function DecileTable({
   const groups = useMemo(() => decileGroups(index.rows), [index.rows]);
   const needle = q.trim().toUpperCase();
 
+  const sorted = useMemo(
+    () =>
+      groups.map((g) => ({
+        ...g,
+        rows: [...g.rows].sort((a, b) => {
+          const c =
+            sort === "name"
+              ? a.symbol.localeCompare(b.symbol)
+              : sort === "past"
+                ? a.forecastReturn - b.forecastReturn
+                : sort === "pctl"
+                  ? a.percentile - b.percentile
+                  : a.rank - b.rank;
+          return dir === "asc" ? c : -c;
+        }),
+      })),
+    [groups, sort, dir],
+  );
+
   const visible = useMemo(() => {
     if (needle) {
-      return groups
+      return sorted
         .map((g) => ({
           ...g,
           rows: g.rows.filter(
@@ -107,8 +179,8 @@ export function DecileTable({
     // Default to the two ends of the book: the middle deciles carry no lean and
     // scrolling ~190 rows to reach them helps nobody.
     const EDGE_DECILES = new Set([10, 9, 2, 1]);
-    return only === "edges" ? groups.filter((g) => EDGE_DECILES.has(g.decile)) : groups;
-  }, [groups, needle, only]);
+    return only === "edges" ? sorted.filter((g) => EDGE_DECILES.has(g.decile)) : sorted;
+  }, [sorted, needle, only]);
 
   return (
     <>
@@ -151,12 +223,20 @@ export function DecileTable({
           }
         >
           <div className="space-y-0.5">
-            <div className="grid grid-cols-[28px_1fr_54px_44px_64px] gap-1.5 text-[9px] uppercase tracking-wide text-white/35 px-1 pb-1">
-              <span>#</span>
-              <span>Name</span>
-              <span className="text-right">{factor ? "Past 12m" : "Fcst"}</span>
-              <span className="text-right">Pctl</span>
-              <span className="text-right">Action</span>
+            <div className="grid grid-cols-[28px_1fr_54px_44px_64px] gap-1.5 text-[9px] uppercase tracking-wide px-1 pb-1">
+              <SortHead field="rank" active={sort} dir={dir} onSort={onSort}>
+                #
+              </SortHead>
+              <SortHead field="name" active={sort} dir={dir} onSort={onSort}>
+                Name
+              </SortHead>
+              <SortHead field="past" active={sort} dir={dir} onSort={onSort} right>
+                {factor ? "Past 12m" : "Fcst"}
+              </SortHead>
+              <SortHead field="pctl" active={sort} dir={dir} onSort={onSort} right>
+                Pctl
+              </SortHead>
+              <span className="text-right text-white/35">Action</span>
             </div>
             {g.rows.map((r) => (
               <button

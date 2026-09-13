@@ -408,3 +408,16 @@ def test_live_expiries_takes_only_unexpired_single_stock_futures():
         {"segment": "NSE_FO", "instrument_type": "FUT", "asset_symbol": "NIFTY", "expiry": "2026-09-29"},  # index
     ]
     assert live_expiries(rows, "2026-09-12") == ["2026-09-29", "2026-10-27"]
+
+
+def test_expiry_guidance_never_takes_down_a_publish():
+    # It is a convenience in the PUBLISH path; the ranking does not depend on
+    # knowing the calendar. A bad date must cost the card, not the run.
+    from ranker.universe import choose_expiry
+
+    for bad_today in ("2024-15-40", "", "not-a-date", None):
+        r = choose_expiry(REAL_EXPIRIES, bad_today, 21)
+        assert r["current"] is None and r["matched"] is None
+
+    r = choose_expiry(["garbage", "2026-10-27"], "2026-09-12", 21)
+    assert r["current"] is None or r["current"]["date"] == "2026-10-27"

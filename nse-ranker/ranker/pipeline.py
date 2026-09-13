@@ -287,7 +287,7 @@ def run_daily(
     today = dt.date.today().isoformat()
     print(f"[daily] {today} engine={engine_name}")
 
-    members = load_universe(repo_root, today)
+    members, expiries = load_universe(repo_root, today, want_expiries=True)
     if universe_limit:
         # Smoke tests only. Never in production: cutting the universe trades away
         # breadth, which is the edge.
