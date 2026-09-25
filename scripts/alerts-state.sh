@@ -23,7 +23,7 @@ case "${1:-}" in
     if git clone --quiet --depth 1 --branch "$BRANCH" "$URL" "$DIR" 2>/dev/null; then
       echo "alerts-state: $(ls "$DIR"/*.json 2>/dev/null | xargs -n1 basename | tr '\n' ' ')"
     else
-      echo "alerts-state branch does not exist yet — first run will arm (one silent summary)."
+      echo "alerts-state branch does not exist yet — first run will arm (one summary message)."
       git init --quiet -b "$BRANCH" "$DIR"
       git -C "$DIR" remote add origin "$URL"
     fi

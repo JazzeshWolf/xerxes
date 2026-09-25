@@ -4,7 +4,12 @@ name: Send test alert
 # alert" → Run workflow. The bot should reply "Xerxes alerts connected".
 # A red run means the token or chat ID is wrong, or the bot was never started.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      mock:
+        description: "Also send a mock stock + index alert (labelled MOCK)"
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -24,3 +29,4 @@ jobs:
             exit 1
           fi
           node scripts/alerts.mjs --test
+          if [ "${{ inputs.mock }}" = "true" ]; then node scripts/alerts.mjs --mock; fi

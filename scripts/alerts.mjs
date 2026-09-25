@@ -265,6 +265,29 @@ export function bumpDay(state, events, today, nowIso) {
   return { ...state, day, lastRunAt: nowIso };
 }
 
+/** Invented sample for `--mock`: three stocks (71, 76, 72) and three index
+ *  options (60, 63, 65) crossing the bar. */
+export function mockEvents() {
+  const stock = (symbol, strike, type, conviction, ltp, lot) => ({ kind: "NEW", row: {
+    source: "stocks", symbol, expiry: "2026-10-27", strike, type, conviction, ltp, lot,
+    credit: Math.round(ltp * lot), kind: "Monthly" } });
+  const index = (symbol, expiry, strike, type, conviction, ltp, lot, kind) => ({ kind: "NEW", row: {
+    source: "indices", symbol, expiry, strike, type, conviction, ltp, lot,
+    credit: Math.round(ltp * lot), kind } });
+  return [
+    ["stocks", 70, [
+      stock("WIPRO", 190, "CE", 71, 1.09, 3000),
+      stock("IEX", 125, "CE", 76, 1.32, 4350),
+      stock("BANKBARODA", 250, "CE", 72, 2.5, 2925),
+    ].sort((a, b) => b.row.conviction - a.row.conviction)],
+    ["indices", 60, [
+      index("NIFTY", "2026-10-27", 21600, "PE", 65, 48.7, 65, "Monthly"),
+      index("SENSEX", "2026-10-01", 76000, "CE", 63, 250, 20, "Weekly"),
+      index("BANKNIFTY", "2026-10-27", 52000, "PE", 60, 112.4, 30, "Monthly"),
+    ]],
+  ];
+}
+
 // --- I/O --------------------------------------------------------------------
 
 async function sendTelegram(text) {
@@ -299,6 +322,17 @@ async function main() {
   const dry = process.env.ALERTS_DRY_RUN === "1";
   if (!dry && (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID)) {
     console.log("::warning::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set — alerts skipped.");
+    return;
+  }
+  if (process.argv.includes("--mock")) {
+    // Rendered by the real formatter so the owner sees exactly what a live
+    // alert looks and sounds like. Contracts and prices are invented.
+    const when = istTime(new Date());
+    for (const [source, threshold, events] of mockEvents()) {
+      const [m] = formatMessages(events, { source, threshold, when });
+      await sendTelegram("🧪 <b>MOCK ALERT (test only, not real)</b>\n\n" + m);
+    }
+    console.log("Mock alerts sent.");
     return;
   }
   if (process.argv.includes("--test")) {
