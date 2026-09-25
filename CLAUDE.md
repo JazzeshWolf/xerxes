@@ -511,7 +511,12 @@ silent messages (2026-09-25), score moves included. Don't reintroduce
 **variables** `ALERT_MIN_CONV_STOCK` / `ALERT_MIN_CONV_INDEX`. Stock alerts mark
 ⭐ 75+ / 🔥 80+; index NEW alerts carry an "unproven" line, because 60+ index
 rests on a handful of settled trades (see the backlog's Conviction Book note).
-Manual check: Actions → **Send test alert**.
+Messages are laid out as **monospace tables** (`<pre>` blocks — Telegram has
+no table markup): one per section (NEW / MOVED / NO LONGER TRACKED), rows
+grouped under a divider per expiry, sized to ~35 chars so a phone held upright
+doesn't wrap them. Emoji only at a row's end — their double width would shift
+any column after them. Manual check: Actions → **Send test alert** (tick
+*mock* to see a sample alert).
 
 Things that will bite:
 - **Entry is displayed-list only; tracking is not.** A stock that leaves the

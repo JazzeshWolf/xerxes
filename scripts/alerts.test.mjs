@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay, tierMark,
+  isMonthly, table, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay, tierMark,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -156,12 +156,13 @@ describe("formatting", () => {
   });
 
   it("escapes HTML and splits under Telegram's length cap", () => {
-    const events = Array.from({ length: 80 }, (_, i) => ({ kind: "NEW", row: row({ strike: 100 + i, symbol: "M&M" }) }));
+    const events = Array.from({ length: 200 }, (_, i) => ({ kind: "NEW", row: row({ strike: 100 + i, symbol: "M&M" }) }));
     const msgs = formatMessages(events, { source: "stocks", threshold: 70, when: "10:40" });
     expect(msgs.length).toBeGreaterThan(1);
     for (const m of msgs) expect(m.length).toBeLessThanOrEqual(4096);
     expect(msgs[0]).toContain("M&amp;M");
-    expect(msgs.join("").match(/🔔 NEW/g)).toHaveLength(80);
+    expect(msgs.join("").match(/M&amp;M \d+CE/g)).toHaveLength(200);
+    for (const m of msgs) expect((m.match(/<pre>/g) ?? []).length).toBe((m.match(/<\/pre>/g) ?? []).length);
   });
 
   it("carries the unproven caveat on new index alerts only", () => {
@@ -174,9 +175,31 @@ describe("formatting", () => {
   it("arming lists the starting set, and says so when it is empty", () => {
     const armed = formatMessages([{ kind: "NEW", row: row() }], { source: "stocks", threshold: 70, when: "09:20", armed: true });
     expect(armed[0]).toContain("Alerts armed");
-    expect(armed[0]).toContain("WIPRO 190 CE");
+    expect(armed[0]).toContain("WIPRO 190CE");
     expect(formatMessages([], { source: "stocks", threshold: 70, when: "09:20", armed: true })[0]).toContain("Nothing above the bar");
     expect(formatMessages([], { source: "stocks", threshold: 70, when: "09:20" })).toEqual([]);
+  });
+
+  it("lays rows out as aligned columns, dividers and end-of-row marks outside the grid", () => {
+    const t = table(["Contract", "Conv"], [
+      { divider: "── 27 Oct ──" },
+      { cells: ["IEX 125CE", 76], mark: "⭐" },
+      { cells: ["BANKBARODA 250CE", 72] },
+    ], ["l", "r"]).split("\n");
+    expect(t).toEqual([
+      "Contract         Conv",
+      "── 27 Oct ──",
+      "IEX 125CE          76 ⭐",
+      "BANKBARODA 250CE   72",
+    ]);
+  });
+
+  it("groups each section by expiry, earliest first", () => {
+    const [m] = formatMessages([
+      { kind: "NEW", row: row({ expiry: "2026-10-27", strike: 190 }) },
+      { kind: "NEW", row: row({ expiry: "2026-09-29", strike: 180 }) },
+    ], { source: "stocks", threshold: 70, when: "10:40" });
+    expect(m.indexOf("29 Sep")).toBeLessThan(m.indexOf("27 Oct"));
   });
 
   it("heartbeat warns when a feed ran zero times today", () => {

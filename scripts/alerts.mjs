@@ -182,8 +182,6 @@ export function diff(tracked, current, { threshold, today, isFresh }) {
 // --- formatting -------------------------------------------------------------
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const rupee = (n) => "₹" + Math.round(n).toLocaleString("en-IN");
-const price = (n) => "₹" + Number(n).toFixed(2);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dm = (iso) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
 
@@ -192,24 +190,70 @@ export function tierMark(source, conv) {
   return conv >= 80 ? "🔥" : conv >= 75 ? "⭐" : "";
 }
 
-function contract(r) {
-  const kind = r.source === "indices" ? ` (${r.kind.toLowerCase()})` : "";
-  return `<b>${esc(r.symbol)} ${r.strike} ${r.type}</b> · ${dm(r.expiry)}${kind}`;
+// Telegram has no table markup, so each section is a <pre> block with padded
+// columns: monospace keeps them aligned. Rows are kept to ~34 characters so
+// they fit a phone held upright without wrapping, which would break the
+// alignment. Emoji go only at a row's END, where their double width can't
+// shift a later column.
+
+const ROWS_PER_BLOCK = 30;
+
+/** Render rows as an aligned monospace table. `align` is "l"/"r" per column. */
+export function table(head, rows, align) {
+  const all = [head, ...rows.filter((r) => r.cells).map((r) => r.cells)];
+  const w = head.map((_, i) => Math.max(...all.map((r) => String(r[i]).length)));
+  const fmt = (cells) =>
+    cells.map((c, i) => (align[i] === "r" ? String(c).padStart(w[i]) : String(c).padEnd(w[i]))).join(" ").trimEnd();
+  return [fmt(head), ...rows.map((r) => {
+    if (r.divider) return r.divider;
+    return fmt(r.cells) + (r.mark ? " " + r.mark : "");
+  })].join("\n");
 }
 
-function line(e, threshold) {
-  const r = e.row;
-  const mark = tierMark(r.source, r.conviction);
-  switch (e.kind) {
-    case "NEW":
-      return `🔔 NEW ${mark}${r.conviction}  ${contract(r)}\n      ${price(r.ltp)} · lot ${r.lot} · credit ${rupee(r.credit)}`;
-    case "MOVED":
-      return `${r.conviction > e.from ? "⬆️" : "⬇️"} ${e.from} → ${mark}${r.conviction}  ${contract(r)} · ${price(r.ltp)}`;
-    case "DROPPED":
-      return `🔻 ${e.from} → ${r.conviction}  ${contract(r)} · ${price(r.ltp)}\n      below ${threshold}, no longer tracked`;
-    case "LEFT":
-      return `🚪 ${contract(r)} · last score ${e.from}\n      ${e.expiring ? "expires today" : "no longer on the list"}, no longer tracked`;
+const num = (n) => (n >= 1000 ? Math.round(n).toLocaleString("en-IN") : Number(n).toFixed(2));
+const lakh = (n) => Math.round(n).toLocaleString("en-IN");
+const ctr = (r) => `${r.symbol} ${r.strike}${r.type}`;
+const expiryLabel = (r) => `${dm(r.expiry)}${r.source === "indices" ? ` · ${r.kind.toLowerCase()}` : ""}`;
+
+/** Rows grouped under a "── 27 Oct · monthly ──" divider per expiry. */
+function grouped(events, cells) {
+  const byExp = new Map();
+  for (const e of events) {
+    const k = expiryLabel(e.row);
+    if (!byExp.has(k)) byExp.set(k, []);
+    byExp.get(k).push(e);
   }
+  const rows = [];
+  for (const [label, evs] of [...byExp].sort((x, y) => x[1][0].row.expiry.localeCompare(y[1][0].row.expiry))) {
+    rows.push({ divider: `── ${label} ──` });
+    for (const e of evs) rows.push(cells(e));
+  }
+  return rows;
+}
+
+function sections(events, threshold) {
+  const pick = (...kinds) => events.filter((e) => kinds.includes(e.kind));
+  const out = [];
+  const add = (title, head, align, rows) => {
+    if (!rows.length) return;
+    // Long sections become several <pre> blocks so a message split never
+    // lands inside one.
+    for (let i = 0; i < rows.length; i += ROWS_PER_BLOCK) {
+      const part = rows.slice(i, i + ROWS_PER_BLOCK);
+      out.push(`${i === 0 ? title : title + " (cont.)"}\n<pre>${esc(table(head, part, align))}</pre>`);
+    }
+  };
+  const nw = pick("NEW");
+  add(`🔔 <b>NEW</b> (${nw.length})`, ["Contract", "Conv", "Prem", "₹/lot"], ["l", "r", "r", "r"],
+    grouped(nw, (e) => ({ cells: [ctr(e.row), e.row.conviction, num(e.row.ltp), lakh(e.row.credit)], mark: tierMark(e.row.source, e.row.conviction) })));
+  const mv = pick("MOVED");
+  add(`↕️ <b>MOVED</b> (${mv.length})`, ["Contract", "Was", "Now", "Prem"], ["l", "r", "r", "r"],
+    grouped(mv, (e) => ({ cells: [ctr(e.row), e.from, e.row.conviction, num(e.row.ltp)], mark: e.row.conviction > e.from ? "⬆️" : "⬇️" })));
+  const ex = pick("DROPPED", "LEFT");
+  add(`🔻 <b>NO LONGER TRACKED</b> (${ex.length})`, ["Contract", "Was", "Now", "Why"], ["l", "r", "r", "l"],
+    grouped(ex, (e) => ({ cells: [ctr(e.row), e.from, e.kind === "DROPPED" ? e.row.conviction : "–",
+      e.kind === "DROPPED" ? `<${threshold}` : e.expiring ? "expiry" : "off list"] })));
+  return out;
 }
 
 /** One message per run (split only if Telegram's length cap forces it). */
@@ -223,35 +267,37 @@ export function formatMessages(events, { source, threshold, when, armed = false 
       : "✅ Alerts armed. Nothing above the bar right now.");
   if (source === "indices" && events.some((e) => e.kind === "NEW"))
     header.push("<i>⚠ Index 60+ tier: few settled results so far, still unproven</i>");
-  const body = events.map((e) => line(e, threshold));
+  if (source === "stocks" && events.some((e) => e.kind === "NEW" && e.row.conviction >= 75))
+    header.push("<i>⭐ 75+   🔥 80+</i>");
   const footer = `<a href="${SCREENER_URL}">Open screener</a>`;
   const out = [];
-  let cur = header.join("\n") + "\n";
-  for (const l of body) {
-    if (cur.length + l.length + footer.length + 4 > TG_LIMIT) {
+  let cur = header.join("\n");
+  for (const block of sections(events, threshold)) {
+    if (cur.length + block.length + footer.length + 4 > TG_LIMIT) {
       out.push(cur.trimEnd());
-      cur = header[0] + " (cont.)\n";
+      cur = header[0] + " (cont.)";
     }
-    cur += "\n" + l;
+    cur += "\n\n" + block;
   }
   out.push(cur.trimEnd() + "\n\n" + footer);
   return out;
 }
 
 export function formatHeartbeat(stocksState, indicesState, today) {
-  const part = (label, s) => {
+  const row = (label, s) => {
     const d = s?.day?.date === today ? s.day : { runs: 0, NEW: 0, MOVED: 0, DROPPED: 0, LEFT: 0 };
-    const n = Object.keys(s?.tracked ?? {}).length;
-    const last = d.runs && s?.lastRunAt ? ` · last ${istTime(new Date(s.lastRunAt))}` : "";
-    return `${label}: ${d.runs} runs checked${last} · ${d.NEW} new, ${d.MOVED} moves, ${d.DROPPED + d.LEFT} exits · ${n} tracked now`;
+    return { cells: [label, d.runs, d.NEW, d.MOVED, d.DROPPED + d.LEFT, Object.keys(s?.tracked ?? {}).length] };
   };
+  const last = (s) => (s?.day?.date === today && s.lastRunAt ? istTime(new Date(s.lastRunAt)) : "—");
   const s = stocksState?.day?.date === today ? stocksState.day.runs : 0;
   const i = indicesState?.day?.date === today ? indicesState.day.runs : 0;
   const ok = s > 0 && i > 0;
+  const t = table(["", "Runs", "New", "Moves", "Exits", "Now"], [row("Stocks", stocksState), row("Indices", indicesState)],
+    ["l", "r", "r", "r", "r", "r"]);
   return [
     `${ok ? "✓" : "⚠️"} <b>Xerxes alerts · end of day ${dm(today)}</b>`,
-    part("Stocks", stocksState),
-    part("Indices", indicesState),
+    `<pre>${esc(t)}</pre>`,
+    `Last run: stocks ${last(stocksState)} · indices ${last(indicesState)} IST`,
     ok ? "" : "\nOne feed ran zero times today — check cron-job.org and the Actions tab.",
   ].join("\n").trimEnd();
 }
