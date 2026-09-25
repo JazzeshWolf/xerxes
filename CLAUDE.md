@@ -517,6 +517,25 @@ don't delete it without a separate decision to do so.
   this one is not, and no test pins it. Decide whether it's intentional and then
   either comment it or pass the real value.
 - Build-time warning when the Upstox token is near expiry.
+- **Conviction Book** (deferred 2026-09-25) — a daily performance record of the
+  screener's own top candidates, meant for the route slot the Ranks tile vacated.
+  Reference design: the hand-built "September conviction book" artifact. Worked
+  out before it was parked:
+  - **Displayed list only** — `candidates.json → expiries[].candidates` (top 24 per
+    slot), never the full scored universe, which is ~4× larger and reads better.
+    One position per contract, entered the first day it shows at conviction ≥ 60.
+  - Take only the **settlement** (`intrinsic`) from the archive's
+    `state/outcomes.jsonl`; its `entry_ltp` is from the first day a strike was
+    *scored*, not displayed. An expired contract with no outcome row is "pending",
+    never a mark.
+  - The hand-built "cleared 60" column counts **new** contracts (18 Sep: 8 of 48
+    rows ≥ 60, 1 new). Label it that way.
+  - On the displayed list, settled to date: 70+ = 20 contracts, 1 ITM, +5.28% mean,
+    worst −2.71%. The "every top-band trade won" claim holds only on the full universe.
+  - Open question: the archive is private and Pages is public. Leaning: a daily
+    `book.yml` here reading the archive with a **read-only deploy key**, publishing
+    to an orphan `book-data` branch. That makes the daily-list history public —
+    needs a yes first.
 - Optional: deploy the Cloudflare Worker (`worker/`) to enable true on-demand
   in-app refresh (steps in `worker/README.md`).
 
