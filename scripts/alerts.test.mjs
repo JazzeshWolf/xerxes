@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, isLoud, bumpDay, tierMark,
+  isMonthly, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay, tierMark,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -148,11 +148,6 @@ describe("collectStocks", () => {
 });
 
 describe("formatting", () => {
-  it("is loud for entries and exits, silent for pure drift", () => {
-    expect(isLoud([{ kind: "MOVED" }])).toBe(false);
-    expect(isLoud([{ kind: "MOVED" }, { kind: "DROPPED" }])).toBe(true);
-  });
-
   it("marks stock tiers but never index ones", () => {
     expect(tierMark("stocks", 80)).toBe("🔥");
     expect(tierMark("stocks", 76)).toBe("⭐");

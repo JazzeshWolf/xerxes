@@ -6,10 +6,13 @@
 // the `alerts-state` branch and sends ONE Telegram message with everything that
 // changed:
 //
-//   NEW      crossed the threshold (stocks >= 70, indices >= 60) — loud
-//   MOVED    tracked, still above, score changed                 — silent
-//   DROPPED  tracked, fell below the threshold → untracked       — loud
-//   LEFT     tracked, no longer scored at all → untracked        — loud
+//   NEW      crossed the threshold (stocks >= 70, indices >= 60)
+//   MOVED    tracked, still above, score changed
+//   DROPPED  tracked, fell below the threshold → untracked
+//   LEFT     tracked, no longer scored at all → untracked
+//
+// Every message notifies with sound — the owner asked for no silent messages,
+// score moves included.
 //
 // Entry is gated on the DISPLAYED list only (stocks: candidates.json top 24 per
 // expiry; indices: each expiry's candidate list). Once tracked, a stock is
@@ -18,7 +21,7 @@
 //
 // Delivery is at-least-once: state is written only after Telegram accepts the
 // message, so a failed send is retried by the next run instead of vanishing.
-// A missing state file "arms" instead: one silent message listing what is
+// A missing state file "arms" instead: one message listing what is
 // already above the bar, so switching alerts on neither floods nor hides it.
 //
 // The pure pieces (collect*, diff, format*, isMonthly) are unit-tested in
@@ -235,9 +238,6 @@ export function formatMessages(events, { source, threshold, when, armed = false 
   return out;
 }
 
-/** Only entries and exits deserve a buzz; score drift arrives silently. */
-export const isLoud = (events) => events.some((e) => e.kind !== "MOVED");
-
 export function formatHeartbeat(stocksState, indicesState, today) {
   const part = (label, s) => {
     const d = s?.day?.date === today ? s.day : { runs: 0, NEW: 0, MOVED: 0, DROPPED: 0, LEFT: 0 };
@@ -267,9 +267,9 @@ export function bumpDay(state, events, today, nowIso) {
 
 // --- I/O --------------------------------------------------------------------
 
-async function sendTelegram(text, { silent }) {
+async function sendTelegram(text) {
   if (process.env.ALERTS_DRY_RUN === "1") {
-    console.log(`--- ${silent ? "silent" : "LOUD"} message ---\n${text}\n`);
+    console.log(`--- message ---\n${text}\n`);
     return;
   }
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -279,7 +279,7 @@ async function sendTelegram(text, { silent }) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chat, text, parse_mode: "HTML",
-      disable_notification: !!silent, disable_web_page_preview: true,
+      disable_web_page_preview: true,
     }),
   });
   const body = await res.json().catch(() => ({}));
@@ -302,7 +302,7 @@ async function main() {
     return;
   }
   if (process.argv.includes("--test")) {
-    await sendTelegram("✅ <b>Xerxes alerts connected</b>\nThis chat will receive conviction alerts.", { silent: false });
+    await sendTelegram("✅ <b>Xerxes alerts connected</b>\nThis chat will receive conviction alerts.");
     console.log("Test message sent.");
     return;
   }
@@ -354,16 +354,16 @@ async function main() {
 
   let state = { version: 1, ...(prev ?? {}), tracked, lastAsOf: asOfUpdate };
   if (!prev) {
-    // First ever run: announce the starting set in ONE silent message rather
+    // First ever run: announce the starting set in ONE message rather
     // than a loud NEW per contract, so switching alerts on never floods — but
     // nothing already above the bar is swallowed either.
     const msgs = formatMessages(events, { source, threshold, when: istTime(now), armed: true });
-    for (const m of msgs) await sendTelegram(m, { silent: true });
+    for (const m of msgs) await sendTelegram(m);
     console.log(`First run for ${source}: armed, tracking ${Object.keys(tracked).length} contracts at ≥ ${threshold}.`);
     state = bumpDay(state, [], today, now.toISOString());
   } else {
     const msgs = formatMessages(events, { source, threshold, when: istTime(now) });
-    for (const m of msgs) await sendTelegram(m, { silent: !isLoud(events) });
+    for (const m of msgs) await sendTelegram(m);
     const tally = events.reduce((a, e) => ((a[e.kind] = (a[e.kind] ?? 0) + 1), a), {});
     console.log(`${source}: ${events.length} events ${JSON.stringify(tally)}, ${Object.keys(tracked).length} tracked, ${msgs.length} message(s) sent.`);
     state = bumpDay(state, events, today, now.toISOString());
@@ -374,7 +374,7 @@ async function main() {
   // stock job stops, the heartbeat stops too — which is the signal.
   if (source === "stocks" && istMinutes(now) >= CLOSE_IST_MINUTES && state.heartbeatDate !== today) {
     const indicesState = readJson(resolve(stateDir, "indices.json"));
-    await sendTelegram(formatHeartbeat(state, indicesState, today), { silent: true });
+    await sendTelegram(formatHeartbeat(state, indicesState, today));
     state.heartbeatDate = today;
     console.log("Heartbeat sent.");
   }
