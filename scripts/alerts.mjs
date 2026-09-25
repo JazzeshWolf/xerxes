@@ -210,69 +210,100 @@ export function table(head, rows, align) {
   })].join("\n");
 }
 
-const num = (n) => (n >= 1000 ? Math.round(n).toLocaleString("en-IN") : Number(n).toFixed(2));
+const num = (n) => (n >= 1000 ? Math.round(n).toLocaleString("en-IN") : String(Number(Number(n).toFixed(2))));
 const lakh = (n) => Math.round(n).toLocaleString("en-IN");
-const ctr = (r) => `${r.symbol} ${r.strike}${r.type}`;
-const expiryLabel = (r) => `${dm(r.expiry)}${r.source === "indices" ? ` · ${r.kind.toLowerCase()}` : ""}`;
+const daysLeft = (expiry, today) =>
+  Math.round((Date.parse(expiry + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400000);
 
-/** Rows grouped under a "── 27 Oct · monthly ──" divider per expiry. */
-function grouped(events, cells) {
-  const byExp = new Map();
-  for (const e of events) {
-    const k = expiryLabel(e.row);
-    if (!byExp.has(k)) byExp.set(k, []);
-    byExp.get(k).push(e);
-  }
-  const rows = [];
-  for (const [label, evs] of [...byExp].sort((x, y) => x[1][0].row.expiry.localeCompare(y[1][0].row.expiry))) {
-    rows.push({ divider: `── ${label} ──` });
-    for (const e of evs) rows.push(cells(e));
-  }
-  return rows;
+/**
+ * One card per (underlying, expiry): a bold header outside the grid, then a
+ * single <pre> holding NEW / OUT / MOVED sections whose columns line up with
+ * each other. Strike + type is the row key — symbol and expiry live in the
+ * header, which is what keeps rows short enough for a phone.
+ */
+function card(events, { threshold, today }) {
+  const r0 = events[0].row;
+  const dte = daysLeft(r0.expiry, today);
+  const kind = r0.source === "indices" ? ` · ${r0.kind.toLowerCase()}` : "";
+  const head = `<b>${esc(r0.symbol)} · ${dm(r0.expiry)}</b>${kind} · ${dte <= 0 ? "expires today" : `${dte}d left`} · lot ${lakh(r0.lot)}`;
+
+  const nw = events.filter((e) => e.kind === "NEW");
+  const out = events.filter((e) => e.kind === "DROPPED" || e.kind === "LEFT");
+  const mv = events.filter((e) => e.kind === "MOVED");
+  const key = (r) => `${r.strike} ${r.type}`;
+  const reason = (e) => (e.kind === "DROPPED" ? `below ${threshold}` : e.expiring ? "expiry" : "off list");
+  const outConv = (e) => (e.kind === "DROPPED" ? `${e.from}>${e.row.conviction}` : `${e.from}>–`);
+
+  // Column widths shared by all three sections, so the card reads as one grid.
+  const c1 = Math.max(5, ...events.map((e) => key(e.row).length));
+  const c2 = Math.max(4, ...nw.map((e) => String(e.row.conviction).length),
+    ...mv.map((e) => `${e.from}>${e.row.conviction}`.length), ...out.map((e) => outConv(e).length));
+  const c3 = Math.max(4, ...[...nw, ...mv].map((e) => num(e.row.ltp).length));
+  const c4 = Math.max(6, ...nw.map((e) => lakh(e.row.credit).length));
+  const L = (v, w) => String(v).padEnd(w);
+  const R = (v, w) => String(v).padStart(w);
+  const line = (...parts) => parts.join(" ").trimEnd();
+
+  const blocks = [];
+  if (nw.length) blocks.push([
+    line(L("NEW", c1), R("CONV", c2), R("PREM", c3), R("CREDIT", c4)),
+    ...nw.map((e) => {
+      const mark = tierMark(e.row.source, e.row.conviction);
+      return line(L(key(e.row), c1), R(e.row.conviction, c2), R(num(e.row.ltp), c3), R(lakh(e.row.credit), c4)) + (mark ? " " + mark : "");
+    }),
+  ]);
+  if (out.length) blocks.push([
+    line(L("OUT", c1), R("CONV", c2), "REASON"),
+    ...out.map((e) => line(L(key(e.row), c1), R(outConv(e), c2), reason(e))),
+  ]);
+  if (mv.length) blocks.push([
+    line(L("MOVED", c1), R("CONV", c2), R("PREM", c3), R("CHG", c4)),
+    ...mv.map((e) => {
+      const d = e.row.conviction - e.from;
+      return line(L(key(e.row), c1), R(`${e.from}>${e.row.conviction}`, c2), R(num(e.row.ltp), c3), R((d > 0 ? "+" : "") + d, c4));
+    }),
+  ]);
+  return `${head}\n<pre>${esc(blocks.map((b) => b.join("\n")).join("\n\n"))}</pre>`;
 }
 
-function sections(events, threshold) {
-  const pick = (...kinds) => events.filter((e) => kinds.includes(e.kind));
-  const out = [];
-  const add = (title, head, align, rows) => {
-    if (!rows.length) return;
-    // Long sections become several <pre> blocks so a message split never
-    // lands inside one.
-    for (let i = 0; i < rows.length; i += ROWS_PER_BLOCK) {
-      const part = rows.slice(i, i + ROWS_PER_BLOCK);
-      out.push(`${i === 0 ? title : title + " (cont.)"}\n<pre>${esc(table(head, part, align))}</pre>`);
-    }
-  };
-  const nw = pick("NEW");
-  add(`🔔 <b>NEW</b> (${nw.length})`, ["Contract", "Conv", "Prem", "₹/lot"], ["l", "r", "r", "r"],
-    grouped(nw, (e) => ({ cells: [ctr(e.row), e.row.conviction, num(e.row.ltp), lakh(e.row.credit)], mark: tierMark(e.row.source, e.row.conviction) })));
-  const mv = pick("MOVED");
-  add(`↕️ <b>MOVED</b> (${mv.length})`, ["Contract", "Was", "Now", "Prem"], ["l", "r", "r", "r"],
-    grouped(mv, (e) => ({ cells: [ctr(e.row), e.from, e.row.conviction, num(e.row.ltp)], mark: e.row.conviction > e.from ? "⬆️" : "⬇️" })));
-  const ex = pick("DROPPED", "LEFT");
-  add(`🔻 <b>NO LONGER TRACKED</b> (${ex.length})`, ["Contract", "Was", "Now", "Why"], ["l", "r", "r", "l"],
-    grouped(ex, (e) => ({ cells: [ctr(e.row), e.from, e.kind === "DROPPED" ? e.row.conviction : "–",
-      e.kind === "DROPPED" ? `<${threshold}` : e.expiring ? "expiry" : "off list"] })));
-  return out;
+/** Cards ordered so fresh entries lead: groups holding a NEW first (highest
+ *  conviction first), then the rest by expiry. */
+function cards(events, opts) {
+  const groups = new Map();
+  for (const e of events) {
+    const k = `${e.row.symbol}|${e.row.expiry}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(e);
+  }
+  const top = (evs) => Math.max(-1, ...evs.filter((e) => e.kind === "NEW").map((e) => e.row.conviction));
+  return [...groups.values()]
+    .sort((x, y) => top(y) - top(x) || x[0].row.expiry.localeCompare(y[0].row.expiry) || x[0].row.symbol.localeCompare(y[0].row.symbol))
+    .flatMap((evs) => {
+      // A very large group is split so no <pre> ever straddles two messages.
+      const parts = [];
+      for (let i = 0; i < evs.length; i += ROWS_PER_BLOCK) parts.push(card(evs.slice(i, i + ROWS_PER_BLOCK), opts));
+      return parts;
+    });
 }
 
 /** One message per run (split only if Telegram's length cap forces it). */
-export function formatMessages(events, { source, threshold, when, armed = false }) {
+export function formatMessages(events, { source, threshold, when, today = istDate(), armed = false }) {
   if (!events.length && !armed) return [];
-  const label = source === "stocks" ? `Stocks ≥ ${threshold}` : `Indices ≥ ${threshold}`;
-  const header = [`<b>Xerxes · ${label}</b> · ${when} IST`];
+  const icon = source === "stocks" ? "📈" : "🏛";
+  const header = [`${icon} <b>Xerxes · ${source === "stocks" ? "Stocks" : "Indices"}</b> · ${when} IST`];
+  const sub = [`CONV ≥ ${threshold}`];
+  if (source === "stocks" && events.some((e) => e.kind === "NEW" && e.row.conviction >= 75)) sub.push("⭐ 75+  🔥 80+");
+  header.push(`<i>${sub.join(" · ")}</i>`);
   if (armed)
     header.push(events.length
-      ? `✅ Alerts armed. Already above the bar and now tracked (${events.length}):`
-      : "✅ Alerts armed. Nothing above the bar right now.");
+      ? `✅ Alerts armed — already above the bar, now tracked (${events.length})`
+      : "✅ Alerts armed — nothing above the bar right now");
   if (source === "indices" && events.some((e) => e.kind === "NEW"))
     header.push("<i>⚠ Index 60+ tier: few settled results so far, still unproven</i>");
-  if (source === "stocks" && events.some((e) => e.kind === "NEW" && e.row.conviction >= 75))
-    header.push("<i>⭐ 75+   🔥 80+</i>");
-  const footer = `<a href="${SCREENER_URL}">Open screener</a>`;
+  const footer = `<a href="${SCREENER_URL}">Open screener</a> · PREM as quoted · CREDIT ₹ per lot`;
   const out = [];
   let cur = header.join("\n");
-  for (const block of sections(events, threshold)) {
+  for (const block of cards(events, { threshold, today })) {
     if (cur.length + block.length + footer.length + 4 > TG_LIMIT) {
       out.push(cur.trimEnd());
       cur = header[0] + " (cont.)";
@@ -312,7 +343,8 @@ export function bumpDay(state, events, today, nowIso) {
 }
 
 /** Invented sample for `--mock`: three stocks (71, 76, 72) and three index
- *  options (60, 63, 65) crossing the bar. */
+ *  options (60, 63, 65) crossing the bar, plus a few moves and exits so every
+ *  section of a card is on show. */
 export function mockEvents() {
   const stock = (symbol, strike, type, conviction, ltp, lot) => ({ kind: "NEW", row: {
     source: "stocks", symbol, expiry: "2026-10-27", strike, type, conviction, ltp, lot,
@@ -325,11 +357,16 @@ export function mockEvents() {
       stock("WIPRO", 190, "CE", 71, 1.09, 3000),
       stock("IEX", 125, "CE", 76, 1.32, 4350),
       stock("BANKBARODA", 250, "CE", 72, 2.5, 2925),
-    ].sort((a, b) => b.row.conviction - a.row.conviction)],
+      { ...stock("WIPRO", 150, "PE", 66, 1.55, 3000), kind: "DROPPED", from: 72 },
+      { ...stock("WIPRO", 185, "CE", 75, 1.61, 3000), kind: "MOVED", from: 73 },
+      { ...stock("IEX", 120, "CE", 70, 1.9, 4350), kind: "MOVED", from: 71 },
+    ]],
     ["indices", 60, [
       index("NIFTY", "2026-10-27", 21600, "PE", 65, 48.7, 65, "Monthly"),
       index("SENSEX", "2026-10-01", 76000, "CE", 63, 250, 20, "Weekly"),
       index("BANKNIFTY", "2026-10-27", 52000, "PE", 60, 112.4, 30, "Monthly"),
+      { ...index("NIFTY", "2026-10-27", 21700, "PE", 62, 52.05, 65, "Monthly"), kind: "MOVED", from: 61 },
+      { ...index("SENSEX", "2026-10-01", 76500, "CE", 58, 180, 20, "Weekly"), kind: "DROPPED", from: 61 },
     ]],
   ];
 }
@@ -437,12 +474,12 @@ async function main() {
     // First ever run: announce the starting set in ONE message rather
     // than a loud NEW per contract, so switching alerts on never floods — but
     // nothing already above the bar is swallowed either.
-    const msgs = formatMessages(events, { source, threshold, when: istTime(now), armed: true });
+    const msgs = formatMessages(events, { source, threshold, when: istTime(now), today, armed: true });
     for (const m of msgs) await sendTelegram(m);
     console.log(`First run for ${source}: armed, tracking ${Object.keys(tracked).length} contracts at ≥ ${threshold}.`);
     state = bumpDay(state, [], today, now.toISOString());
   } else {
-    const msgs = formatMessages(events, { source, threshold, when: istTime(now) });
+    const msgs = formatMessages(events, { source, threshold, when: istTime(now), today });
     for (const m of msgs) await sendTelegram(m);
     const tally = events.reduce((a, e) => ((a[e.kind] = (a[e.kind] ?? 0) + 1), a), {});
     console.log(`${source}: ${events.length} events ${JSON.stringify(tally)}, ${Object.keys(tracked).length} tracked, ${msgs.length} message(s) sent.`);

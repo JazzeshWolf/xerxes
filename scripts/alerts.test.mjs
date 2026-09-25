@@ -161,7 +161,7 @@ describe("formatting", () => {
     expect(msgs.length).toBeGreaterThan(1);
     for (const m of msgs) expect(m.length).toBeLessThanOrEqual(4096);
     expect(msgs[0]).toContain("M&amp;M");
-    expect(msgs.join("").match(/M&amp;M \d+CE/g)).toHaveLength(200);
+    expect(msgs.join("").match(/\n\d+ CE +72/g)).toHaveLength(200);
     for (const m of msgs) expect((m.match(/<pre>/g) ?? []).length).toBe((m.match(/<\/pre>/g) ?? []).length);
   });
 
@@ -175,8 +175,9 @@ describe("formatting", () => {
   it("arming lists the starting set, and says so when it is empty", () => {
     const armed = formatMessages([{ kind: "NEW", row: row() }], { source: "stocks", threshold: 70, when: "09:20", armed: true });
     expect(armed[0]).toContain("Alerts armed");
-    expect(armed[0]).toContain("WIPRO 190CE");
-    expect(formatMessages([], { source: "stocks", threshold: 70, when: "09:20", armed: true })[0]).toContain("Nothing above the bar");
+    expect(armed[0]).toContain("<b>WIPRO · 27 Oct</b>");
+    expect(armed[0]).toContain("190 CE");
+    expect(formatMessages([], { source: "stocks", threshold: 70, when: "09:20", armed: true })[0]).toContain("nothing above the bar");
     expect(formatMessages([], { source: "stocks", threshold: 70, when: "09:20" })).toEqual([]);
   });
 
@@ -194,12 +195,27 @@ describe("formatting", () => {
     ]);
   });
 
-  it("groups each section by expiry, earliest first", () => {
+  it("renders one card per underlying + expiry, with aligned NEW / OUT / MOVED sections", () => {
     const [m] = formatMessages([
-      { kind: "NEW", row: row({ expiry: "2026-10-27", strike: 190 }) },
-      { kind: "NEW", row: row({ expiry: "2026-09-29", strike: 180 }) },
-    ], { source: "stocks", threshold: 70, when: "10:40" });
-    expect(m.indexOf("29 Sep")).toBeLessThan(m.indexOf("27 Oct"));
+      { kind: "NEW", row: row({ strike: 190, conviction: 76 }) },
+      { kind: "DROPPED", from: 72, row: row({ strike: 150, type: "PE", conviction: 66 }) },
+      { kind: "MOVED", from: 73, row: row({ strike: 185, conviction: 75, ltp: 1.61 }) },
+      { kind: "NEW", row: row({ symbol: "IEX", strike: 125, conviction: 71, lot: 4350, credit: 5742 }) },
+    ], { source: "stocks", threshold: 70, when: "10:40", today: "2026-09-26" });
+    expect(m).toContain("<b>WIPRO · 27 Oct</b> · 31d left · lot 3,000");
+    // WIPRO (NEW at 76) leads IEX (NEW at 71).
+    expect(m.indexOf("WIPRO")).toBeLessThan(m.indexOf("IEX"));
+    const pre = m.slice(m.indexOf("<pre>") + 5, m.indexOf("</pre>")).split("\n");
+    expect(pre).toEqual([
+      "NEW     CONV PREM CREDIT",
+      "190 CE    76 1.09  3,270 ⭐",
+      "",
+      "OUT     CONV REASON",
+      "150 PE 72&gt;66 below 70",
+      "",
+      "MOVED   CONV PREM    CHG",
+      "185 CE 73&gt;75 1.61     +2",
+    ]);
   });
 
   it("heartbeat warns when a feed ran zero times today", () => {
