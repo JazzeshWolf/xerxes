@@ -73,6 +73,7 @@ the last post-close snapshot is final until the next open. Don't debug that.
 | `UPSTOX_ACCESS_TOKEN` | repo secret (Actions) | ~1 yr from issue | runs succeed, data frozen/`stale:true` |
 | GitHub PAT `xerxes-cron` | cron-job.org headers | **2027-08-05** | crons 401, data stops refreshing |
 | `STOCK_REFRESH_URL` (optional) | repo *variable* | n/a | in-app Refresh falls back to re-pull |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | repo secrets (Actions) | never (revoke via @BotFather `/revoke`) | "Conviction alerts" step goes red; no end-of-day heartbeat |
 
 ---
 
@@ -491,6 +492,50 @@ Refresh this whenever SEBI/NSE revise the F&O list. The tell is a live F&O
 name that shows up in the stock screener without a peer group.
 
 ---
+
+## Telegram conviction alerts (`scripts/alerts.mjs`, `alerts-state` branch)
+
+A step at the end of `stocks.yml` and of `data.yml` messages the owner's
+Telegram bot when a contract crosses the bar, and follows it afterwards:
+
+| event | when | sound |
+|---|---|---|
+| 🔔 NEW | a contract on the **displayed** list reaches stocks ≥ 70 / indices ≥ 60 | loud |
+| ⬆️⬇️ MOVED | tracked, still above the bar, score changed by any amount | silent |
+| 🔻 DROPPED | tracked, fell below the bar → untracked (re-crossing is NEW again) | loud |
+| 🚪 LEFT | tracked, no longer scored at all (or expiry day) → untracked | loud |
+
+One message per run. Thresholds default to 70/60 and are overridable with repo
+**variables** `ALERT_MIN_CONV_STOCK` / `ALERT_MIN_CONV_INDEX`. Stock alerts mark
+⭐ 75+ / 🔥 80+; index NEW alerts carry an "unproven" line, because 60+ index
+rests on a handful of settled trades (see the backlog's Conviction Book note).
+Manual check: Actions → **Send test alert**.
+
+Things that will bite:
+- **Entry is displayed-list only; tracking is not.** A stock that leaves the
+  cross-universe top 24 keeps being followed through its own file (which scores
+  more strikes). An index contract has no such fallback — it gets one LEFT.
+- **Freshness gates everything.** Stocks run only when the publish guard says
+  `ok`; indices compare each index's `asOf` with the last one processed (data.yml
+  has no guard of its own). A name whose file wasn't refreshed this run is held
+  silently rather than reported as LEFT.
+- **Delivery is at-least-once.** State is written only after Telegram accepts
+  the message; a failed send or push turns the run red and the next run resends.
+- **`alerts-state` is NOT force-pushed**, unlike every other data branch. Both
+  workflows write to it (`stocks.json`, `indices.json`); a force push from one
+  would erase the other's state and re-announce everything it was tracking.
+  `scripts/alerts-state.sh` rebases on a rejected push instead.
+- **A missing state file arms instead of alerting**: one silent "alerts armed"
+  message listing everything already above the bar, then normal operation.
+  Deleting `alerts-state` is the way to reset tracking without a flood.
+- **The heartbeat rides the stock job**, not a GitHub `schedule:` — the first
+  stock run at/after 15:30 IST sends a silent end-of-day summary (runs checked,
+  events, tracked counts, ⚠️ if either feed ran zero times). No heartbeat by
+  ~15:50 IST on a trading day means the stock job didn't run after the close.
+- Index weekly/monthly labels come from `isMonthly(date, listed)`: last listed
+  expiry of its month AND in the month's final 9 days. Date alone can't do it —
+  NIFTY 22 Sep (weekly) and a holiday-shifted monthly (Mon 23 Nov) sit the same
+  distance from month end.
 
 ## Retired: the cross-sectional ranker (removed 2026-09-25)
 

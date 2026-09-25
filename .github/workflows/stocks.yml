@@ -124,3 +124,21 @@ jobs:
           publish_branch: stocks-data
           force_orphan: true
           commit_message: "stocks data (force-pushed, no history)"
+
+      # Telegram conviction alerts (scripts/alerts.mjs). Full runs only, and only
+      # on data the guard above confirmed is fresh — a stale seeded snapshot must
+      # never raise an alert. Deliberately NOT continue-on-error: a broken alert
+      # path should turn the run red, and the daily heartbeat going missing is
+      # the second tripwire. The data is already published by this point, so a
+      # failure here cannot hold the screener back.
+      - name: Conviction alerts
+        if: steps.check.outputs.ok == 'true' && !github.event.inputs.symbol
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ALERT_MIN_CONV_STOCK: ${{ vars.ALERT_MIN_CONV_STOCK }}
+        run: |
+          scripts/alerts-state.sh pull
+          node scripts/alerts.mjs --source stocks --state-dir _alerts --data public/data/stocks
+          scripts/alerts-state.sh push stocks

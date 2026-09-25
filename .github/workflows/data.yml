@@ -53,3 +53,18 @@ jobs:
           else
             echo "No data changes."
           fi
+
+      # Telegram conviction alerts for index options (scripts/alerts.mjs). This
+      # workflow has no freshness guard of its own, so the script compares each
+      # index's asOf with the last one it processed and stays quiet when nothing
+      # moved. Not continue-on-error: a broken alert path should show red.
+      - name: Conviction alerts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ALERT_MIN_CONV_INDEX: ${{ vars.ALERT_MIN_CONV_INDEX }}
+        run: |
+          scripts/alerts-state.sh pull
+          node scripts/alerts.mjs --source indices --state-dir _alerts --data public/data
+          scripts/alerts-state.sh push indices

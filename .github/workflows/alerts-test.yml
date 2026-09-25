@@ -1,0 +1,26 @@
+name: Send test alert
+
+# Manual check that the Telegram secrets are wired up: Actions → "Send test
+# alert" → Run workflow. The bot should reply "Xerxes alerts connected".
+# A red run means the token or chat ID is wrong, or the bot was never started.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Send test message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::error::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID secret is missing or misnamed."
+            exit 1
+          fi
+          node scripts/alerts.mjs --test
