@@ -9,7 +9,7 @@ Pages deploys and data commits both target it).
 
 ---
 
-## The four moving parts
+## The three moving parts
 
 1. **Indices** (NIFTY / BANKNIFTY / SENSEX) — `scripts/build-data.mjs` →
    `public/data/{nifty,banknifty,sensex,market}.json`, committed to the code
@@ -17,11 +17,7 @@ Pages deploys and data commits both target it).
 2. **Stocks** (~157 NSE F&O names) — `scripts/build-stocks.mjs` →
    published to the **`stocks-data` branch** (NOT the code branch) by
    `.github/workflows/stocks.yml`.
-3. **Kronos ranker** (~190 NSE F&O names, cross-sectional) — `nse-ranker/`
-   (Python) → published to the **`ranker-data` branch** by `ranker.yml` (daily
-   ranks) and `ranker-validate.yml` (weekly walk-forward). Shares no script,
-   data file or branch with 1 or 2. See `nse-ranker/README.md`.
-4. **Frontend** — Preact/Vite, deployed to `gh-pages` by `deploy.yml`, reads data
+3. **Frontend** — Preact/Vite, deployed to `gh-pages` by `deploy.yml`, reads data
    from raw.githubusercontent (per-branch) with a Pages copy as fallback. URL
    builders and the branch names now live in `src/lib/dataSource.ts` rather than
    inline in `state/store.ts`.
@@ -480,8 +476,8 @@ are computed client-side from `index.json`, so the panel costs zero requests. A
 missing tag silently drops a name from its peer group, so a test asserts every
 row has one.
 
-**The file grew 190 → 241 rows** when the Kronos ranker derived the *live* F&O
-list from the instrument master and found 51 of 206 underlyings unmapped (newer
+**The file grew 190 → 241 rows** when the live F&O list was derived from the
+instrument master and 51 of 206 underlyings turned out to be unmapped (newer
 entrants plus renames: ZOMATO→ETERNAL, Tata Motors' demerger→TMPV, LTIM→LTM).
 Two consequences worth knowing:
 
@@ -491,217 +487,24 @@ Two consequences worth knowing:
 - 35 older rows no longer have F&O contracts. They resolve to nothing and drop
   out on their own — harmless, and deliberately left in place.
 
-Refresh this whenever SEBI/NSE revise the F&O list. The tell is
-`sector == "UNMAPPED"` in the ranker's `index.json`.
+Refresh this whenever SEBI/NSE revise the F&O list. The tell is a live F&O
+name that shows up in the stock screener without a peer group.
 
 ---
 
-## The ranker (`nse-ranker/`, `ranker-data` branch)
+## Retired: the cross-sectional ranker (removed 2026-09-25)
 
-**Kronos was retired on 12 Sep 2026 — the engine is now 12-1 momentum.** The
-model measured ICIR −0.335 (see below), and cost ~4 CPU-hours per daily run to
-produce that. Everything around it was kept: the walk-forward harness, the
-neutralisation, the deciles, the gate and the UI are all engine-agnostic and the
-harness had just proved its worth by catching a bad model. Kronos is **disabled,
-not deleted** — the engine, its tests and the vendoring step remain, and it is
-still dispatchable by hand; only the workflow defaults changed. The route is now
-called **Ranks** (`src/components/ranks/`, `RanksView`).
+There used to be a fourth moving part — a Python decile ranker (`nse-ranker/`,
+`ranker.yml`, `ranker-validate.yml`) behind a **Ranks** tile on the instrument
+picker. It was deleted in full: engine, tests, both workflows, the UI route and
+the `ranker-data` URL builder. It never cleared its own skill gate (Kronos
+measured ICIR −0.335; 12-1 momentum as the engine measured 0.266 against a 0.30
+bar set in advance), so it was gated shut for its whole life.
 
-Ranks the F&O universe into deciles so you know **which side of a name's chain to
-sell**. Top decile → sell puts, bottom → sell calls. Reached from
-`InstrumentPicker` as its own top-level route (`RanksView`), NOT as a `TabBar`
-tab — TabBar holds per-instrument tabs, and a ranking across 190 names is a
-sibling of the stock screener, not a seventh view of NIFTY. `TabBar.tsx` and
-every index component are untouched by it.
-
-**It ships gated shut, deliberately.** The tab's default is "skill not yet
-measured": lean column muted, every implication prefixed *Unproven*. It unlocks
-only when a real `skill.json` reports ICIR ≥ `MIN_ICIR` **and** clears the
-comparison bar — beating 12-1 momentum by `MIN_ICIR_EDGE_OVER_MOMENTUM`, or,
-when the engine IS that benchmark, beating the random null by
-`MIN_ICIR_EDGE_OVER_RANDOM`. **As of 12 Sep 2026 nothing has cleared it**, and
-the tab is locked. Read `nse-ranker/README.md` before changing anything here — the honest
-statement of what was and was not measured lives there, and the gate is the whole
-point of the design.
-
-Things that will bite:
-- **The seed step carries `universe-snapshots/` forward.** Same trap as
-  `ivHistory`: `ranker-data` is a force-pushed orphan branch, so seeding is the
-  only thing preserving point-in-time F&O membership. Break it and survivorship
-  bias silently returns to the backtest.
-- **Validation is a separate workflow because it costs 30–60× a daily run** — it
-  re-forecasts the universe at every historical rebalance date. Never merge it
-  into `ranker.yml`.
-- **Never cut the universe to save runner time.** Breadth is the edge
-  (`IR ≈ IC × √breadth`). The ladder is: reduce `SAMPLE_COUNT` → switch to
-  Kronos-mini → shard the job.
-- **The bootstrap engine is a drift/momentum baseline, not a null.** The true
-  null is the `random` benchmark. Both are reported; don't conflate them.
-- Kronos was **never executed during the build** (huggingface.co is blocked by
-  egress policy in the build sandbox). Its first real run is CI.
-- Kronos is vendored at a pinned commit by the workflow; `nse-ranker/vendor/` is
-  gitignored.
-- **A factor engine scores from the `Panel`, never from `list[Bar]`.**
-  `Panel.bars_upto` filters by DATE then slices, while the panel's date axis is
-  the union of every symbol's dates — so for a name that halted a few sessions,
-  `bars[-22]` is NOT `closes[:, i-21]`. Measured on a synthetic gapped series the
-  tempting `closes[-22]/closes[-253]-1` returns 0.0254 where the benchmark
-  returns 0.0139, enough to move a name several deciles. `MomentumEngine`
-  therefore **delegates to `benchmarks.momentum_12_1` itself** rather than
-  reimplementing it, so the engine arm and the benchmark arm are the same number
-  by construction. Engines declare `uses_panel`; both pipelines dispatch on it.
-  Pinned by `test_a_bar_indexed_momentum_would_have_diverged`.
-- **`verdict()` must not fail an engine for tying itself.** With momentum as the
-  engine, `edgeOverMomentum` is 0.00 by construction — the old gate would have
-  failed it forever, for a reason saying nothing about its quality. When the
-  engine IS a benchmark the gate substitutes *beat the random null by 0.05*
-  (`MIN_ICIR_EDGE_OVER_RANDOM`) and sets `isOwnBenchmark` + `selectionCaveat`.
-  That is a substitute bar, not an exemption; don't weaken it to an exemption.
-- **A factor is not a forecast, and the payload says so.** 12-1 momentum emits a
-  TRAILING return that lands in the same `forecastReturn` field a generative
-  engine's forward forecast does. The `signal: {kind,label,window}` descriptor is
-  what stops the UI captioning it "Forecast". **Do not rename or drop
-  `forecastReturn`** — `parseRow` rejects a payload without it and `parseIndex`
-  discards anything under 20 rows, so the tab would go blank, not degrade.
-  Every place that *renders* that number must branch on `signal.kind`: the
-  `DecileTable` column header, its per-decile mean, and `NameDetail`'s headline
-  stat. Missing one is not cosmetic — shipped on 12 Sep with the column still
-  headed "FCST", ADANIENSOL read **"+109.4% · Sell puts"** on a day it was 21%
-  off its high, which is indistinguishable from the app predicting a double.
-- **The skip month is a blind spot, and users will find it.** 12-1 measures the
-  252 sessions ending *21 sessions ago* (`MOMENTUM_SKIP`), so the most recent
-  month is invisible to the signal by construction — deliberate, because
-  short-term reversal runs opposite to momentum and mixing them weakens both.
-  The consequence is that a name which has just crashed can rank top decile:
-  ADANIENSOL on 2026-09-11 scored +109.4% over a window ending 2026-08-13 at
-  ₹1583, having since fallen to ₹1373 (−13.3% inside the skipped month, −21.2%
-  from its peak). The decile footer now says this outright. Do not "fix" it by
-  shortening the skip — that is a different, worse factor.
-- **`PYTHONPATH` in both ranker workflows must be ABSOLUTE** (`${{ github.workspace }}/...`).
-  Both steps run with `working-directory: nse-ranker`, so the relative
-  `PYTHONPATH: nse-ranker/vendor/Kronos` they originally carried resolved to
-  `nse-ranker/nse-ranker/vendor/Kronos` and never existed. The clone succeeded,
-  the import could not — and because the engine is only constructed *after* the
-  universe is fetched, every run burned ~15 min of history calls before dying on
-  `ModuleNotFoundError: No module named 'model'`. It ran that way from mid-August
-  to 11 Sep: **every scheduled daily and weekly-validation run failed**, and the
-  published ranks sat frozen at `tradeDate 2026-08-11` for a month while the
-  Actions tab showed a tidy row of red Xs nobody was reading. The `Verify Kronos
-  imports` step now fails in ~1 s at the point the breakage belongs; don't remove
-  it, and don't make those paths relative again.
-
-#### The batch-length trap (found on the first live Kronos run)
-
-`predict_batch` **refuses a batch whose series differ in length** — "Parallel
-prediction requires all series to have consistent historical lengths". `MIN_BARS`
-(260) admits names with far fewer bars than `MAX_CONTEXT` (512), and the engine
-used to feed it symbols in **alphabetical** order, so the short names scattered
-across batches. Each one took its whole batch of 32 down with it: the engine
-catches the failure and writes `median_return = NaN` for every member, by design,
-to degrade rather than abort — and NaN rows drop out of the ranking downstream.
-
-Measured on the 2026-09-11 run: four of seven batches each caught a short name
-(338, 469, 503/454/453, 430/465 bars), so **114 of 210 names silently vanished**
-and `universeCount` published as **96**. RELIANCE, TCS and INFY were among the
-missing. Nothing failed — the job was green, the guard saw a fresh `asOf`, and it
-force-pushed a ranking over half the universe.
-
-`config.py` had documented the invariant all along (*"Equal to MAX_CONTEXT so
-every series in a batch is the same length — `predict_batch` requires that"*) but
-nothing enforced it, and it could not be tested: `_forecast_chunk` imports pandas,
-which is deliberately absent from the core test deps. Hence `plan_batches()` — a
-pure function, ordering symbols by usable length and truncating each batch to its
-shortest member — which the tests in `test_universe_and_engines.py` pin without
-any model stack. Every symbol lands in exactly one batch; only the batch
-straddling a length boundary loses context.
-
-**Two things follow.** A green ranker run does not prove a full universe — check
-`universeCount` in `index.json`, the same way a green stocks run doesn't prove
-fresh data. And because `ranker-data` is force-pushed as an orphan and the seed
-step copies the previous run in first, **a name that fails to rank keeps its old
-detail file and republishes it as though current** — after that run, RELIANCE.json
-on the branch was month-old bootstrap data sitting next to a Kronos index.
-
-### What validation has actually measured
-
-One real walk-forward has completed (25 Aug 2026, **bootstrap** engine, 58
-rebalances — comfortably past `MIN_REBALANCES`):
-
-| | ICIR |
-|---|---|
-| bootstrap | **0.3024** |
-| 12-1 momentum | **0.3531** |
-
-It clears the `MIN_ICIR` 0.30 bar and then **loses to free momentum by 0.05**, so
-`edgeOverMomentum` is −0.05 against a +0.05 requirement and the verdict is
-`UNVALIDATED`. The tab is correctly gated shut on that. Read it as the gate
-working, not as a bug to tune away: 58 rebalances is enough that this is a
-measurement, not noise.
-
-**Kronos itself was finally measured on 11 Sep 2026** — Kronos-mini,
-`sample_count=4`, 28 evenly-spaced rebalance dates (the cheap end of the ladder,
-which is all that fits one CI job):
-
-| arm | ICIR | mean IC | t |
-|---|---|---|---|
-| **Kronos-mini** | **−0.335** | −0.029 | −1.77 |
-| momentum_12_1 | 0.166 | 0.016 | 0.88 |
-| reversal_5d | −0.080 | −0.007 | −0.42 |
-| random | 0.170 | 0.007 | 0.90 |
-
-It scored **negative** — the ranking was mildly *inverse* to what happened. At
-t = −1.77 that is not significant, so the honest claim is "no skill found", not
-"reliably backwards", and **inverting the signal on this evidence would be
-textbook overfitting** — don't.
-
-Two caveats that genuinely limit it, and one that doesn't:
-
-- It is **mini at 4 samples**, not small at 30. Sampling noise pushes IC toward
-  zero, though, not below it, so noise alone doesn't tidily explain a negative.
-- **On these 28 dates momentum scored 0.166 against random's 0.170** — i.e. the
-  free benchmark had no edge either over this particular subset. So this sample
-  discriminates much less well than the 58-date bootstrap run, and the
-  "loses to momentum" framing is weaker here than the headline suggests.
-- What it is *not* is a runtime artifact: the run completed all 28 planned dates
-  (`stoppedEarly: false`), so nothing was cut short.
-
-**That settled it.** Proving Kronos properly would mean Kronos-small at full
-sample count — days of CPU and a sharded workflow — to chase a signal pointing
-the wrong way, and even a winning Kronos had to justify ~4 CPU-hours a day
-against a millisecond-cheap rule. So momentum became the engine instead.
-
-**Then momentum was measured as the engine, on 12 Sep 2026 — and it failed too**
-(58 rebalances, full universe):
-
-| arm | ICIR | mean IC | t |
-|---|---|---|---|
-| **momentum (engine)** | **0.266** | 0.028 | 2.03 |
-| momentum_12_1 (benchmark) | 0.265 | 0.027 | 2.02 |
-| reversal_5d | 0.013 | 0.001 | 0.10 |
-| random | 0.109 | 0.007 | 0.83 |
-
-`UNVALIDATED -- ICIR 0.27 is below the 0.30 bar`. It clears the *noise* test
-easily (+0.157 over random, t = 2.03, so the signal is real) and fails the
-*absolute* one. The tab stays locked.
-
-**The instability is the headline, not the number.** The same 12-1 benchmark, on
-nearly the same data, in under three weeks: **0.353** (25 Aug, 58 dates) →
-**0.166** (11 Sep, 28 dates) → **0.265** (12 Sep, 58 dates). A factor swinging by
-2× across measurement dates is exactly the in-sample-selection risk momentum was
-picked in spite of. The UI renders `selectionCaveat` under the banner for this
-reason; don't quietly drop it if a future number looks good.
-
-**Do not lower `MIN_ICIR` to make this pass.** The bar was set as a PRIOR before
-anything was measured, which is the only thing that makes it meaningful. Moving
-it to 0.25 after seeing 0.266 is the "tune until it passes" failure the whole
-gate exists to prevent. If it is ever revisited the argument has to come from
-what return the strategy needs to clear costs — not from the number we got.
-
-**The decile spread is positive even so**: 0.74% gross per rebalance, **0.62% net
-of costs**, at 28% turnover — roughly 7%/yr unlevered. That is arguably the more
-decision-relevant number than ICIR, and it survives the cost stack. Weigh it
-against the README's warning that the short leg is not shortable in Indian equity
-delivery, so a real implementation is single-stock futures.
+**The `ranker-data` branch is deliberately left on the remote.** Deleting code
+should not destroy data. Nothing reads it and nothing writes it any more; it is
+frozen at its last publish. Don't wire anything back to it by accident, and
+don't delete it without a separate decision to do so.
 
 ## Backlog (not started)
 
@@ -714,6 +517,25 @@ delivery, so a real implementation is single-stock futures.
   this one is not, and no test pins it. Decide whether it's intentional and then
   either comment it or pass the real value.
 - Build-time warning when the Upstox token is near expiry.
+- **Conviction Book** (deferred 2026-09-25) — a daily performance record of the
+  screener's own top candidates, meant for the route slot the Ranks tile vacated.
+  Reference design: the hand-built "September conviction book" artifact. Worked
+  out before it was parked:
+  - **Displayed list only** — `candidates.json → expiries[].candidates` (top 24 per
+    slot), never the full scored universe, which is ~4× larger and reads better.
+    One position per contract, entered the first day it shows at conviction ≥ 60.
+  - Take only the **settlement** (`intrinsic`) from the archive's
+    `state/outcomes.jsonl`; its `entry_ltp` is from the first day a strike was
+    *scored*, not displayed. An expired contract with no outcome row is "pending",
+    never a mark.
+  - The hand-built "cleared 60" column counts **new** contracts (18 Sep: 8 of 48
+    rows ≥ 60, 1 new). Label it that way.
+  - On the displayed list, settled to date: 70+ = 20 contracts, 1 ITM, +5.28% mean,
+    worst −2.71%. The "every top-band trade won" claim holds only on the full universe.
+  - Open question: the archive is private and Pages is public. Leaning: a daily
+    `book.yml` here reading the archive with a **read-only deploy key**, publishing
+    to an orphan `book-data` branch. That makes the daily-list history public —
+    needs a yes first.
 - Optional: deploy the Cloudflare Worker (`worker/`) to enable true on-demand
   in-app refresh (steps in `worker/README.md`).
 

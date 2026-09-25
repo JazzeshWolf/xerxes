@@ -16,7 +16,7 @@ export interface Market {
 }
 
 // URL builders now live in lib/dataSource.ts so the repo path and the branch
-// names are declared once (the ranker needs the same repo on its own branch).
+// names are declared once.
 // Behaviour is unchanged:
 //  - rawUrl: raw.githubusercontent, which sees each data commit within minutes
 //    with no Pages redeploy (data commits are [skip ci]);

@@ -8,11 +8,9 @@ const ORDER: IndexKey[] = ["NIFTY", "BANKNIFTY", "SENSEX"];
 export function InstrumentPicker({
   onPick,
   onPickStocks,
-  onPickRanks,
 }: {
   onPick: (i: IndexKey) => void;
   onPickStocks: () => void;
-  onPickRanks: () => void;
 }) {
   return (
     <div className="flex flex-col min-h-[100dvh] px-5 justify-center">
@@ -47,18 +45,6 @@ export function InstrumentPicker({
           <div>
             <div className="text-base font-semibold">Stocks</div>
             <div className="text-[11px] text-white/45">Single-stock F&amp;O screener · liquidity, structure, candidates</div>
-          </div>
-          <span className="text-white/45 text-lg">→</span>
-        </button>
-        <button
-          onClick={onPickRanks}
-          className="w-full flex items-center justify-between rounded-xl bg-white/[0.05] border border-white/[0.08] px-4 py-3.5 active:bg-white/[0.09] text-left"
-        >
-          <div>
-            <div className="text-base font-semibold">Ranks</div>
-            <div className="text-[11px] text-white/45">
-              Cross-sectional F&amp;O ranking · which side to sell, by decile
-            </div>
           </div>
           <span className="text-white/45 text-lg">→</span>
         </button>
