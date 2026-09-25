@@ -5,7 +5,6 @@ import { INDEX_META } from "./lib/types";
 import { InstrumentPicker } from "./components/InstrumentPicker";
 import { StockScreenerView } from "./components/StockScreenerView";
 import { StockDashboard } from "./components/StockDashboard";
-import { RanksView } from "./components/ranks/RanksView";
 import { SpotStrip } from "./components/SpotStrip";
 import { VerdictCard } from "./components/VerdictCard";
 import { HorizonBiasCard } from "./components/HorizonBiasCard";
@@ -36,34 +35,19 @@ export function App() {
 
   const [stocksOpen, setStocksOpen] = useState(false);
   const [stock, setStock] = useState<{ file: string; name: string; expiry?: string } | null>(null);
-  const [ranksOpen, setRanksOpen] = useState(false);
 
   const pick = (i: IndexKey) => {
     localStorage.setItem(LS_KEY, i);
     setStocksOpen(false);
     setStock(null);
-    setRanksOpen(false);
     setInstrument(i);
   };
   const openStocks = () => {
     localStorage.removeItem(LS_KEY);
     setInstrument(null);
     setStock(null);
-    setRanksOpen(false);
     setStocksOpen(true);
   };
-  const openRanks = () => {
-    localStorage.removeItem(LS_KEY);
-    setInstrument(null);
-    setStock(null);
-    setStocksOpen(false);
-    setRanksOpen(true);
-  };
-
-  // Cross-sectional ranker — its own route, sharing no state with the index or
-  // stock screener routes. A failure to load its data cannot affect either.
-  if (ranksOpen) return <RanksView onBack={() => setRanksOpen(false)} />;
-
   // Stocks section (kept entirely separate from the index route).
   if (stock)
     return (
@@ -79,7 +63,7 @@ export function App() {
     return <StockScreenerView onOpen={(file, name, expiry) => setStock({ file, name, expiry })} onBack={() => setStocksOpen(false)} />;
 
   if (!instrument)
-    return <InstrumentPicker onPick={pick} onPickStocks={openStocks} onPickRanks={openRanks} />;
+    return <InstrumentPicker onPick={pick} onPickStocks={openStocks} />;
   return <Dashboard instrument={instrument} onSwitch={() => setInstrument(null)} />;
 }
 
