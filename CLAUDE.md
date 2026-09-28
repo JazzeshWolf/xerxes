@@ -511,17 +511,20 @@ silent messages (2026-09-25), score moves included. Don't reintroduce
 **variables** `ALERT_MIN_CONV_STOCK` / `ALERT_MIN_CONV_INDEX`. Stock alerts mark
 ⭐ 75+ / 🔥 80+; index NEW alerts carry an "unproven" line, because 60+ index
 rests on a handful of settled trades (see the backlog's Conviction Book note).
-Messages are **cards**, one per underlying + expiry: a bold header outside the
-grid (`WIPRO · 27 Oct · 31d left · lot 3,000`, plus weekly/monthly for indices),
-then one `<pre>` block (Telegram has no table markup) holding NEW / OUT / MOVED
-sections that share column widths, keyed by strike + type. NEW rows also carry
+Messages are **cards**, one per underlying + expiry: a bold `SYMBOL · 27 Oct`
+line, then `Monthly · 31 days left · lot 65`, then one `<pre>` block (Telegram
+has no table markup). Inside it, sections NEW / MOVED / BELOW 70 / OFF LIST /
+EXPIRED — the exit reason is the section title, not a column — and **every row
+carries the same five columns**: strike+type, CONV (`64→63` for a change), PREM,
 **ROM%** (credit ÷ the scorer's own margin proxy: 15% × spot × lot for stocks,
 8% for indices — `MARGIN_PCT`) and **POP%** (`pProfit`, the real-world
 forecast-vol probability of expiring worthless — never `probProfit`, which is
-1−|Δ| and carries no information); either shows `–` when its input is missing,
-never a guess. The card header carries DTE. Cards holding a NEW
-lead, highest conviction first. Emoji only at a row's end — their double width
-would shift any column after them. Manual check: Actions → **Send test alert** (tick
+1−|Δ| and carries no information). Missing inputs print `–`, never a guess.
+**Rows must stay ≤ ~32 chars**: Telegram on an upright iPhone scrolls a `<pre>`
+sideways past ~34, which hid the last column when CREDIT and CHG columns were
+there (owner's screenshot, 2026-09-28). That is why credit per lot is not a
+column — it is PREM × lot, and the lot is in the card header. A test pins the
+width. Cards holding a NEW lead, highest conviction first. Manual check: Actions → **Send test alert** (tick
 *mock* to see a sample alert).
 
 Things that will bite:

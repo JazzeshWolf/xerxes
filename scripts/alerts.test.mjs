@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, table, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay, tierMark,
+  isMonthly, table, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -148,13 +148,6 @@ describe("collectStocks", () => {
 });
 
 describe("formatting", () => {
-  it("marks stock tiers but never index ones", () => {
-    expect(tierMark("stocks", 80)).toBe("🔥");
-    expect(tierMark("stocks", 76)).toBe("⭐");
-    expect(tierMark("stocks", 72)).toBe("");
-    expect(tierMark("indices", 85)).toBe("");
-  });
-
   it("escapes HTML and splits under Telegram's length cap", () => {
     const events = Array.from({ length: 200 }, (_, i) => ({ kind: "NEW", row: row({ strike: 100 + i, symbol: "M&M" }) }));
     const msgs = formatMessages(events, { source: "stocks", threshold: 70, when: "10:40" });
@@ -195,33 +188,39 @@ describe("formatting", () => {
     ]);
   });
 
-  it("renders one card per underlying + expiry, with aligned NEW / OUT / MOVED sections", () => {
+  it("renders one card per underlying + expiry, every row with the same five columns", () => {
     const [m] = formatMessages([
       { kind: "NEW", row: row({ strike: 190, conviction: 76, spot: 167, pop: 0.934 }) },
-      { kind: "DROPPED", from: 72, row: row({ strike: 150, type: "PE", conviction: 66 }) },
-      { kind: "MOVED", from: 73, row: row({ strike: 185, conviction: 75, ltp: 1.61 }) },
+      { kind: "DROPPED", from: 72, row: row({ strike: 150, type: "PE", conviction: 66, ltp: 1.55, credit: 4650, spot: 167, pop: 0.9 }) },
+      { kind: "MOVED", from: 73, row: row({ strike: 185, conviction: 75, ltp: 1.61, credit: 4830, spot: 167, pop: 0.89 }) },
+      { kind: "LEFT", from: 71, row: row({ strike: 200, conviction: 71, ltp: 0.8, credit: 2400 }) },
       { kind: "NEW", row: row({ symbol: "IEX", strike: 125, conviction: 71, lot: 4350, credit: 5742 }) },
     ], { source: "stocks", threshold: 70, when: "10:40", today: "2026-09-26" });
-    expect(m).toContain("<b>WIPRO · 27 Oct</b> · DTE 31 · lot 3,000");
+    expect(m).toContain("<b>WIPRO · 27 Oct</b>\n31 days left · lot 3,000");
     // WIPRO (NEW at 76) leads IEX (NEW at 71).
     expect(m.indexOf("WIPRO")).toBeLessThan(m.indexOf("IEX"));
     const pre = m.slice(m.indexOf("<pre>") + 5, m.indexOf("</pre>")).split("\n");
+    // ROM: 3,270 ÷ (15% × 167 × 3,000 = 75,150) = 4.35%.
     expect(pre).toEqual([
-      "NEW     CONV PREM CREDIT ROM% POP%",
-      // ROM: 3,270 ÷ (15% × 167 × 3,000 = 75,150) = 4.35%. POP: pProfit 0.934.
-      "190 CE    76 1.09  3,270  4.4   93 ⭐",
+      "NEW       CONV PREM ROM% POP%",
+      "190 CE      76 1.09  4.4   93",
       "",
-      "OUT     CONV REASON",
-      "150 PE 72&gt;66 below 70",
+      "MOVED     CONV PREM ROM% POP%",
+      "185 CE   73→75 1.61  6.4   89",
       "",
-      "MOVED   CONV PREM    CHG",
-      "185 CE 73&gt;75 1.61     +2",
+      "BELOW 70  CONV PREM ROM% POP%",
+      "150 PE   72→66 1.55  6.2   90",
+      "",
+      "OFF LIST  CONV PREM ROM% POP%",
+      "200 CE    71→–  0.8    –    –",
     ]);
+    // Narrow enough for a phone held upright (Telegram scrolls past ~34).
+    for (const l of pre) expect(l.length).toBeLessThanOrEqual(32);
   });
 
   it("shows – rather than a made-up ROM or POP when spot or pProfit is missing", () => {
     const [m] = formatMessages([{ kind: "NEW", row: row() }], { source: "stocks", threshold: 70, when: "10:40", today: "2026-09-26" });
-    expect(m).toMatch(/190 CE +72 1\.09 +3,270 +– +–/);
+    expect(m).toMatch(/190 CE +72 1\.09 +– +–/);
   });
 
   it("prices index ROM on the 8% index margin proxy, not the stock 15%", () => {
@@ -229,7 +228,7 @@ describe("formatting", () => {
       conviction: 63, ltp: 48.7, lot: 65, credit: 3166, spot: 23100, pop: 0.96 });
     const [m] = formatMessages([{ kind: "NEW", row: r }], { source: "indices", threshold: 60, when: "10:40", today: "2026-09-26" });
     // 3,166 ÷ (8% × 23,100 × 65 = 120,120) = 2.64%
-    expect(m).toMatch(/21600 PE +63 +48\.7 +3,166 +2\.6 +96/);
+    expect(m).toMatch(/21600 PE +63 +48\.7 +2\.6 +96/);
     expect(m).toContain("8% of spot × lot");
   });
 

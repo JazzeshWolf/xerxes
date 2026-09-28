@@ -151,6 +151,8 @@ export function collectIndices(indexFiles, lastAsOf = {}) {
 const snapshotOf = (r) => ({
   source: r.source, symbol: r.symbol, name: r.name, expiry: r.expiry, strike: r.strike, type: r.type,
   conviction: r.conviction, ltp: r.ltp, lot: r.lot, kind: r.kind,
+  // Kept so an OFF LIST row can still show its last ROM / POP.
+  credit: r.credit, spot: r.spot ?? null, pop: r.pop ?? null,
 });
 
 /**
@@ -194,11 +196,6 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dm = (iso) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
 
-export function tierMark(source, conv) {
-  if (source !== "stocks") return "";
-  return conv >= 80 ? "🔥" : conv >= 75 ? "⭐" : "";
-}
-
 // Telegram has no table markup, so each section is a <pre> block with padded
 // columns: monospace keeps them aligned. Rows are kept to ~34 characters so
 // they fit a phone held upright without wrapping, which would break the
@@ -233,52 +230,40 @@ const daysLeft = (expiry, today) =>
 function card(events, { threshold, today }) {
   const r0 = events[0].row;
   const dte = daysLeft(r0.expiry, today);
-  const kind = r0.source === "indices" ? ` · ${r0.kind.toLowerCase()}` : "";
-  const head = `<b>${esc(r0.symbol)} · ${dm(r0.expiry)}</b>${kind} · ${dte <= 0 ? "expires today" : `DTE ${dte}`} · lot ${lakh(r0.lot)}`;
+  const kind = r0.source === "indices" ? `${r0.kind} · ` : "";
+  const left = dte <= 0 ? "expires today" : dte === 1 ? "1 day left" : `${dte} days left`;
+  const head = `<b>${esc(r0.symbol)} · ${dm(r0.expiry)}</b>\n${kind}${left} · lot ${lakh(r0.lot)}`;
 
-  const nw = events.filter((e) => e.kind === "NEW");
-  const out = events.filter((e) => e.kind === "DROPPED" || e.kind === "LEFT");
-  const mv = events.filter((e) => e.kind === "MOVED");
-  const key = (r) => `${r.strike} ${r.type}`;
-  const reason = (e) => (e.kind === "DROPPED" ? `below ${threshold}` : e.expiring ? "expiry" : "off list");
-  const outConv = (e) => (e.kind === "DROPPED" ? `${e.from}>${e.row.conviction}` : `${e.from}>–`);
-
-  // Column widths shared by all three sections, so the card reads as one grid.
-  const c1 = Math.max(5, ...events.map((e) => key(e.row).length));
-  const c2 = Math.max(4, ...nw.map((e) => String(e.row.conviction).length),
-    ...mv.map((e) => `${e.from}>${e.row.conviction}`.length), ...out.map((e) => outConv(e).length));
-  const c3 = Math.max(4, ...[...nw, ...mv].map((e) => num(e.row.ltp).length));
-  const c4 = Math.max(6, ...nw.map((e) => lakh(e.row.credit).length));
   const romOf = (r) => {
-    const cap = r.spot && r.lot ? MARGIN_PCT[r.source] * r.spot * r.lot : null;
+    const cap = r.spot && r.lot && r.credit != null ? MARGIN_PCT[r.source] * r.spot * r.lot : null;
     return cap ? ((r.credit / cap) * 100).toFixed(1) : "–";
   };
   const popOf = (r) => (r.pop == null ? "–" : String(Math.round(r.pop * 100)));
-  const L = (v, w) => String(v).padEnd(w);
-  const R = (v, w) => String(v).padStart(w);
-  const line = (...parts) => parts.join(" ").trimEnd();
+  const key = (r) => `${r.strike} ${r.type}`;
+  const convOf = (e) =>
+    e.kind === "NEW" ? String(e.row.conviction) : e.kind === "LEFT" ? `${e.from}→–` : `${e.from}→${e.row.conviction}`;
 
-  const blocks = [];
-  if (nw.length) blocks.push([
-    line(L("NEW", c1), R("CONV", c2), R("PREM", c3), R("CREDIT", c4), R("ROM%", 4), R("POP%", 4)),
-    ...nw.map((e) => {
-      const mark = tierMark(e.row.source, e.row.conviction);
-      return line(L(key(e.row), c1), R(e.row.conviction, c2), R(num(e.row.ltp), c3), R(lakh(e.row.credit), c4),
-        R(romOf(e.row), 4), R(popOf(e.row), 4)) + (mark ? " " + mark : "");
-    }),
-  ]);
-  if (out.length) blocks.push([
-    line(L("OUT", c1), R("CONV", c2), "REASON"),
-    ...out.map((e) => line(L(key(e.row), c1), R(outConv(e), c2), reason(e))),
-  ]);
-  if (mv.length) blocks.push([
-    line(L("MOVED", c1), R("CONV", c2), R("PREM", c3), R("CHG", c4)),
-    ...mv.map((e) => {
-      const d = e.row.conviction - e.from;
-      return line(L(key(e.row), c1), R(`${e.from}>${e.row.conviction}`, c2), R(num(e.row.ltp), c3), R((d > 0 ? "+" : "") + d, c4));
-    }),
-  ]);
-  return `${head}\n<pre>${esc(blocks.map((b) => b.join("\n")).join("\n\n"))}</pre>`;
+  // Sections, in reading order. Exits are split by reason so the reason is the
+  // section title rather than a column — one column fewer on a phone.
+  const sections = [
+    [`NEW`, events.filter((e) => e.kind === "NEW")],
+    [`MOVED`, events.filter((e) => e.kind === "MOVED")],
+    [`BELOW ${threshold}`, events.filter((e) => e.kind === "DROPPED")],
+    [`OFF LIST`, events.filter((e) => e.kind === "LEFT" && !e.expiring)],
+    [`EXPIRED`, events.filter((e) => e.kind === "LEFT" && e.expiring)],
+  ].filter(([, evs]) => evs.length);
+
+  // Every row carries the same five columns, so they share one set of widths.
+  const cells = (e) => [key(e.row), convOf(e), e.row.ltp == null ? "–" : num(e.row.ltp), romOf(e.row), popOf(e.row)];
+  const all = events.map(cells);
+  const w = [0, 1, 2, 3, 4].map((i) =>
+    Math.max(i === 0 ? Math.max(...sections.map(([t]) => t.length)) : ["", "CONV", "PREM", "ROM%", "POP%"][i].length,
+      ...all.map((c) => c[i].length)));
+  const fmt = (c) => [c[0].padEnd(w[0]), ...c.slice(1).map((v, i) => v.padStart(w[i + 1]))].join(" ").trimEnd();
+
+  const body = sections.map(([title, evs]) =>
+    [fmt([title, "CONV", "PREM", "ROM%", "POP%"]), ...evs.map((e) => fmt(cells(e)))].join("\n"));
+  return `${head}\n<pre>${esc(body.join("\n\n"))}</pre>`;
 }
 
 /** Cards ordered so fresh entries lead: groups holding a NEW first (highest
@@ -306,18 +291,16 @@ export function formatMessages(events, { source, threshold, when, today = istDat
   if (!events.length && !armed) return [];
   const icon = source === "stocks" ? "📈" : "🏛";
   const header = [`${icon} <b>Xerxes · ${source === "stocks" ? "Stocks" : "Indices"}</b> · ${when} IST`];
-  const sub = [`CONV ≥ ${threshold}`];
-  if (source === "stocks" && events.some((e) => e.kind === "NEW" && e.row.conviction >= 75)) sub.push("⭐ 75+  🔥 80+");
-  header.push(`<i>${sub.join(" · ")}</i>`);
+  header.push(`<i>Alert level: conviction ${threshold}+</i>`);
   if (armed)
     header.push(events.length
       ? `✅ Alerts armed — already above the bar, now tracked (${events.length})`
       : "✅ Alerts armed — nothing above the bar right now");
   if (source === "indices" && events.some((e) => e.kind === "NEW"))
-    header.push("<i>⚠ Index 60+ tier: few settled results so far, still unproven</i>");
+    header.push("<i>⚠ Index 60+ is unproven: few settled trades yet</i>");
   const pct = Math.round(MARGIN_PCT[source] * 100);
   const footer = [
-    `<i>CREDIT ₹ per lot · ROM = credit ÷ capital (${pct}% of spot × lot) · POP = model's chance it expires worthless · DTE = days to expiry</i>`,
+    `<i>PREM ₹ per share · credit per lot = PREM × lot\nROM% = credit ÷ capital (${pct}% of spot × lot)\nPOP% = model's chance it expires worthless</i>`,
     `<a href="${SCREENER_URL}">Open screener</a>`,
   ].join("\n");
   const out = [];
