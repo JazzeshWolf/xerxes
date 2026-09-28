@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xerxes Audit Report</title>
+<meta name="description" content="Read-only audit of Xerxes: architecture, conviction-score deep dive, pending work, risks and recommendations. Snapshot 2026-09-28.">
+<style>
+:root{
+  color-scheme: light;
+  --page:#f9f9f7; --surface:#fcfcfb; --surface-2:#f2f1ed; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b; --good-text:#006300;
+  --mid:#f0efec; --accent:#2a78d6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --surface-2:#242422; --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+    --good-text:#0ca30c; --mid:#383835; --accent:#3987e5;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#242422; --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --good-text:#0ca30c; --mid:#383835; --accent:#3987e5;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--page);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;}
+a{color:var(--accent)}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.86em}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px 80px}
+header.top{padding:28px 0 12px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+h1{font-size:28px;margin:0;letter-spacing:-.01em}
+h2{font-size:22px;margin:48px 0 6px;letter-spacing:-.01em}
+h3{font-size:16px;margin:26px 0 8px}
+.sub{color:var(--ink-2);margin:0}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+nav.toc{position:sticky;top:0;z-index:5;background:var(--page);border-bottom:1px solid var(--border);padding:8px 0;margin-bottom:8px;overflow-x:auto;white-space:nowrap}
+nav.toc a{display:inline-block;margin-right:14px;font-size:13px;color:var(--ink-2);text-decoration:none}
+nav.toc a:hover{color:var(--ink)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px}
+.grid{display:grid;gap:14px}
+.grid>*{min-width:0}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.tile .v{font-size:30px;font-weight:650;line-height:1.1}
+.tile .l{font-size:12px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em}
+.tile .n{font-size:12.5px;color:var(--muted);margin-top:4px}
+.grade{font-size:64px;font-weight:700;line-height:1}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:600;border:1px solid var(--border);white-space:nowrap}
+.sev-Critical{background:color-mix(in oklab,var(--crit) 22%,transparent)}
+.sev-High{background:color-mix(in oklab,var(--serious) 25%,transparent)}
+.sev-Medium{background:color-mix(in oklab,var(--warn) 25%,transparent)}
+.sev-Low{background:color-mix(in oklab,var(--good) 18%,transparent)}
+.tag{display:inline-block;font-size:11px;font-weight:600;border-radius:4px;padding:0 6px;border:1px solid var(--border);color:var(--ink-2);white-space:nowrap}
+.tag.bug{background:color-mix(in oklab,var(--crit) 15%,transparent)}
+.tag.design{background:color-mix(in oklab,var(--s1) 15%,transparent)}
+.tag.data{background:color-mix(in oklab,var(--s4) 22%,transparent)}
+ol.top5{margin:0;padding-left:22px}
+ol.top5 li{margin:0 0 10px}
+.verdict{border-left:4px solid var(--s4);padding:10px 14px;background:var(--surface-2);border-radius:0 8px 8px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--grid);vertical-align:top}
+th{font-size:12px;color:var(--ink-2);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl{overflow-x:auto}
+.chart{width:100%;overflow-x:auto}
+.chart svg{display:block;max-width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink-2);margin:6px 0 8px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px}
+#tip{position:fixed;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,.18);border-radius:8px;padding:7px 10px;font-size:12.5px;max-width:320px;z-index:50;display:none}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px}
+.flow .step{flex:1 1 150px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12.5px}
+.flow .step b{display:block;font-size:12.5px}
+.flow .arrow{align-self:center;color:var(--muted);font-size:18px}
+.flow .step.warn{border-color:var(--crit);border-width:2px}
+.wbar{height:10px;border-radius:0 4px 4px 0;display:inline-block;vertical-align:middle}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 10px}
+.filters button{font:inherit;font-size:12.5px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:999px;padding:3px 11px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.heat{display:grid;grid-template-columns:minmax(64px,110px) repeat(4,minmax(0,1fr));gap:4px;font-size:12px}
+.heat .cell{min-height:92px;border-radius:6px;padding:6px;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start}
+.heat .hdr{display:flex;align-items:center;justify-content:center;color:var(--ink-2);font-weight:600;text-align:center}
+.heat .chip{background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-weight:600;cursor:default}
+details{margin:6px 0}
+summary{cursor:pointer;color:var(--ink-2)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:13px}
+.kv div:nth-child(odd){color:var(--ink-2)}
+.callout{background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:13.5px}
+.eq{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:var(--surface-2);padding:10px 12px;border-radius:8px;overflow-x:auto;white-space:pre}
+.theme-btn{font:inherit;font-size:12.5px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:8px;padding:4px 10px;cursor:pointer}
+@media print{nav.toc,.theme-btn,.filters{display:none}.card{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div id="tip" role="tooltip"></div>
+<div class="wrap">
+<header class="top">
+  <div>
+    <h1>Xerxes Audit Report</h1>
+    <p class="sub">Read-only audit of <code>JazzeshWolf/xerxes</code>: code on <code>claude/nifty-option-screener-93xv0y</code> @ <code>a9963a4</code>, data from <code>stocks-data</code> @ <code>afc593f</code> (asOf 2026-09-28 07:45 UTC ≈ 13:15 IST), and the private archive <code>xerxes-eod-archive</code> @ <code>1335e83</code>.</p>
+  </div>
+  <button class="theme-btn" id="themeBtn" type="button">Theme: system</button>
+</header>
+<nav class="toc">
+  <a href="#summary">Summary</a><a href="#arch">Architecture</a><a href="#conv">Conviction score</a><a href="#worked">Worked examples</a><a href="#sens">Sensitivity</a><a href="#assump">Assumptions</a><a href="#trust">Trust diagnosis</a><a href="#valid">Validation</a><a href="#ideas">Improvements</a><a href="#pending">Pending work</a><a href="#risks">Gaps &amp; risks</a><a href="#recs">Recommendations</a><a href="#appendix">Appendix</a>
+</nav>
+
+<!-- ============================ SUMMARY ============================ -->
+<section id="summary">
+<div class="grid g2" style="margin-top:14px">
+  <div class="card">
+    <div style="display:flex;gap:18px;align-items:center">
+      <div class="grade">B−</div>
+      <div>
+        <div class="tile"><div class="l">Overall health</div></div>
+        <div class="small">The engineering is strong. The code is heavily documented, there are 150 passing unit tests, failures are handled softly, and every conviction score I checked reproduced exactly. The grade is lower because of <b>two confirmed selection bugs</b>, <b>silent-failure paths</b> in publishing, and <b>no evidence yet</b> that conviction ranks trades well.</div>
+      </div>
+    </div>
+    <div class="grid g3" style="margin-top:14px">
+      <div><div class="tile"><div class="l">Engineering</div><div class="v" style="font-size:22px">B+</div><div class="n">tests, docs, determinism</div></div></div>
+      <div><div class="tile"><div class="l">Data reliability</div><div class="v" style="font-size:22px">C+</div><div class="n">fail-soft, but fails silently</div></div></div>
+      <div><div class="tile"><div class="l">Conviction validity</div><div class="v" style="font-size:22px">Unproven</div><div class="n">ρ = −0.04 vs outcome</div></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="tile"><div class="l">Conviction-score trust verdict</div></div>
+    <p class="verdict" style="margin:8px 0 0"><b>Use it as a screen, not as a signal.</b> The score is transparent, deterministic and reproducible: I rebuilt 4 of 4 live scores to the point. Its warnings (tail reliance, gap haircut, CVaR, marginal quote) are well founded. But across <b>3,917 settled stock strikes</b> its rank order had <b>no relationship with return on margin</b> (Spearman ρ = −0.04). About 41% of its weight measures “distance from spot” in three correlated ways. Two bugs also change <i>which</i> strikes get scored in the first place. Trust the red flags. Don’t trust the ordering between ~55 and ~75, and don’t size up on a high number.</p>
+    <div class="grid g4" style="margin-top:12px">
+      <div class="tile"><div class="l">Names live</div><div class="v">207</div><div class="n">of 241 in universe</div></div>
+      <div class="tile"><div class="l">Strikes scored</div><div class="v">2,245</div><div class="n">4 are ≥ 70 today</div></div>
+      <div class="tile"><div class="l">Unit tests</div><div class="v">150</div><div class="n">pass; not run in CI</div></div>
+      <div class="tile"><div class="l">Archive days</div><div class="v">20</div><div class="n">~13 trading days lost</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h3 style="margin-top:0">Top 5 issues</h3>
+  <ol class="top5">
+    <li><span class="pill sev-High">High</span> <span class="tag bug">bug</span> <b>Call-side candidates are silently thrown away before scoring.</b> <code>sellCandidates</code> sorts puts first, then <code>computeExpiry</code> keeps <code>.slice(0, 24)</code> <i>before</i> conviction is computed. In today’s index snapshot, <b>108 call strikes (and 11 puts) that passed every filter were never scored</b>. NIFTY 27-Oct and BANKNIFTY 27-Oct show <b>0 calls</b>. CLAUDE.md records “0 CE / 24 PE” as a real property of the data, but it is this cut-off. <span class="muted small">build-data.mjs:320 · build-stocks.mjs:170 · analytics.mjs:673-674</span></li>
+    <li><span class="pill sev-High">High</span> <span class="tag data">validation</span> <b>Conviction has not been shown to predict outcomes.</b> The private archive has 3,917 settled stock strikes from the 25-Aug expiry. Win rate is flat across bands (91–98%), and higher conviction does not mean higher return on margin (ρ = −0.04). The 70+ band did go 35/35, but that is one expiry in one calm month. The P(profit) model was <b>under-confident</b> by 5–11 points. <span class="muted small">xerxes-eod-archive/state/outcomes.jsonl</span></li>
+    <li><span class="pill sev-High">High</span> <span class="tag bug">bug</span> <b>Failures publish as green, fresh-looking data.</b> If the Upstox token expires or every chain fetch fails, <code>build-stocks</code> still writes a new <code>index.json</code> with <code>count: 0</code>. The publish guard only checks that <code>asOf</code> moved, so it force-pushes an empty screener. Per-stock files that weren’t rebuilt stay published with <code>stale:false</code>. <b>DALBHARAT.json is 34 days old today</b>, and a consumer reading it directly cannot tell. Separately, the EOD archive lost ~13 trading days (26 Aug–14 Sep) while <code>missed-days.json</code> still reads <code>[]</code>. <span class="muted small">build-stocks.mjs:469, 717-826 · stocks.yml:244-260</span></li>
+    <li><span class="pill sev-High">High</span> <span class="tag design">design</span> <b>The score can be built from 2 of 7 factors without saying so.</b> Missing factors are dropped and their weight is spread over whatever is left. With no volatility forecast (NSE fallback for indices, or a failed candle fetch for a stock), edge, VRP, cushion and survival all disappear. Conviction then becomes 60% direction + 40% liquidity and still looks like a normal 0–100 score. Today’s NIFTY Oct puts would score 33–55 that way. In a strongly trending market the same path can exceed the index alert bar of 60. <span class="muted small">analytics.mjs:1322-1331 · build-data.mjs:191-214</span></li>
+    <li><span class="pill sev-Medium">Medium</span> <span class="tag bug">bug</span> <b>Liquidity counts the lot size twice.</b> Exchange OI and volume are already in <i>shares</i> (18,768 of 18,769 live OI values are exact multiples of the lot), yet the code multiplies by the lot again. The strike-liquidity factor is nearly saturated (it explains ~2% of score variance), and the name-level liquidity bucket favours large-lot names. Correcting the units would move <b>29 names out of and 29 into</b> the tradeable cohort that feeds <code>candidates.json</code>. <span class="muted small">analytics.mjs:692-693, 1304-1305, 584</span></li>
+  </ol>
+  <p class="small muted" style="margin:6px 0 0">Next in line: expiry-eve IV-rank and term-structure pollution (33 names at IV rank 100 today vs 8 mid-cycle, and it is applied to next-month trades), tests never run in CI, and no intraday failure alert.</p>
+</div>
+</section>
+
+<!-- ============================ ARCHITECTURE ============================ -->
+<section id="arch">
+<h2>1 · Architecture &amp; data flow</h2>
+<p class="sub">Four moving parts: indices, stocks, frontend, and the private EOD archive. Everything is static files. GitHub Actions is the only compute, and git branches are the only storage.</p>
+<div class="card" style="margin-top:12px">
+  <div class="chart" id="archChart"></div>
+  <p class="small muted" style="margin:6px 0 0">Solid arrows carry data. Dashed arrows are triggers. <span style="color:var(--crit)">Red</span> marks a store with no history (force-orphan: one commit, overwritten on every run).</p>
+</div>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card">
+  <h3 style="margin-top:0">Scheduled jobs (all times IST, Mon–Fri)</h3>
+  <div class="tbl"><table>
+    <tr><th>Job</th><th>Trigger</th><th>Timing</th><th>On failure</th></tr>
+    <tr><td><b>data.yml</b><br><span class="small muted">indices + market.json + index alerts</span></td><td>cron-job.org <code>workflow_dispatch</code>; GitHub cron backup; push to code branch</td><td>every 10 min 09:00–15:59 (per CLAUDE.md); backup cron <code>7,17…57 3-10</code> UTC = 08:37–16:27</td><td>Upstox → NSE API → last-good with <code>stale:true</code>. Push error = red run. Alert step red on Telegram error.</td></tr>
+    <tr><td><b>stocks.yml</b><br><span class="small muted">~207 names + candidates + stock alerts</span></td><td>cron-job.org dispatch; GitHub cron <code>15 4-10</code> UTC backup; Worker (not deployed)</td><td>seen today every <b>15 min from 08:00</b> (CLAUDE.md says 20 min); ~40–50 s per run</td><td>Guard skips publish only if <code>index.json.asOf</code> did not move. An empty build <b>still publishes</b>.</td></tr>
+    <tr><td><b>deploy.yml</b></td><td>push to code branch</td><td>on code commits (data commits are <code>[skip ci]</code>)</td><td>Build fails if <code>tsc</code> fails. <b>Tests are not run.</b></td></tr>
+    <tr><td><b>alerts-test.yml</b></td><td>manual</td><td>—</td><td>red if Telegram secrets are missing</td></tr>
+    <tr><td><b>eod.yml</b> <span class="small muted">(private repo)</span></td><td>GitHub cron <code>35 10</code> UTC</td><td>16:05 target; actual captures landed at <b>16:19–22:03</b></td><td>Retries 6×5 min, then logs <code>missed_days</code> and exits 0. A push failure (the Aug outage) was <b>not</b> logged.</td></tr>
+    <tr><td><b>Heartbeat</b></td><td>first stocks run ≥ 15:30</td><td>~15:30–15:45</td><td>Missing heartbeat is the only signal. It counts <i>runs</i>, not names built.</td></tr>
+  </table></div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">External dependencies &amp; credentials</h3>
+  <div class="tbl"><table>
+    <tr><th>Dependency</th><th>Used for</th><th>Auth / limits handling</th></tr>
+    <tr><td>Upstox API v2</td><td>option chain, quotes, daily candles</td><td><code>UPSTOX_ACCESS_TOKEN</code> repo secret (~1 yr; <b>expiry date not recorded anywhere in code</b>). Concurrency 5, ~4 calls/stock. No 429 retry or backoff: each call fails soft to empty (<span class="mono">upstox.mjs:192-195, 216-218, 254-257</span>).</td></tr>
+    <tr><td>Upstox asset CDN</td><td>instrument master (lot sizes, expiries)</td><td>no auth; 3 attempts × 2 URLs with backoff (<span class="mono">upstox.mjs:44-68</span>)</td></tr>
+    <tr><td>NSE public API / Yahoo</td><td>index fallback, event calendar</td><td>cookie priming; Akamai-gated, intermittent</td></tr>
+    <tr><td>Google News RSS</td><td>per-stock news</td><td>25 stalest names per run to stay under rate limits (<span class="mono">build-stocks.mjs:56</span>)</td></tr>
+    <tr><td>Telegram Bot API</td><td>alerts + heartbeat</td><td><code>TELEGRAM_BOT_TOKEN</code>/<code>CHAT_ID</code> secrets; the URL is never logged (<span class="mono">alerts.mjs:384-385</span>)</td></tr>
+    <tr><td>cron-job.org</td><td>the real scheduler</td><td>GitHub PAT in its headers (expires 2027-08-05, per CLAUDE.md). Outside the repo, so it can’t be audited here.</td></tr>
+    <tr><td>GitHub</td><td>compute + storage + hosting</td><td>Repo is <b>public</b>, so standard-runner minutes are free. ~100 runs/day × ~1 billed min. Going private would use ≈ the whole 2,000 min/month free tier.</td></tr>
+  </table></div>
+</div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h3 style="margin-top:0">Module map</h3>
+  <div class="tbl"><table>
+    <tr><th>File</th><th>Lines</th><th>Role</th></tr>
+    <tr><td class="mono">scripts/analytics.mjs</td><td class="num">1,442</td><td>Pure maths. Black-Scholes, chain aggregates, direction engine, quote gate, <code>sellCandidates</code>, Yang-Zhang RV, vol forecast, block bootstrap, <b><code>sellConviction</code></b>.</td></tr>
+    <tr><td class="mono">scripts/build-stocks.mjs</td><td class="num">862</td><td>Stock pipeline. Two passes (fetch chains → pick news queue → score) → per-stock JSON, <code>index.json</code>, <code>candidates.json</code>.</td></tr>
+    <tr><td class="mono">scripts/build-data.mjs</td><td class="num">611</td><td>Index pipeline (NIFTY/BANKNIFTY/SENSEX, up to 6 expiries each) + <code>market.json</code>.</td></tr>
+    <tr><td class="mono">scripts/alerts.mjs · alerts-state.sh</td><td class="num">510 · 58</td><td>Telegram NEW/MOVED/DROPPED/LEFT diff against the <code>alerts-state</code> branch; EOD heartbeat.</td></tr>
+    <tr><td class="mono">scripts/upstox.mjs · nse.mjs</td><td class="num">258 · 193</td><td>Thin fetchers; every call fails soft to empty.</td></tr>
+    <tr><td class="mono">scripts/stock-news.mjs · market.mjs</td><td class="num">336 · 277</td><td>Per-company news/events; macro news, drivers, event radar.</td></tr>
+    <tr><td class="mono">scripts/stocks-universe.mjs</td><td class="num">280</td><td>241 <code>[symbol, name, sector]</code> rows; ~34 no longer have F&amp;O contracts.</td></tr>
+    <tr><td class="mono">src/**</td><td class="num">~4,300</td><td>Preact UI: screener, dashboards, position analyser (<code>lib/position.ts</code>), themes. Reads raw.githubusercontent first, then the Pages copy.</td></tr>
+    <tr><td class="mono">worker/</td><td class="num">81</td><td>Optional Cloudflare Worker for on-demand refresh. <b>Built, not deployed.</b></td></tr>
+    <tr><td class="mono">*.test.mjs</td><td class="num">1,451</td><td>150 vitest tests (analytics 95, alerts 27, news 24, build-stocks 4). No tests for build-data, upstox, nse, market or the UI.</td></tr>
+  </table></div>
+</div>
+</section>
+
+<!-- ============================ CONVICTION ============================ -->
+<section id="conv">
+<h2>2 · Conviction score: deep dive</h2>
+<p class="sub">Function <code>sellConviction</code>, <span class="mono">scripts/analytics.mjs:1220-1442</span>. The same engine scores stocks and indices; indices use <code>INDEX_SELL_OPTS</code> overrides.</p>
+
+<div class="card" style="margin-top:12px">
+  <h3 style="margin-top:0">How it works, in plain English</h3>
+  <p style="margin:0 0 8px">For each out-of-the-money strike, Xerxes asks seven questions and gives each one a grade from 0 to 1. <b>Is the premium bigger than what we think the option is really worth?</b> (edge) <b>Is implied vol above our forecast of realised vol?</b> (VRP) <b>Does the trend agree with the side being sold?</b> (direction) <b>How many forecast standard deviations away is the strike?</b> (cushion) <b>How likely is price to touch it before expiry?</b> (survival) <b>Is IV high versus its own history?</b> (IV rank) <b>Can you actually trade it?</b> (liquidity).</p>
+  <p style="margin:0 0 8px">The grades are averaged with fixed weights. Missing grades are skipped and the remaining weights are scaled up to total 100%. The average is then <b>multiplied</b> down (or slightly up) by up to six warnings: overnight-gap risk, a recent huge move, IV term structure, put-skew fear, a thin quote, and “most of this premium is tail-risk payment.” The result × 100 is the conviction. <b>70+ = HIGH</b>, <b>50–69 = MEDIUM</b>, otherwise LOW.</p>
+  <p style="margin:0" class="small muted">The weights are hand-set priors. The code says so itself (<span class="mono">analytics.mjs:730-732</span>): “trust the band and the factor breakdown, not the last digit.”</p>
+</div>
+
+<h3>a · Pipeline: which strikes get a score at all</h3>
+<div class="flow">
+  <div class="step"><b>Chain</b>±30% of spot, nearest 2 monthlies (stocks) or 3W+3M (indices)</div><div class="arrow">→</div>
+  <div class="step"><b>OTM, ltp&gt;0, oi&gt;0</b><br><span class="mono small">analytics.mjs:617-619</span></div><div class="arrow">→</div>
+  <div class="step"><b>Quote gate</b>no-price · wide-spread &gt;25% · stale-print · IV outlier &gt;1.25× (1.5× idx) · OI &lt;10 lots (0 idx)<br><span class="mono small">529-595</span></div><div class="arrow">→</div>
+  <div class="step"><b>|Δ| ≤ 0.25, premium ≥ max(1, 0.04%·spot)</b><br><span class="mono small">644-645; build-stocks.mjs:123-124</span></div><div class="arrow">→</div>
+  <div class="step warn"><b>⚠ Sort puts-first by ltp×(1−|Δ|), keep 24</b>calls after the 24th put are discarded <i>unscored</i><br><span class="mono small">673-674; build-data.mjs:320</span></div><div class="arrow">→</div>
+  <div class="step"><b>sellConviction</b>then sort by conviction<br><span class="mono small">build-stocks.mjs:194-260</span></div><div class="arrow">→</div>
+  <div class="step"><b>Cross-universe list</b>liquidity bucket ≥ Medium (own-expiry cohort) · max 2 per symbol · top 24<br><span class="mono small">build-stocks.mjs:755-817</span></div>
+</div>
+
+<h3>b · Formula</h3>
+<div class="grid g2">
+<div class="card">
+  <div class="eq">raw   = Σ_present wᵢ·sᵢ / Σ_present wᵢ     sᵢ ∈ [0,1]
+mult  = Π (1 − cutⱼ)                     cut &lt; 0 = bonus
+conv  = round( clamp(raw · mult, 0, 1) · 100 )
+band  = conv ≥ 70 HIGH · ≥ 50 MEDIUM · else LOW
+ties  = stable sort → ties keep input order (universe list order)</div>
+  <div id="weightBars" style="margin-top:12px"></div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Multipliers (applied after the blend)</h3>
+  <div class="tbl"><table>
+    <tr><th>Modifier</th><th>Rule</th><th class="num">Max effect</th><th>Line</th></tr>
+    <tr><td>Gap risk</td><td>cut = clamp((gapShare − 0.35)/0.4) × 0.35. <i>Stocks only.</i></td><td class="num">−35%</td><td class="mono">1347-1351</td></tr>
+    <tr><td>Recent big move</td><td>maxAbsMove(60d) &gt; 3.5 × daily forecast σ → × 0.85</td><td class="num">−15%</td><td class="mono">1352-1358</td></tr>
+    <tr><td>Term structure</td><td>cut = clamp(slopePts/6, −1, 1) × 0.08. Contango is a <b>bonus</b>.</td><td class="num">±8%</td><td class="mono">1363-1367</td></tr>
+    <tr><td>Put smirk</td><td>puts only: clamp(smirk/10) × 0.10</td><td class="num">−10%</td><td class="mono">1370-1374</td></tr>
+    <tr><td>Marginal quote</td><td>quality &lt; 0.5: clamp((0.5−q)/0.5) × 0.25</td><td class="num">−25%</td><td class="mono">1379-1384</td></tr>
+    <tr><td>Tail reliance</td><td>1 − fair/ltp &gt; 0.7: clamp((tr−0.7)/0.3) × 0.45</td><td class="num">−45%</td><td class="mono">1391-1396</td></tr>
+  </table></div>
+  <p class="small muted" style="margin:8px 0 0">Stacking all six can take the score to ~21% of the blend. The only upward move is contango (+8%).</p>
+</div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h3 style="margin-top:0">Every input, where it comes from, where it saturates</h3>
+  <div class="tbl"><table id="factorTable">
+    <tr><th>Factor</th><th class="num">w</th><th>sᵢ formula</th><th>Source fields</th><th>Saturates at</th><th>Line</th></tr>
+    <tr><td><b>edge</b></td><td class="num">.24</td><td>clamp(edgePct / 0.04, 0, 1), edgePct = (ltp − fair) / (marginPct · spot)</td><td><code>ltp</code> (or bid if <code>markAt:"bid"</code>); fair from a 4,000-path block bootstrap of the name’s own returns, rescaled to σ<sub>forecast</sub>, with drift μ from the direction verdict; marginPct 0.15 stocks / 0.08 indices</td><td>4% of margin; ≤0 → 0</td><td class="mono">1242-1256</td></tr>
+    <tr><td><b>vrp</b></td><td class="num">.18</td><td>clamp((iv/σ<sub>f</sub> − 1)/0.5)</td><td><b>strike’s own</b> <code>iv</code> (Upstox greeks) vs <code>forecastVol</code> (Yang-Zhang 20/60/120 blend, mean-reverted, gap-inflated, floored at 0.85×min(rv60,rv120))</td><td>1.5×; ≤1.0 → 0</td><td class="mono">1259-1262; 824-883</td></tr>
+    <tr><td><b>direction</b></td><td class="num">.15</td><td>0.5 + (clamp(0.5 + align/20) − 0.5) × confidence</td><td><code>directionScore</code> per expiry: 8 factors (EMA trend, momentum, OI flow, PCR, max pain, skew, <b>India VIX</b>, basis)</td><td>score ±10 at conf 1</td><td class="mono">1265-1270; 329-443</td></tr>
+    <tr><td><b>cushion</b></td><td class="num">.13</td><td>clamp(|K−S| / (S·σ<sub>f</sub>·√t) / 2)</td><td>strike, spot, σ<sub>f</sub>, t (calendar years to 15:30 IST)</td><td>2σ</td><td class="mono">1275-1282</td></tr>
+    <tr><td><b>survival</b></td><td class="num">.10</td><td>1 − (0.6·P<sub>touch</sub>(σ<sub>f</sub>) + 0.4·P<sub>touch</sub>(1.3σ<sub>f</sub>))</td><td>same inputs as cushion (closed-form touch probability)</td><td>soft</td><td class="mono">1286-1293</td></tr>
+    <tr><td><b>ivRank</b></td><td class="num">.10</td><td>clamp(ivRank / 60)</td><td>min-max rank of <b>current-expiry</b> ATM IV over up to 252 daily points; null below 20 points; <b>always null for indices</b></td><td>IVR 60</td><td class="mono">1297-1299; build-stocks.mjs:393-401; build-data.mjs:447</td></tr>
+    <tr><td><b>liquidity</b></td><td class="num">.10</td><td>0.45·sOi + 0.30·sTurn + 0.25·quoteQuality</td><td>sOi = (log₁₀(oi·ltp·<b>lot</b>) − 6)/3; sTurn = (log₁₀(vol·ltp·<b>lot</b>) − 5)/3. oi/vol are already in shares, so the lot is counted twice.</td><td>₹10⁹ / ₹10⁸ (inflated)</td><td class="mono">1303-1320</td></tr>
+  </table></div>
+</div>
+</section>
+
+<!-- ============================ WORKED ============================ -->
+<section id="worked">
+<h2>2b · Worked examples: four real contracts from today’s data</h2>
+<p class="sub">Source: <code>stocks-data@afc593f</code>, <code>candidates.json</code> asOf 2026-09-28T07:45:47Z. Each score was rebuilt independently from the published factors and modifier inputs, and <b>all four match the published conviction exactly</b>.</p>
+<div class="card" style="margin-top:12px">
+  <div class="legend" id="workedLegend"></div>
+  <div class="chart" id="workedChart"></div>
+  <p class="small muted" style="margin:4px 0 0">Bar = the weighted blend before multipliers (points out of 100). A hatched tail shows points removed by multipliers. An outlined tail shows the contango bonus. The ◆ marks the published conviction. Hover a segment for its reading.</p>
+</div>
+<div class="grid" id="workedCards" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(min(480px,100%),1fr))"></div>
+</section>
+
+<!-- ============================ SENSITIVITY ============================ -->
+<section id="sens">
+<h2>2c · Sensitivity: what actually moves the score</h2>
+<p class="sub">Measured over all <b>2,245 scored strikes</b> in today’s 414 stock-expiry blocks (not just the 48 displayed). Mean conviction 38.4, SD 10.4. Bands: 4 HIGH, 326 MEDIUM, 1,915 LOW.</p>
+<div class="grid g2" style="margin-top:12px">
+  <div class="card">
+    <h3 style="margin-top:0">Nominal weight vs share of score variance</h3>
+    <div class="legend"><span><i style="background:var(--s1)"></i>nominal weight</span><span><i style="background:var(--s2)"></i>share of conviction variance</span></div>
+    <div class="chart" id="shareChart"></div>
+    <p class="small muted">Variance share = cov(wᵢsᵢ, conv) / var(conv), which sums to ~93% (the rest comes from the multipliers). <b>Edge and VRP drive the ranking.</b> Direction (15% weight) explains 5% and liquidity (10%) explains 2%. IV rank punches above its weight because it is pinned at 0 or 1 for a third of names.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Factor correlation (sᵢ vs sⱼ)</h3>
+    <div class="chart" id="corrChart"></div>
+    <p class="small muted"><b>cushion ↔ survival = 0.98</b>: two formulas for the same thing (distance ÷ forecast vol), 23% of the weight. VRP correlates 0.65 with both because it uses the <i>strike’s</i> IV, and wing IVs sit higher on the smile. So “far from spot” is effectively counted three times, ~41% of nominal weight. Edge is almost independent of everything (≤ 0.21).</p>
+  </div>
+</div>
+<div class="grid g2" style="margin-top:14px">
+  <div class="card">
+    <h3 style="margin-top:0">Saturation: how often each factor is pinned</h3>
+    <div class="legend"><span><i style="background:var(--s2)"></i>pinned at 0</span><span><i style="background:var(--axis)"></i>in range</span><span><i style="background:var(--s1)"></i>pinned at 1</span></div>
+    <div class="chart" id="satChart"></div>
+    <p class="small muted">A pinned factor can’t separate candidates. Edge is ≤ 0 for 26% of scored strikes (expected: negative expected value). IV rank sits at 1.0 for 29%, because the 60 cap is low and the min-max rank is taken over only 11–38 points of history.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Local sensitivity: points per unit move</h3>
+    <div class="tbl"><table>
+      <tr><th>Input nudge</th><th>Effect on conviction (typical mid-list strike)</th></tr>
+      <tr><td>edgePct +1% of margin</td><td class="num">+6.0 pts (0.24 × 0.01/0.04 × 100)</td></tr>
+      <tr><td>strike IV +5 vol pts (σ<sub>f</sub> 30%)</td><td class="num">+6.0 pts via VRP, plus a higher price → edge ↑</td></tr>
+      <tr><td>direction score +3 (conf 0.75)</td><td class="num">+1.7 pts</td></tr>
+      <tr><td>+0.25σ further OTM</td><td class="num">+1.6 cushion, +~1.5 survival, −edge (less premium)</td></tr>
+      <tr><td>IV rank 30 → 60</td><td class="num">+5.0 pts; beyond 60, 0</td></tr>
+      <tr><td>tail reliance 0.70 → 0.85</td><td class="num">−22.5% of the score (≈ −13 pts at 60)</td></tr>
+      <tr><td>gap share 35% → 75%</td><td class="num">−35% of the score</td></tr>
+      <tr><td>term slope −6 → +6 vol pts</td><td class="num">±8% swing, 16% end to end</td></tr>
+    </table></div>
+    <p class="small muted">Each weight is scaled by 1/Σw<sub>present</sub>, so when ivRank is null (indices, new names) every other factor counts ~11% more.</p>
+  </div>
+</div>
+</section>
+
+<!-- ============================ ASSUMPTIONS ============================ -->
+<section id="assump">
+<h2>2d · Hidden assumptions &amp; magic numbers</h2>
+<div class="grid g2" style="margin-top:12px">
+<div class="card">
+  <h3 style="margin-top:0">Hard-coded thresholds</h3>
+  <div class="tbl"><table>
+    <tr><th>Constant</th><th>Value</th><th>Line</th></tr>
+    <tr><td>Factor weights</td><td>.24/.18/.15/.13/.10/.10/.10, “priors, not backtested”</td><td class="mono">1167-1175</td></tr>
+    <tr><td>Margin proxy</td><td>15% × spot (stock), 8% (index); not SPAN</td><td class="mono">1231, 1197</td></tr>
+    <tr><td>Saturation points</td><td>edge 4%, VRP 1.5×, cushion 2σ, IVR 60</td><td class="mono">1253, 1261, 1280, 1298</td></tr>
+    <tr><td>Stress multiplier</td><td>σ × 1.3 in survival</td><td class="mono">1289</td></tr>
+    <tr><td>Drift from verdict</td><td>±10%/yr × score × confidence</td><td class="mono">1139-1144</td></tr>
+    <tr><td>Forecast vol</td><td>w20 0.65→0.30 by horizon; λ = h/120 ≤ 0.5; floor 0.85×min(rv60, rv120); gap inflation above 35% gap share</td><td class="mono">832-872</td></tr>
+    <tr><td>Bootstrap</td><td>4,000 paths, fixed seed <code>0x5eed</code>, block = horizon/3 in [2,15]</td><td class="mono">1008-1025</td></tr>
+    <tr><td>Candidate filters</td><td>|Δ| ≤ 0.25; premium ≥ max(1, 0.04% spot); ±30% window; 24 per expiry</td><td class="mono">b-s 39, 123-124, 170</td></tr>
+    <tr><td>Quote gate</td><td>10 lots, 25% spread, IV ratio 1.25 (1.5 idx), 40% quoted = “book open”</td><td class="mono">456-466</td></tr>
+    <tr><td>Bands / alerts</td><td>70 / 50 bands; alerts at 70 stocks, 60 indices</td><td class="mono">1416; alerts 34</td></tr>
+    <tr><td>IV rank history</td><td>min 20 points, 252 kept, one point per day (last write wins)</td><td class="mono">b-s 41-42, 357-363</td></tr>
+  </table></div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Missing-data defaults &amp; regime blindness</h3>
+  <ul style="margin:0;padding-left:18px">
+    <li><b>Missing factor → weight redistributed.</b> There is no minimum coverage, so a 2-factor score is shown on the same 0–100 scale. <span class="mono small">1322-1331</span></li>
+    <li><b><code>oi=0, volume=0</code> defaults</b> in the signature. With no quote verdict, liquidity falls back to an older 60/40 formula. <span class="mono small">1222, 1319</span></li>
+    <li><b>No bootstrap sample</b> (&lt; 60 returns) → Black-Scholes fallback, which the code itself calls “optimistic about far-OTM”. It is flagged <code>empirical:false</code>. All 2,245 scored today were empirical.</li>
+    <li><b>Expiry week:</b> IV rank and term structure read the <i>current</i> expiry even at DTE 1. Today 33 names are pinned at IVR 100 (vs 8 on 16-Sep), 140/207 are tagged “backwardation”, and both values are stamped onto the <b>next-month</b> candidates too. <span class="mono small">build-stocks.mjs:380-401</span></li>
+    <li><b>IV history mixes tenors.</b> One ATM-IV point per day from whichever expiry is current, so the series has a monthly saw-tooth (IEX: 0.205 → 0.391 overnight into expiry eve).</li>
+    <li><b>Earnings / results season:</b> not an input. Events appear on the News tab, but the score only sees them indirectly through gap share (trailing 60 bars) and term backwardation.</li>
+    <li><b>Trend vs range:</b> no regime switch. The direction verdict feeds a capped drift and 15% of the weight.</li>
+    <li><b>India VIX in stock direction:</b> a market-wide factor (10% of the direction engine) is applied to every stock. <span class="mono small">build-stocks.mjs:420</span></li>
+    <li><b>Calendar vs trading time:</b> <code>t</code> counts calendar days (incl. weekends) while σ is annualised on 252 days. Over a weekend, a short tenor’s variance is overstated (Fri→Tue: 4 calendar vs 2 trading days).</li>
+    <li><b>No NSE holiday calendar:</b> runs on holidays re-score yesterday’s prices with less time left, so scores drift with no market move.</li>
+    <li><b>Mark = last trade (LTP)</b>, held there by choice; LTP overstates collectable credit by up to 1.21× on gated rows (CLAUDE.md).</li>
+  </ul>
+</div>
+</div>
+</section>
+
+<!-- ============================ TRUST ============================ -->
+<section id="trust">
+<h2>2e · Trust diagnosis: specific ways it could mislead you</h2>
+<div class="card" style="margin-top:12px"><div class="tbl"><table>
+<tr><th>#</th><th>How it misleads</th><th>Tag</th><th>Evidence</th></tr>
+<tr><td>T1</td><td><b>Missing calls.</b> On deep index expiries the list can be all puts because calls were never scored, not because puts are better.</td><td><span class="tag bug">bug</span></td><td>NIFTY 27-Oct: 25 calls passed every filter, 0 scored. BANKNIFTY 27-Oct: 23 → 0. Stocks: 6 calls lost across 3 blocks.</td></tr>
+<tr><td>T2</td><td><b>A 2-factor score looks like a 7-factor score.</b> When the vol forecast is missing, conviction = direction + liquidity.</td><td><span class="tag design">design</span></td><td>NIFTY Oct puts re-scored with no forecast: 63 → 47, 62 → 38 …; up to ~85 under a strong trend verdict.</td></tr>
+<tr><td>T3</td><td><b>Big-lot bias.</b> The lot is counted twice in liquidity, which tilts name selection and strike scores toward cheap, big-lot stocks.</td><td><span class="tag bug">bug</span></td><td>29 names flip in/out of the tradeable cohort; strike factor shifts by 3.0 (lot 25) to 7.5 raw points (lot 2,625+).</td></tr>
+<tr><td>T4</td><td><b>Expiry-eve distortions spill into next month.</b> IV rank 100 and a backwardation penalty from a 1-DTE ATM IV are applied to 29-DTE trades.</td><td><span class="tag data">data-quality</span></td><td>IEX Oct 120 CE (conviction 71, today’s top “next” idea) gets +10 raw points from IVR 100 set by the Sep contract, and −6 from “backwardation”.</td></tr>
+<tr><td>T5</td><td><b>Distance counted three times.</b> cushion + survival + smile-inflated VRP push far-OTM strikes up together.</td><td><span class="tag design">design</span></td><td>ρ(cushion, survival) = 0.98; ρ(vrp, cushion) = 0.65. In outcomes, cushion/survival correlate −0.57 with ROI on margin.</td></tr>
+<tr><td>T6</td><td><b>VRP compares a wing IV to an ATM-level forecast.</b> Smile steepness reads as “rich premium”.</td><td><span class="tag design">design</span></td><td>PREMIERENE 940 CE: strike VRP 1.57× (s = 1.0) while the name’s ATM VRP is 0.88.</td></tr>
+<tr><td>T7</td><td><b>Stale file, fresh flag.</b> Per-stock files not rebuilt stay on <code>stocks-data</code> with <code>stale:false</code>.</td><td><span class="tag data">data-quality</span></td><td>DALBHARAT.json asOf 2026-08-25, still published today.</td></tr>
+<tr><td>T8</td><td><b>Integer ties.</b> Conviction is rounded, and ties keep universe-list order (roughly alphabetical), not merit.</td><td><span class="tag design">design</span></td><td><span class="mono">build-stocks.mjs:794</span> stable sort.</td></tr>
+<tr><td>T9</td><td><b>Last-print pricing.</b> Edge uses LTP, not bid. Mostly fine after the stale-quote gate, but up to 1.21× overstated.</td><td><span class="tag design">design</span></td><td><span class="mono">analytics.mjs:463</span>; CLAUDE.md measurement 2026-09-10.</td></tr>
+<tr><td>T10</td><td><b>Weights never fitted.</b> Nothing ties them to outcomes, and outcomes so far show no rank signal.</td><td><span class="tag design">design</span></td><td>Spearman(conviction, ROI) −0.044 stocks, −0.056 indices.</td></tr>
+<tr><td>T11</td><td><b>Holiday/weekend drift.</b> t shrinks while prices don’t move, so scores change with no market move.</td><td><span class="tag data">data-quality</span></td><td>No holiday calendar anywhere in the code.</td></tr>
+</table></div></div>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card">
+  <h3 style="margin-top:0">T1 in detail: call candidates filtered vs scored (indices, today)</h3>
+  <div class="legend"><span><i style="background:var(--s1)"></i>calls passing all filters</span><span><i style="background:var(--s2)"></i>calls actually scored</span></div>
+  <div class="chart" id="truncChart"></div>
+  <p class="small muted">Rebuilt by re-running <code>sellCandidates</code> on the published chains. The rebuilt “kept” counts match the published files exactly.</p>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">T2 in detail: NIFTY 27-Oct puts with and without a vol forecast</h3>
+  <div class="legend"><span><i style="background:var(--s1)"></i>published (7 factors)</span><span><i style="background:var(--s2)"></i>no forecast (2 factors)</span></div>
+  <div class="chart" id="degenChart"></div>
+  <p class="small muted">Today the verdict is NEUTRAL, so the degenerate score comes out lower. With a BULLISH +8 / 0.8 verdict and deep OI, a put would score ≈ 0.6·0.82 + 0.4·0.95 ≈ 87.</p>
+</div>
+</div>
+</section>
+
+<!-- ============================ VALIDATION ============================ -->
+<section id="valid">
+<h2>2f · Validation: does a higher score mean a better trade?</h2>
+<div class="callout" style="margin-top:10px"><b>What exists:</b> the private archive (<code>xerxes-eod-archive</code>) snapshots every name at EOD, and <code>scripts/settle.mjs</code> freezes an outcome row per scored strike when it expires (<code>state/outcomes.jsonl</code>, 4,230 rows). <b>What doesn’t:</b> nothing in Xerxes reads those outcomes. There is no report, no calibration, no weight fitting, and no log of <i>your</i> actual trades. Settlement uses the ~15:45 close, not NSE’s 30-min VWAP. Entry is the first day a strike was <i>scored</i>, not first <i>displayed</i>.</div>
+<div class="grid g2" style="margin-top:14px">
+  <div class="card">
+    <h3 style="margin-top:0">Stocks: mean return on margin by conviction band</h3>
+    <div class="chart" id="roiChart"></div>
+    <p class="small muted">3,917 settled strikes, <b>one monthly expiry (25-Aug)</b>, 195 names, entries 7–25 Aug. Bars = mean ROI % on the 15% margin proxy; whiskers run from the 5th percentile to the median. The 70+ band (n = 35) did best, but 60–69 did worst (worst −103%). No monotone pattern.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Stocks: win rate by band</h3>
+    <div class="chart" id="winChart"></div>
+    <p class="small muted">A win means the strike expired OTM. The low band still won 90.6%. In a benign month nearly everything wins, so this sample cannot separate good from bad scores.</p>
+  </div>
+</div>
+<div class="grid g2" style="margin-top:14px">
+  <div class="card">
+    <h3 style="margin-top:0">Calibration of P(profit) (pProfit)</h3>
+    <div class="chart" id="calChart"></div>
+    <p class="small muted">Every bin sits above the diagonal: realised OTM rates beat the forecast by 2–11 points. That is conservative, which is safe for a seller. But it is one month, and a volatile month could flip it.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Rank correlation with outcome (Spearman ρ vs ROI on margin)</h3>
+    <div class="chart" id="rhoChart"></div>
+    <p class="small muted">Stocks, n ≈ 3,900. The composite score is ≈ 0. Components pull in opposite directions: safety factors (cushion, survival, pProfit) favour far strikes that earn less per rupee of margin, while liquidity (near strikes) correlates +0.55. Edge, the score’s biggest weight, is +0.09. <b>Indices:</b> 313 rows, ρ = −0.06, and only 1 row ≥ 60.</p>
+  </div>
+</div>
+<div class="card" style="margin-top:14px">
+  <h3 style="margin-top:0">Minimal validation setup (recommendation only)</h3>
+  <ol style="margin:0;padding-left:20px">
+    <li><b>Freeze the entry.</b> Log each contract the first time it appears on the <i>displayed</i> list (<code>candidates.json</code>), with conviction, every factor s, mark, bid/ask, formula version (a hash of weights and constants) and timestamp. Append-only, one small JSONL per day in the archive repo.</li>
+    <li><b>Settle it.</b> Reuse <code>settle.mjs</code> as is. Add the NSE settlement price when it becomes available.</li>
+    <li><b>Score the score, weekly.</b> By band: n, win %, mean/median/5th-percentile ROI on margin, max adverse excursion. Spearman ρ(conviction, ROI). pProfit calibration table. Each factor’s ρ with outcome. Post it as a Telegram card and an HTML page.</li>
+    <li><b>Decision rule set in advance</b> (like the retired ranker’s ICIR bar): e.g. “trust the ordering only once ρ ≥ 0.10 across ≥ 3 monthly expiries, including one with VIX &gt; 18.”</li>
+    <li><b>Log your own trades</b> (Premium Shikari fills and exits) keyed to the same contract ID, so model P&amp;L and real P&amp;L can be compared.</li>
+  </ol>
+</div>
+</section>
+
+<!-- ============================ IDEAS ============================ -->
+<section id="ideas">
+<h2>2g · Improvement ideas (ranked)</h2>
+<div class="grid g2" style="margin-top:12px">
+<div class="card">
+  <h3 style="margin-top:0">(i) Leave the formula alone</h3>
+  <ol style="margin:0;padding-left:20px">
+    <li><b>Weekly outcome report</b> from <code>outcomes.jsonl</code> (validation steps 1–4 above).</li>
+    <li><b>Coverage flag</b> on every score: “7/7 factors”, “empirical”, and a visible warning when edge/vrp/cushion/survival are absent. Display only.</li>
+    <li><b>Formula version stamp</b> in every JSON, so outcomes can be tied to the weights that produced them.</li>
+    <li><b>Freshness manifest</b> (<code>manifest.json</code>: per-file asOf, built/failed counts) for Premium Shikari to check before use.</li>
+    <li><b>Intraday failure alert</b> via Telegram (built &lt; 90% of last run, 401 from Upstox, no fresh run in 30 min).</li>
+    <li><b>Show raw blend vs final</b> and each multiplier’s cost (partly done in <code>notes</code>).</li>
+    <li><b>Log real trades</b> against contract IDs.</li>
+  </ol>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">(ii) Would change the formula or its inputs</h3>
+  <ol style="margin:0;padding-left:20px">
+    <li><b>Score before slicing</b> (or slice per side). This fixes T1 without touching weights, but it changes which strikes appear.</li>
+    <li><b>Minimum factor coverage</b>: refuse to score, or cap at 49, when the forecast-dependent factors are missing (T2).</li>
+    <li><b>Fix liquidity units</b> (drop the extra ×lot) and recalibrate the log thresholds (T3).</li>
+    <li><b>Constant-tenor IV</b> (e.g. 30-day interpolated) for IV rank and history. Skip term structure when the near expiry is &lt; 5 DTE (T4).</li>
+    <li><b>ATM or smile-adjusted VRP</b> instead of strike IV (T6).</li>
+    <li><b>Merge cushion + survival</b> into one distance factor (T5). Do this only after (i)-1 shows what helps.</li>
+    <li><b>Trading-day time</b> and an NSE holiday calendar (T11).</li>
+    <li><b>Fit or shrink weights</b> once ≥ 3 expiries across regimes are settled.</li>
+  </ol>
+</div>
+</div>
+</section>
+
+<!-- ============================ PENDING ============================ -->
+<section id="pending">
+<h2>3 · Pending work</h2>
+<p class="sub">No <code>TODO</code>/<code>FIXME</code>/<code>HACK</code> markers exist in tracked source (grep of <code>*.mjs *.ts *.tsx *.js *.yml *.sh *.md</code>). There are <b>0 open GitHub issues</b>. The backlog lives in CLAUDE.md.</p>
+<div class="card" style="margin-top:12px"><div class="tbl"><table id="pendingTable"></table></div></div>
+</section>
+
+<!-- ============================ RISKS ============================ -->
+<section id="risks">
+<h2>4 · Gaps &amp; risks</h2>
+<p class="sub">Heatmap of severity × likelihood. Hover a chip for its title; the full list follows.</p>
+<div class="card" style="margin-top:12px">
+  <div class="heat" id="heat"></div>
+</div>
+<div class="grid g2" style="margin-top:14px">
+<div class="card">
+  <h3 style="margin-top:0">Would you know if Xerxes broke at 10 AM?</h3>
+  <div class="tbl"><table>
+    <tr><th>Failure at 10:00</th><th>What you’d see</th><th>Alert?</th></tr>
+    <tr><td>Upstox token expired</td><td>Stocks: empty screener published as fresh. Indices: NSE fallback or <code>stale</code> badge.</td><td><b>No</b>, until the heartbeat, which still shows ✓ because runs happened.</td></tr>
+    <tr><td>cron-job.org job disabled</td><td>timestamps stop moving (“x min ago” in the UI)</td><td>No, until ~15:50 when no heartbeat arrives.</td></tr>
+    <tr><td>Upstox rate-limits half the names</td><td>those names vanish from <code>index.json</code>; old per-stock files remain</td><td><b>No</b></td></tr>
+    <tr><td>Instrument CDN 403 × 6</td><td>build aborts, guard holds last data (<code>::warning::</code>)</td><td>No, the run is green.</td></tr>
+    <tr><td>Telegram down</td><td>alert step red</td><td>Only by GitHub email.</td></tr>
+    <tr><td>Archive push fails</td><td>that day is lost for good</td><td>GitHub email only. <code>missed_days</code> not written.</td></tr>
+  </table></div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">History loss from force-orphan publishing</h3>
+  <p style="margin:0 0 8px"><code>stocks-data</code> and <code>gh-pages</code> keep exactly one commit. The EOD archiver <b>was built and is running</b> (private repo, since 11-Aug). It keeps one snapshot per day at ~16:00–22:00 IST (51 MB for 20 days) plus the settled outcomes.</p>
+  <ul style="margin:0;padding-left:18px">
+    <li><b>Lost for good:</b> ~13 trading days, 26-Aug to 14-Sep (the DB passed GitHub’s 100 MB file limit). No record in <code>missed-days.json</code>. <code>settle.mjs</code> correctly refuses to settle across that gap.</li>
+    <li><b>Never kept:</b> intraday history. ~30 builds/day are overwritten, so you can’t study how stable a conviction is intraday, when a NEW alert first appeared, or how fast edge decays.</li>
+    <li><b>Not tied to what you saw:</b> <code>candidates.json</code> is archived only at EOD, so an intraday top-24 that was gone by close is missing.</li>
+    <li>Index snapshots <i>do</i> keep history (committed to the code branch every 10 min), but the local clone was shallow (50 commits).</li>
+  </ul>
+</div>
+</div>
+<div class="card" style="margin-top:14px"><div class="tbl"><table id="riskTable"></table></div></div>
+<div class="grid g3" style="margin-top:14px">
+  <div class="card"><h3 style="margin-top:0">Security</h3><p class="small" style="margin:0">No tokens found in the working tree, and no JWT-shaped strings in the fetched history. Only the last 50 commits were available; a full-history scan is still owed. Secrets are read only from Actions secrets, and the Telegram URL is never logged. Everything else is <b>public</b>: the repo, <code>alerts-state</code> history (which contracts were alerted and when) and Actions logs. The optional Worker’s <code>POST /refresh</code> has no auth; CORS does not stop <code>curl</code>.</p></div>
+  <div class="card"><h3 style="margin-top:0">Test coverage</h3><p class="small" style="margin:0"><b>150 tests pass</b> (vitest 2.1.9, run in a scratch copy). Covered: analytics (95), alerts (27), stock-news (24), build-stocks helpers (4). <b>Not covered:</b> <code>build-data.mjs</code>, <code>computeExpiry</code> slicing (the T1 bug), the publish guard, Upstox parsing, the UI and <code>position.ts</code>. <b>No workflow runs <code>npm test</code></b>.</p></div>
+  <div class="card"><h3 style="margin-top:0">Actions minutes &amp; scale</h3><p class="small" style="margin:0">Public repo, so minutes on standard runners are free. Stocks runs take ~40–50 s for 207 names at concurrency 5, so there is plenty of headroom. The limits that matter are Upstox rate limits (no 429 backoff), Google News (25 names/run), and GitHub’s <code>schedule:</code> reliability. The backup cron fired <b>5 h late</b> on 25-Sep.</p></div>
+</div>
+</section>
+
+<!-- ============================ RECS ============================ -->
+<section id="recs">
+<h2>5 · Recommendations</h2>
+<div class="filters" id="recFilters" role="group" aria-label="Filter recommendations">
+  <span class="small muted">Severity:</span>
+  <button data-f="sev" data-v="all" aria-pressed="true">All</button>
+  <button data-f="sev" data-v="Critical" aria-pressed="false">Critical</button>
+  <button data-f="sev" data-v="High" aria-pressed="false">High</button>
+  <button data-f="sev" data-v="Medium" aria-pressed="false">Medium</button>
+  <button data-f="sev" data-v="Low" aria-pressed="false">Low</button>
+  <span class="small muted" style="margin-left:10px">Touches conviction:</span>
+  <button data-f="conv" data-v="all" aria-pressed="true">All</button>
+  <button data-f="conv" data-v="Yes" aria-pressed="false">Yes</button>
+  <button data-f="conv" data-v="No" aria-pressed="false">No</button>
+  <span class="small muted" id="recCount"></span>
+</div>
+<div class="card"><div class="tbl"><table id="recTable"></table></div></div>
+</section>
+
+<!-- ============================ APPENDIX ============================ -->
+<section id="appendix">
+<h2>Appendix · References for every claim</h2>
+<p class="sub">Lines are for commit <code>a9963a4</code> of <code>claude/nifty-option-screener-93xv0y</code> unless noted. “b-s” = <code>scripts/build-stocks.mjs</code>, “b-d” = <code>scripts/build-data.mjs</code>, “an” = <code>scripts/analytics.mjs</code>.</p>
+<div class="card" style="margin-top:12px"><div class="tbl"><table id="refTable"></table></div></div>
+<div class="card" style="margin-top:14px">
+  <h3 style="margin-top:0">Method, scope &amp; what I could not check</h3>
+  <ul style="margin:0;padding-left:18px" class="small">
+    <li>Read-only. Code and data were copied to <code>/tmp/xerxes-scratch</code>. All re-computation (score reconstruction, sensitivity, truncation re-run, liquidity-unit counterfactual, outcome analysis) used the repo’s own <code>analytics.mjs</code> unchanged.</li>
+    <li><b>Not verifiable here:</b> cron-job.org configuration, the Upstox token’s issue/expiry date, repo secrets and variables, Upstox rate-limit behaviour (the sandbox can’t reach Upstox), and full git history (shallow clone).</li>
+    <li>Counterfactuals (liquidity units, no-forecast scoring) show direction and size only. They are not a proposed patch, and the dropped index calls could not be scored offline because the bootstrap needs daily OHLC that isn’t published.</li>
+    <li>The outcome analysis covers what <code>settle.mjs</code> produced: 8 expiries, but stocks only from 25-Aug, entries 7–25 Aug. The September stock monthly (29-Sep) settles tomorrow.</li>
+    <li>Market data is a 10–20 min delayed snapshot built on last trade, not a tick feed. Keep that in mind when using it as a Kite substitute.</li>
+  </ul>
+</div>
+<p class="small muted" style="margin-top:20px">Generated 2026-09-28 by a read-only audit. No application file, branch, workflow or setting was modified.</p>
+</section>
+</div>
+
+<script>
+const D = {"worked":[{"sym":"PREMIERENE","type":"CE","strike":940,"expiry":"2026-09-29","dte":1,"spot":905.1,"lot":650,"ltp":1.2,"iv":0.498,"sf":0.3178,"vrpAtm":0.88,"ivRank":37,"delta":0.102,"pProfit":0.969,"probProfit":0.898,"edgePct":0.0051,"fair":0.51,"tail":0.57,"cvar":-8.95,"worst":-26.5,"qq":0.74,"gap":{"gapShare":0.146,"maxAbsMove":0.053,"jumpCount":4},"term":-6.71,"smirk":34.42,"verdict":{"v":"NEUTRAL","score":-2.3,"conf":0.7},"comps":[{"key":"edge","s":0.13,"w":0.24,"pts":3.1,"reading":"0.51% of margin (fair ₹0.51)"},{"key":"vrp","s":1,"w":0.18,"pts":18,"reading":"IV 49.8% vs forecast RV 31.8% (1.57×)"},{"key":"direction","s":0.58,"w":0.15,"pts":8.7,"reading":"NEUTRAL -2.3 · sell CE"},{"key":"cushion","s":1,"w":0.13,"pts":13,"reading":"2.22σ away on forecast vol"},{"key":"survival","s":0.94,"w":0.1,"pts":9.4,"reading":"P(touch) 3% · 9% stressed"},{"key":"ivRank","s":0.62,"w":0.1,"pts":6.2,"reading":"IVR 37"},{"key":"liquidity","s":0.94,"w":0.1,"pts":9.4,"reading":"OI +13.3L (2039 lots) · vol +9.4L · 8% wide"}],"raw":67.8,"mods":[["gap",0],["term",-0.08]],"mult":1.08,"recon":73,"pub":73,"notes":["contango 6.71 vol pts (+5)"],"credit":780},{"sym":"IEX","type":"CE","strike":120,"expiry":"2026-10-27","dte":29,"spot":111.74,"lot":4350,"ltp":1.27,"iv":0.3125,"sf":0.2248,"vrpAtm":1.23,"ivRank":100,"delta":0.236,"pProfit":0.908,"probProfit":0.764,"edgePct":0.0558,"fair":0.33,"tail":0.74,"cvar":-4.49,"worst":-19.43,"qq":0.93,"gap":{"gapShare":0.081,"maxAbsMove":0.048,"jumpCount":4},"term":11.47,"smirk":5.61,"verdict":{"v":"BEARISH","score":-4.2,"conf":0.76},"comps":[{"key":"edge","s":1,"w":0.24,"pts":24,"reading":"5.58% of margin (fair ₹0.33)"},{"key":"vrp","s":0.78,"w":0.18,"pts":14,"reading":"IV 31.3% vs forecast RV 22.5% (1.39×)"},{"key":"direction","s":0.66,"w":0.15,"pts":9.9,"reading":"BEARISH -4.2 · sell CE"},{"key":"cushion","s":0.58,"w":0.13,"pts":7.5,"reading":"1.16σ away on forecast vol"},{"key":"survival","s":0.69,"w":0.1,"pts":6.9,"reading":"P(touch) 26% · 39% stressed"},{"key":"ivRank","s":1,"w":0.1,"pts":10,"reading":"IVR 100"},{"key":"liquidity","s":0.98,"w":0.1,"pts":9.8,"reading":"OI +25.2L (580 lots) · vol +9.2L · 2% wide"}],"raw":82.2,"mods":[["gap",0],["term",0.08],["tail",0.06]],"mult":0.8648,"recon":71,"pub":71,"notes":["backwardation 11.47 vol pts (−6)","74% of the premium is tail-risk compensation — thin real cushion (−5)"],"credit":5525},{"sym":"HCLTECH","type":"PE","strike":1040,"expiry":"2026-10-27","dte":29,"spot":1254.8,"lot":400,"ltp":4.8,"iv":0.4492,"sf":0.3302,"vrpAtm":0.95,"ivRank":79,"delta":-0.064,"pProfit":0.962,"probProfit":0.936,"edgePct":0.0162,"fair":1.75,"tail":0.64,"cvar":-30.23,"worst":-208.72,"qq":0.91,"gap":{"gapShare":0.332,"maxAbsMove":0.055,"jumpCount":4},"term":-3.14,"smirk":6.87,"verdict":{"v":"NEUTRAL","score":-0.7,"conf":0.8},"comps":[{"key":"edge","s":0.41,"w":0.24,"pts":9.8,"reading":"1.62% of margin (fair ₹1.75)"},{"key":"vrp","s":0.72,"w":0.18,"pts":13,"reading":"IV 44.9% vs forecast RV 33% (1.36×)"},{"key":"direction","s":0.47,"w":0.15,"pts":7,"reading":"NEUTRAL -0.7 · sell PE"},{"key":"cushion","s":0.92,"w":0.13,"pts":12,"reading":"1.84σ away on forecast vol"},{"key":"survival","s":0.93,"w":0.1,"pts":9.3,"reading":"P(touch) 4% · 12% stressed"},{"key":"ivRank","s":1,"w":0.1,"pts":10,"reading":"IVR 79"},{"key":"liquidity","s":0.93,"w":0.1,"pts":9.3,"reading":"OI +2.6L (652 lots) · vol +1.1L · 2% wide"}],"raw":70.4,"mods":[["gap",0],["term",-0.0419],["smirk",0.0687]],"mult":0.9703,"recon":68,"pub":68,"notes":["contango 3.14 vol pts (+3)","put smirk 6.87 vol pts (−5)"],"credit":1920},{"sym":"JSWSTEEL","type":"CE","strike":1280,"expiry":"2026-09-29","dte":1,"spot":1260.4,"lot":675,"ltp":3.05,"iv":0.3564,"sf":0.2154,"vrpAtm":1.64,"ivRank":100,"delta":0.22,"pProfit":0.915,"probProfit":0.78,"edgePct":0.0124,"fair":0.7,"tail":0.77,"cvar":-8.82,"worst":-25.99,"qq":0.75,"gap":{"gapShare":0.26,"maxAbsMove":0.0304,"jumpCount":3},"term":12.08,"smirk":46.63,"verdict":{"v":"NEUTRAL","score":-1.4,"conf":0.73},"comps":[{"key":"edge","s":0.31,"w":0.24,"pts":7.4,"reading":"1.24% of margin (fair ₹0.7)"},{"key":"vrp","s":1,"w":0.18,"pts":18,"reading":"IV 35.6% vs forecast RV 21.5% (1.65×)"},{"key":"direction","s":0.55,"w":0.15,"pts":8.3,"reading":"NEUTRAL -1.4 · sell CE"},{"key":"cushion","s":0.66,"w":0.13,"pts":8.6,"reading":"1.32σ away on forecast vol"},{"key":"survival","s":0.76,"w":0.1,"pts":7.6,"reading":"P(touch) 19% · 31% stressed"},{"key":"ivRank","s":1,"w":0.1,"pts":10,"reading":"IVR 100"},{"key":"liquidity","s":0.94,"w":0.1,"pts":9.4,"reading":"OI +4.8L (708 lots) · vol +14.1L · 8% wide"}],"raw":69.3,"mods":[["gap",0],["term",0.08],["tail",0.105]],"mult":0.8234,"recon":57,"pub":57,"notes":["backwardation 12.08 vol pts (−5)","77% of the premium is tail-risk compensation — thin real cushion (−7)"],"credit":2059}],"sens":{"stat":{"edge":{"n":2245,"mean":0.229,"sd":0.254,"at1":0.024,"at0":0.257},"vrp":{"n":2245,"mean":0.31,"sd":0.339,"at1":0.108,"at0":0.274},"direction":{"n":2245,"mean":0.519,"sd":0.128,"at1":0,"at0":0},"cushion":{"n":2245,"mean":0.662,"sd":0.226,"at1":0.162,"at0":0},"survival":{"n":2245,"mean":0.732,"sd":0.165,"at1":0.026,"at0":0},"ivRank":{"n":2245,"mean":0.398,"sd":0.428,"at1":0.287,"at0":0.016},"liquidity":{"n":2245,"mean":0.798,"sd":0.171,"at1":0.006,"at0":0}},"M":{"edge":{"edge":1,"vrp":0.05,"direction":0.05,"cushion":-0.03,"survival":0,"ivRank":0,"liquidity":0.21},"vrp":{"edge":0.05,"vrp":1,"direction":-0.06,"cushion":0.65,"survival":0.66,"ivRank":0.09,"liquidity":-0.12},"direction":{"edge":0.05,"vrp":-0.06,"direction":1,"cushion":0.24,"survival":0.17,"ivRank":-0.02,"liquidity":0.03},"cushion":{"edge":-0.03,"vrp":0.65,"direction":0.24,"cushion":1,"survival":0.98,"ivRank":0.05,"liquidity":-0.37},"survival":{"edge":0,"vrp":0.66,"direction":0.17,"cushion":0.98,"survival":1,"ivRank":0.06,"liquidity":-0.37},"ivRank":{"edge":0,"vrp":0.09,"direction":-0.02,"cushion":0.05,"survival":0.06,"ivRank":1,"liquidity":-0.07},"liquidity":{"edge":0.21,"vrp":-0.12,"direction":0.03,"cushion":-0.37,"survival":-0.37,"ivRank":-0.07,"liquidity":1}},"share":{"edge":0.288,"vrp":0.255,"direction":0.047,"cushion":0.117,"survival":0.067,"ivRank":0.139,"liquidity":0.02},"bands":{"HIGH":4,"MEDIUM":326,"LOW":1915},"n":2245,"stockTrunc":{"blocks":414,"trunc":3,"lostCE":6},"lot":{"min":-7.5,"med":-5.3,"max":0,"most":[{"sym":"BHEL","lot":2625,"cur":0.93,"fixd":0.18,"dpts":-7.5},{"sym":"DELHIVERY","lot":2075,"cur":0.95,"fixd":0.2,"dpts":-7.5},{"sym":"LTF","lot":2250,"cur":0.95,"fixd":0.2,"dpts":-7.5},{"sym":"NTPC","lot":1500,"cur":0.94,"fixd":0.19,"dpts":-7.5},{"sym":"BANKINDIA","lot":5200,"cur":0.95,"fixd":0.21,"dpts":-7.4},{"sym":"INDUSTOWER","lot":1700,"cur":0.95,"fixd":0.21,"dpts":-7.4}],"least":[{"sym":"POWERINDIA","lot":25,"cur":0.71,"fixd":0.36,"dpts":-3.5},{"sym":"FORCEMOT","lot":25,"cur":0.67,"fixd":0.33,"dpts":-3.4},{"sym":"PAGEIND","lot":20,"cur":0.64,"fixd":0.32,"dpts":-3.3},{"sym":"SHREECEM","lot":25,"cur":0.51,"fixd":0.21,"dpts":-3}]}},"val":{"stocks":{"all":{"n":3917,"winPct":95.1,"meanRoi":1.81,"medRoi":1.94,"p5Roi":0.3,"worstRoi":-103.03,"everItm":16.4,"meanPP":88.4},"bands":{"0-29":{"n":1013,"winPct":90.6,"meanRoi":1.88,"medRoi":2.5,"p5Roi":-3.4,"worstRoi":-54.23,"everItm":30.2,"meanPP":79.6},"30-39":{"n":1499,"winPct":96,"meanRoi":1.67,"medRoi":1.72,"p5Roi":0.3,"worstRoi":-48.98,"everItm":13.3,"meanPP":89.3},"40-49":{"n":834,"winPct":98.1,"meanRoi":1.84,"medRoi":1.51,"p5Roi":0.41,"worstRoi":-17.83,"everItm":7.3,"meanPP":93.9},"50-59":{"n":417,"winPct":97.8,"meanRoi":2.18,"medRoi":1.91,"p5Roi":0.48,"worstRoi":-34.87,"everItm":12.2,"meanPP":94},"60-69":{"n":119,"winPct":89.9,"meanRoi":0.45,"medRoi":3.1,"p5Roi":-14.67,"worstRoi":-103.03,"everItm":19.3,"meanPP":92.5},"70+":{"n":35,"winPct":100,"meanRoi":5.73,"medRoi":6.02,"p5Roi":3.45,"worstRoi":2.86,"everItm":0,"meanPP":90.7}}},"indices":{"all":{"n":313,"winPct":89.5,"meanRoi":-0.41,"medRoi":1.26,"p5Roi":-16.5,"worstRoi":-44.42,"everItm":18.8,"meanPP":88.3},"bands":{"0-29":{"n":93,"winPct":75.3,"meanRoi":-4.14,"medRoi":2.04,"p5Roi":-40.54,"worstRoi":-44.42,"everItm":33.3,"meanPP":79.5},"30-39":{"n":109,"winPct":96.3,"meanRoi":1.27,"medRoi":1.07,"p5Roi":0.53,"worstRoi":-0.7,"everItm":6.4,"meanPP":90.5},"40-49":{"n":68,"winPct":94.1,"meanRoi":0.68,"medRoi":0.97,"p5Roi":0.11,"worstRoi":-12.81,"everItm":22.1,"meanPP":94.6},"50-59":{"n":42,"winPct":95.2,"meanRoi":1.68,"medRoi":2.07,"p5Roi":0.54,"worstRoi":-8.36,"everItm":14.3,"meanPP":91.8},"60-69":{"n":1,"winPct":100,"meanRoi":3.14,"medRoi":3.14,"p5Roi":3.14,"worstRoi":3.14,"everItm":0,"meanPP":91.8},"70+":{"n":0}}},"spearman":{"stocks_conv_roi":-0.044,"indices_conv_roi":-0.056},"factorSpear":{"f_edge":{"n":3899,"rho":0.086},"f_vrp":{"n":3899,"rho":-0.253},"f_direction":{"n":3899,"rho":0.003},"f_cushion":{"n":3899,"rho":-0.574},"f_survival":{"n":3899,"rho":-0.588},"f_ivrank":{"n":0,"rho":null},"f_liquidity":{"n":3899,"rho":0.55},"edge_pct":{"n":3917,"rho":0.052},"p_profit":{"n":3917,"rho":-0.57}},"calib":[{"bin":"0-0.7","n":123,"pred":65.9,"real":75.6},{"bin":"0.7-0.8","n":745,"pred":76,"real":87.1},{"bin":"0.8-0.9","n":1281,"pred":85,"real":93.8},{"bin":"0.9-0.95","n":711,"pred":92.5,"real":97.6},{"bin":"0.95-1","n":1370,"pred":98.1,"real":99.8}],"entry":{"dates":["2026-08-07","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-24","2026-08-25","2026-09-15","2026-09-16","2026-09-17","2026-09-18","2026-09-21","2026-09-23"],"symbols":195,"expiries":["2026-08-13","2026-08-18","2026-08-20","2026-08-25","2026-09-15","2026-09-17","2026-09-22","2026-09-24"]},"typeSplit":{"PE":{"n":1878,"winPct":95.6,"meanRoi":1.9,"medRoi":1.7,"p5Roi":0.31,"worstRoi":-32.8,"everItm":15.4,"meanPP":88.3},"CE":{"n":2039,"winPct":94.6,"meanRoi":1.74,"medRoi":2.13,"p5Roi":0.29,"worstRoi":-103.03,"everItm":17.3,"meanPP":88.5}},"mktNote":{"n":3917,"winPct":95.1,"meanRoi":1.81,"medRoi":1.94,"p5Roi":0.3,"worstRoi":-103.03,"everItm":16.4,"meanPP":88.4}},"trunc":[{"idx":"nifty","exp":"2026-09-29","dte":1,"prePE":4,"preCE":5,"keptPE":4,"keptCE":5,"pubPE":4,"pubCE":5},{"idx":"nifty","exp":"2026-10-06","dte":8,"prePE":20,"preCE":12,"keptPE":20,"keptCE":4,"pubPE":20,"pubCE":4},{"idx":"nifty","exp":"2026-10-13","dte":15,"prePE":23,"preCE":17,"keptPE":23,"keptCE":1,"pubPE":23,"pubCE":1},{"idx":"nifty","exp":"2026-10-19","dte":21,"prePE":15,"preCE":13,"keptPE":15,"keptCE":9,"pubPE":15,"pubCE":9},{"idx":"nifty","exp":"2026-10-27","dte":29,"prePE":30,"preCE":25,"keptPE":24,"keptCE":0,"pubPE":24,"pubCE":0},{"idx":"nifty","exp":"2026-11-23","dte":56,"prePE":21,"preCE":31,"keptPE":21,"keptCE":3,"pubPE":21,"pubCE":3},{"idx":"banknifty","exp":"2026-09-29","dte":1,"prePE":6,"preCE":6,"keptPE":6,"keptCE":6,"pubPE":6,"pubCE":6},{"idx":"banknifty","exp":"2026-10-27","dte":29,"prePE":29,"preCE":23,"keptPE":24,"keptCE":0,"pubPE":24,"pubCE":0},{"idx":"banknifty","exp":"2026-11-23","dte":56,"prePE":10,"preCE":13,"keptPE":10,"keptCE":13,"pubPE":10,"pubCE":13},{"idx":"sensex","exp":"2026-10-01","dte":3,"prePE":16,"preCE":12,"keptPE":16,"keptCE":8,"pubPE":16,"pubCE":8},{"idx":"sensex","exp":"2026-10-08","dte":10,"prePE":5,"preCE":14,"keptPE":5,"keptCE":14,"pubPE":5,"pubCE":14},{"idx":"sensex","exp":"2026-10-15","dte":17,"prePE":0,"preCE":3,"keptPE":0,"keptCE":3,"pubPE":0,"pubCE":3},{"idx":"sensex","exp":"2026-10-29","dte":31,"prePE":6,"preCE":14,"keptPE":6,"keptCE":14,"pubPE":6,"pubCE":14}],"liq":{"n":207,"inOut":29,"outIn":29,"flips":[["GMRAIRPORT",6975,"High","Medium-Low"],["NMDC",6750,"High","Medium-Low"],["IRFC",5425,"High","Medium-Low"],["IOC",4875,"Medium-High","Medium-Low"],["MOTHERSON",6150,"Medium-High","Low"],["NBCC",6500,"Medium-High","Low"],["RBLBANK",3175,"Medium-High","Medium-Low"],["INOXWIND",6400,"Medium-High","Low"],["RVNL",1925,"Medium-High","Medium-Low"],["IEX",4350,"Medium-High","Low"],["ABCAPITAL",3100,"Medium-High","Medium-Low"],["ONGC",2250,"Medium-High","Medium-Low"]]},"degen":[{"strike":21800,"type":"PE","published":63,"noForecast":47,"factorsUsed":"direction@0.6 liquidity@0.4"},{"strike":21750,"type":"PE","published":62,"noForecast":38,"factorsUsed":"direction@0.6 liquidity@0.4"},{"strike":21900,"type":"PE","published":61,"noForecast":47,"factorsUsed":"direction@0.6 liquidity@0.4"},{"strike":21850,"type":"PE","published":61,"noForecast":36,"factorsUsed":"direction@0.6 liquidity@0.4"},{"strike":21700,"type":"PE","published":61,"noForecast":45,"factorsUsed":"direction@0.6 liquidity@0.4"},{"strike":22000,"type":"PE","published":59,"noForecast":55,"factorsUsed":"direction@0.6 liquidity@0.4"},{"strike":22050,"type":"PE","published":58,"noForecast":36,"factorsUsed":"direction@0.6 liquidity@0.4"},{"strike":21950,"type":"PE","published":58,"noForecast":33,"factorsUsed":"direction@0.6 liquidity@0.4"}]};
+
+/* ---------- theme toggle ---------- */
+(function(){
+  const btn=document.getElementById('themeBtn');const modes=['system','light','dark'];let i=0;
+  try{const s=localStorage.getItem('xerxes-audit-theme');if(s&&modes.includes(s))i=modes.indexOf(s);}catch(e){}
+  const apply=()=>{const m=modes[i];if(m==='system')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme',m);btn.textContent='Theme: '+m;};
+  apply();
+  btn.addEventListener('click',()=>{i=(i+1)%3;try{localStorage.setItem('xerxes-audit-theme',modes[i]);}catch(e){}apply();});
+})();
+
+/* ---------- helpers ---------- */
+const NS='http://www.w3.org/2000/svg';
+function el(tag,attrs={},parent){const e=document.createElementNS(NS,tag);for(const k in attrs){if(k==='text')e.textContent=attrs[k];else e.setAttribute(k,attrs[k]);}if(parent)parent.appendChild(e);return e;}
+function svgRoot(w,h,label){const s=el('svg',{viewBox:`0 0 ${w} ${h}`,width:w,height:h,role:'img','aria-label':label});return s;}
+const tip=document.getElementById('tip');
+function hover(node,html){node.addEventListener('mousemove',e=>{tip.innerHTML=html;tip.style.display='block';const x=Math.min(e.clientX+14,window.innerWidth-tip.offsetWidth-8);tip.style.left=x+'px';tip.style.top=(e.clientY+14)+'px';});node.addEventListener('mouseleave',()=>{tip.style.display='none';});node.style.cursor='default';}
+const FK=['edge','vrp','direction','cushion','survival','ivRank','liquidity'];
+const FL={edge:'Edge on margin',vrp:'IV vs forecast RV',direction:'Direction',cushion:'Cushion (σ)',survival:'Path safety',ivRank:'IV rank',liquidity:'Strike liquidity'};
+const FC={edge:'var(--s1)',vrp:'var(--s2)',direction:'var(--s3)',cushion:'var(--s4)',survival:'var(--s5)',ivRank:'var(--s6)',liquidity:'var(--s7)'};
+const W={edge:.24,vrp:.18,direction:.15,cushion:.13,survival:.10,ivRank:.10,liquidity:.10};
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+/* ---------- architecture diagram ---------- */
+(function(){
+  const w=1100,h=560,s=svgRoot(w,h,'Xerxes data flow diagram');
+  const defs=el('defs',{},s);
+  const mk=el('marker',{id:'ah',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'},defs);el('path',{d:'M0,0 L10,5 L0,10 z',style:'fill:var(--ink-2)'},mk);
+  const box=(x,y,bw,bh,title,sub,opt={})=>{const g=el('g',{},s);el('rect',{x,y,width:bw,height:bh,rx:8,style:`fill:${opt.fill||'var(--surface-2)'};stroke:${opt.stroke||'var(--axis)'};stroke-width:${opt.sw||1}`},g);el('text',{x:x+10,y:y+19,style:'font-size:13px;font-weight:650;fill:var(--ink)',text:title},g);(sub||[]).forEach((t,k)=>el('text',{x:x+10,y:y+35+k*14,style:'font-size:11px;fill:var(--ink-2)',text:t},g));if(opt.tip)hover(g,opt.tip);return g;};
+  const col=(x,t)=>el('text',{x,y:118,style:'font-size:11px;font-weight:700;letter-spacing:.08em;fill:var(--muted)',text:t},s);
+  col(20,'SOURCES');col(300,'COMPUTE · GitHub Actions');col(600,'STORES · git branches');col(880,'CONSUMERS');
+  const line=(d,dash,lab,lx,ly,anchor)=>{el('path',{d,style:`fill:none;stroke:var(--ink-2);stroke-width:1.4;${dash?'stroke-dasharray:5 4':''}`,'marker-end':'url(#ah)'},s);if(lab)el('text',{x:lx,y:ly,'text-anchor':anchor||'middle',style:'font-size:10.5px;fill:var(--muted)',text:lab},s);};
+  // triggers row
+  box(300,20,500,62,'Triggers',['cron-job.org → workflow_dispatch: indices every 10 min · stocks every 15–20 min (the real scheduler)','GitHub schedule: backup only, runs late or dropped · CF Worker on-demand: built, NOT deployed'],{tip:'cron-job.org is owned by the user; its configuration is outside the repo.'});
+  // sources
+  box(20,130,190,50,'Upstox API v2',['chains · quotes · candles'],{tip:'Primary source. Token = repo secret (~1 yr). Fails soft to empty on any error; no 429 backoff.'});
+  box(20,192,190,50,'Upstox asset CDN',['instrument master (3× retry)']);
+  box(20,254,190,50,'NSE API · Yahoo',['index fallback · events']);
+  box(20,316,190,50,'Google News RSS',['25 stalest names / run']);
+  // compute
+  box(300,130,220,78,'data.yml',['build-data.mjs + market.mjs','analytics.mjs (shared scorer)','alerts.mjs --source indices']);
+  box(300,240,220,78,'stocks.yml',['seed ← stocks-data','build-stocks.mjs + stock-news','guard(asOf) → publish → alerts']);
+  box(300,350,220,48,'deploy.yml',['vite build (tests not run)']);
+  // stores
+  box(600,130,200,62,'code branch',['public/data/{nifty,…}.json','history kept (commit / 10 min)']);
+  box(600,240,200,62,'stocks-data',['~210 JSON · force_orphan','1 commit, history wiped'],{stroke:'var(--crit)',sw:2,tip:'Every publish replaces the branch. The EOD archive is the only history.'});
+  box(600,330,200,48,'alerts-state',['append-only (never forced)']);
+  box(600,400,200,48,'gh-pages',['force_orphan · static app'],{stroke:'var(--crit)',sw:2});
+  // consumers
+  box(880,130,200,48,'Browser app',['Pages shell + raw.github data']);
+  box(880,192,200,48,'Telegram',['alerts + EOD heartbeat']);
+  box(880,254,200,62,'Premium Shikari',['reads per-ticker JSON','no freshness check'],{stroke:'var(--s4)',sw:2});
+  box(880,340,200,108,'xerxes-eod-archive',['PRIVATE repo · eod.yml 16:05 IST','clones stocks-data + code branch','archive/YYYY-MM-DD/*.json.gz','settle → outcomes.jsonl (4,230)','→ xerxes.db (db-latest release)'],{fill:'color-mix(in oklab,var(--s3) 14%,var(--surface-2))'});
+  // source bus
+  [155,217,279,341].forEach(y=>el('line',{x1:210,y1:y,x2:250,y2:y,style:'stroke:var(--ink-2);stroke-width:1.4'},s));
+  el('line',{x1:250,y1:155,x2:250,y2:341,style:'stroke:var(--ink-2);stroke-width:1.4'},s);
+  line('M250,169 L298,169',false);line('M250,279 L298,279',false);
+  el('text',{x:256,y:232,style:'font-size:10.5px;fill:var(--muted)',text:'fetch'},s);
+  // triggers
+  line('M410,82 L410,128',true,'dispatch',416,108,'start');
+  line('M290,82 L290,258 L298,258',true);
+  // compute -> stores
+  line('M520,161 L598,161',false,'commit',559,155);
+  line('M520,262 L598,262',false,'force push',559,256);
+  line('M598,292 L522,292',false,'seed',559,286);
+  line('M520,195 C560,195 560,345 598,345',false);
+  line('M520,305 C555,305 560,358 598,358',false);
+  line('M520,374 C560,374 560,424 598,424',false);
+  // stores -> consumers
+  line('M800,161 L878,155',false);
+  line('M800,262 C840,262 840,165 878,165',false);
+  line('M800,424 C850,424 845,172 878,172',false);
+  line('M800,354 C840,354 840,216 878,216',false,'send',846,300);
+  line('M800,280 L878,285',false);
+  line('M800,295 C840,295 840,380 878,380',false,'clone',848,352);
+  el('text',{x:20,y:490,style:'font-size:12px;fill:var(--ink-2)',text:'Freshness: indices ≈ 10 min · stocks ≈ 15–20 min · news ≈ 2 h lap · archive = 1 snapshot/day. All snapshots are last-trade (LTP) marks, not ticks.'},s);
+  el('text',{x:20,y:510,style:'font-size:12px;fill:var(--ink-2)',text:'Fail-soft (indices): Upstox → NSE public API (NIFTY/BANKNIFTY only; no OHLC, so no vol forecast) → last-good with stale:true.'},s);
+  el('text',{x:20,y:530,style:'font-size:12px;fill:var(--ink-2)',text:'Fail-soft (stocks): a failed name is dropped from index.json, but its old per-stock file stays on stocks-data with stale:false.'},s);
+  document.getElementById('archChart').appendChild(s);
+})();
+
+/* ---------- weight bars ---------- */
+(function(){
+  const wrap=document.getElementById('weightBars');
+  let html='<table>';for(const k of FK){html+=`<tr><td style="width:130px"><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${FC[k]};margin-right:6px"></i>${FL[k]}</td><td><span class="wbar" style="width:${W[k]*600}px;max-width:70%;background:${FC[k]}"></span> <span class="small">${Math.round(W[k]*100)}%</span></td></tr>`;}
+  wrap.innerHTML=html+'</table>';
+})();
+
+/* ---------- worked examples chart ---------- */
+(function(){
+  const lg=document.getElementById('workedLegend');lg.innerHTML=FK.map(k=>`<span><i style="background:${FC[k]}"></i>${FL[k]}</span>`).join('')+'<span><i style="background:repeating-linear-gradient(45deg,var(--ink-2) 0 2px,transparent 2px 5px)"></i>multiplier haircut</span><span><i style="border:1.5px dashed var(--ink-2)"></i>contango bonus</span>';
+  const rows=D.worked;const w=900,rh=46,top=24,left=210,h=top+rows.length*rh+30;const s=svgRoot(w,h,'Stacked conviction components for four contracts');
+  const defs=el('defs',{},s);const pat=el('pattern',{id:'hatch',width:6,height:6,patternUnits:'userSpaceOnUse',patternTransform:'rotate(45)'},defs);el('rect',{width:2,height:6,style:'fill:var(--ink-2)'},pat);
+  const X=v=>left+v/100*(w-left-40);
+  for(let g=0;g<=100;g+=10){el('line',{x1:X(g),x2:X(g),y1:top-6,y2:h-24,style:'stroke:var(--grid);stroke-width:1'},s);el('text',{x:X(g),y:h-8,'text-anchor':'middle',style:'font-size:11px;fill:var(--muted)',text:g},s);}
+  [50,70].forEach(b=>el('line',{x1:X(b),x2:X(b),y1:top-6,y2:h-24,style:'stroke:var(--axis);stroke-width:1.5;stroke-dasharray:3 3'},s));
+  el('text',{x:X(70)+3,y:top-10,style:'font-size:10.5px;fill:var(--muted)',text:'HIGH ≥ 70'},s);el('text',{x:X(50)+3,y:top-10,style:'font-size:10.5px;fill:var(--muted)',text:'MEDIUM ≥ 50'},s);
+  rows.forEach((r,i)=>{const y=top+i*rh+8;const bh=22;
+    el('text',{x:left-10,y:y+10,'text-anchor':'end',style:'font-size:13px;font-weight:650;fill:var(--ink)',text:`${r.sym} ${r.strike} ${r.type}`},s);
+    el('text',{x:left-10,y:y+25,'text-anchor':'end',style:'font-size:11px;fill:var(--ink-2)',text:`${r.expiry} · ${r.dte} DTE`},s);
+    let acc=0;const comps=r.comps.filter(c=>c.pts>0);
+    comps.forEach((c,j)=>{const x0=X(acc),x1=X(acc+c.pts);const rect=el('rect',{x:x0+(j?1:0),y,width:Math.max(0.5,x1-x0-(j?1:0)),height:bh,rx:j===comps.length-1?3:0,style:`fill:${FC[c.key]}`},s);hover(rect,`<b>${FL[c.key]}</b><br>s = ${c.s} × w ${c.w} = <b>${c.pts} pts</b><br><span class="muted">${esc(c.reading||'')}</span>`);acc+=c.pts;});
+    const raw=r.raw,fin=r.pub;
+    if(fin<raw){const rr=el('rect',{x:X(fin),y:y-3,width:X(raw)-X(fin),height:bh+6,style:'fill:url(#hatch);opacity:.9'},s);hover(rr,`<b>Multipliers</b> ×${r.mult}<br>${r.notes.map(esc).join('<br>')||'—'}<br>raw ${raw} → <b>${fin}</b>`);}
+    else if(fin>raw){const rr=el('rect',{x:X(raw)+1,y,width:X(fin)-X(raw)-1,height:bh,style:'fill:none;stroke:var(--ink-2);stroke-width:1.5;stroke-dasharray:3 2'},s);hover(rr,`<b>Contango bonus</b> ×${r.mult}<br>raw ${raw} → <b>${fin}</b>`);}
+    el('path',{d:`M${X(fin)},${y+bh/2-7} l7,7 l-7,7 l-7,-7 z`,style:'fill:var(--ink);stroke:var(--surface);stroke-width:2'},s);
+    el('text',{x:Math.max(X(fin),X(raw))+12,y:y+15,style:'font-size:13px;font-weight:700;fill:var(--ink)',text:`${fin}`},s);
+    el('text',{x:Math.max(X(fin),X(raw))+34,y:y+15,style:'font-size:11px;fill:var(--muted)',text:`raw ${raw}`},s);
+  });
+  document.getElementById('workedChart').appendChild(s);
+  // cards
+  const wc=document.getElementById('workedCards');const rs=v=>(v<0?'−₹':'₹')+Math.abs(v);
+  wc.innerHTML=D.worked.map(r=>{
+    const rows=r.comps.map(c=>`<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${FC[c.key]};margin-right:5px"></i>${FL[c.key]}</td><td class="small">${esc(c.reading??'—')}</td><td class="num">${c.s??'—'}</td><td class="num">${c.w}</td><td class="num"><b>${c.pts}</b></td></tr>`).join('');
+    const mods=r.mods.filter(m=>m[1]!==0).map(m=>`${m[0]} ${m[1]>0?'−':'+'}${Math.abs(m[1]*100).toFixed(1)}%`).join(' · ')||'none';
+    return `<div class="card"><h3 style="margin-top:0">${r.sym} ${r.strike} ${r.type} · ${r.expiry} <span class="pill sev-${r.pub>=70?'Low':'Medium'}">${r.pub} ${r.pub>=70?'HIGH':r.pub>=50?'MEDIUM':'LOW'}</span></h3>
+    <div class="kv"><div>Spot · lot · premium</div><div>₹${r.spot} · ${r.lot} · ₹${r.ltp} (₹${r.credit}/lot)</div>
+    <div>Strike IV vs forecast σ</div><div>${(r.iv*100).toFixed(1)}% vs ${(r.sf*100).toFixed(1)}% (ATM VRP ${r.vrpAtm})</div>
+    <div>Δ · P(profit) model vs 1−|Δ|</div><div>${r.delta} · ${(r.pProfit*100).toFixed(1)}% vs ${(r.probProfit*100).toFixed(1)}%</div>
+    <div>Fair · edge % margin · tail reliance</div><div>₹${r.fair} · ${(r.edgePct*100).toFixed(2)}% · ${r.tail}</div>
+    <div>CVaR 5% · worst (per share)</div><div>${rs(r.cvar)} · ${rs(r.worst)}</div>
+    <div>Verdict · IVR · term · smirk</div><div>${r.verdict.v} ${r.verdict.score} (conf ${r.verdict.conf}) · ${r.ivRank} · ${r.term} · ${r.smirk}</div></div>
+    <div class="tbl" style="margin-top:8px"><table><tr><th>Factor</th><th>Reading</th><th class="num">s</th><th class="num">w</th><th class="num">pts</th></tr>${rows}
+    <tr><td colspan="4"><b>Raw blend</b></td><td class="num"><b>${r.raw}</b></td></tr>
+    <tr><td colspan="4">Multipliers: ${mods} → ×${r.mult}</td><td class="num">×${r.mult}</td></tr>
+    <tr><td colspan="4"><b>Conviction = round(${r.raw} × ${r.mult})</b> · published ${r.pub}</td><td class="num"><b>${r.recon}</b></td></tr></table></div>
+    <p class="small muted" style="margin:6px 0 0">${workedNote(r)}</p></div>`;}).join('');
+  function workedNote(r){
+    if(r.sym==='PREMIERENE')return 'A 1-DTE call where VRP is pinned at 1.0 because the strike IV (49.8%) sits on the smile, while the name’s ATM VRP is 0.88 (T6). It gets a contango <i>bonus</i> of +5 from a 1-DTE vs 29-DTE term slope (T4). CVaR is 7.5× the premium.';
+    if(r.sym==='IEX')return 'Today’s top next-month idea. IVR 100 is set by the Sep ATM IV spiking to 39% on expiry eve (was 20.5% on 25-Sep), and that adds a full 10 raw points to an Oct trade (T4). 74% of the premium is tail compensation (−5).';
+    if(r.sym==='HCLTECH')return 'A clean mid-range case: all 7 factors present, no gap haircut. The put smirk of 6.9 vol points costs −5 and contango adds +3.';
+    return 'VRP pinned at 1.0 and IVR 100 on expiry eve, then trimmed by the backwardation (−5) and tail-reliance (−7) multipliers: 69.3 → 57.';
+  }
+})();
+
+/* ---------- generic horizontal grouped bar ---------- */
+function hbars(id,cats,series,opts){
+  const w=opts.w||560,rowH=opts.rowH||34,left=opts.left||130,top=10,h=top+cats.length*rowH+26;const max=opts.max;
+  const s=svgRoot(w,h,opts.label);const X=v=>left+v/max*(w-left-50);
+  for(let t=0;t<=max+1e-9;t+=opts.tick){el('line',{x1:X(t),x2:X(t),y1:top,y2:h-22,style:'stroke:var(--grid)'},s);el('text',{x:X(t),y:h-6,'text-anchor':'middle',style:'font-size:11px;fill:var(--muted)',text:opts.fmt?opts.fmt(t):t},s);}
+  const bh=(rowH-10)/series.length;
+  cats.forEach((c,i)=>{el('text',{x:left-8,y:top+i*rowH+rowH/2+2,'text-anchor':'end',style:'font-size:12px;fill:var(--ink)',text:c.label},s);
+    series.forEach((se,j)=>{const v=se.values[i];if(v==null)return;const y=top+i*rowH+4+j*bh;const x0=X(Math.min(0,v)),x1=X(Math.max(0,v));const r=el('rect',{x:x0,y:y+1,width:Math.max(1,x1-x0),height:bh-2,rx:3,style:`fill:${se.color}`},s);hover(r,`<b>${esc(c.label)}</b><br>${se.name}: <b>${opts.fmt?opts.fmt(v):v}</b>${se.extra?'<br>'+se.extra(i):''}`);
+      if(opts.labels)el('text',{x:x1+4,y:y+bh-4,style:'font-size:10.5px;fill:var(--ink-2)',text:opts.fmt?opts.fmt(v):v},s);});});
+  document.getElementById(id).appendChild(s);
+}
+/* variance share */
+hbars('shareChart',FK.map(k=>({label:FL[k]})),[{name:'nominal weight',color:'var(--s1)',values:FK.map(k=>+(W[k]*100).toFixed(0))},{name:'variance share',color:'var(--s2)',values:FK.map(k=>+(D.sens.share[k]*100).toFixed(1))}],{max:30,tick:5,fmt:v=>v+'%',labels:true,label:'weight vs variance share'});
+/* saturation */
+(function(){const w=560,rowH=30,left=130,h=10+FK.length*rowH+24;const s=svgRoot(w,h,'Factor saturation');const X=v=>left+v*(w-left-20);
+  for(let t=0;t<=1.0001;t+=.25){el('line',{x1:X(t),x2:X(t),y1:10,y2:h-20,style:'stroke:var(--grid)'},s);el('text',{x:X(t),y:h-5,'text-anchor':'middle',style:'font-size:11px;fill:var(--muted)',text:Math.round(t*100)+'%'},s);}
+  FK.forEach((k,i)=>{const st=D.sens.stat[k];const y=10+i*rowH+5;el('text',{x:left-8,y:y+14,'text-anchor':'end',style:'font-size:12px;fill:var(--ink)',text:FL[k]},s);
+    const segs=[[st.at0,'var(--s2)','pinned at 0'],[1-st.at0-st.at1,'var(--axis)','in range'],[st.at1,'var(--s1)','pinned at 1']];let a=0;
+    segs.forEach(([v,c,n],j)=>{if(v<=0)return;const r=el('rect',{x:X(a)+(a?1:0),y,width:Math.max(1,X(a+v)-X(a)-(a?1:0)),height:20,style:`fill:${c}`},s);hover(r,`<b>${FL[k]}</b><br>${n}: <b>${(v*100).toFixed(1)}%</b><br>mean s ${st.mean}, sd ${st.sd}`);a+=v;});});
+  document.getElementById('satChart').appendChild(s);})();
+/* correlation heatmap */
+(function(){const n=FK.length,cs=52,left=120,top=96,w=left+n*cs+70,h=top+n*cs+10;const s=svgRoot(w,h,'Factor correlation heatmap');
+  const col=v=>v>=0?`color-mix(in oklab, var(--s8) ${Math.round(v*85)}%, var(--mid))`:`color-mix(in oklab, var(--s1) ${Math.round(-v*85)}%, var(--mid))`;
+  FK.forEach((a,i)=>{el('text',{x:left-8,y:top+i*cs+cs/2+4,'text-anchor':'end',style:'font-size:12px;fill:var(--ink)',text:FL[a]},s);
+    const t=el('text',{x:left+i*cs+cs/2,y:top-8,'text-anchor':'start',transform:`rotate(-40 ${left+i*cs+cs/2} ${top-8})`,style:'font-size:12px;fill:var(--ink)',text:FL[a]},s);
+    FK.forEach((b,j)=>{const v=D.sens.M[a][b];const r=el('rect',{x:left+j*cs+1,y:top+i*cs+1,width:cs-2,height:cs-2,rx:3,style:`fill:${col(v)}`},s);hover(r,`<b>${FL[a]} × ${FL[b]}</b><br>ρ = ${v}`);
+      el('text',{x:left+j*cs+cs/2,y:top+i*cs+cs/2+4,'text-anchor':'middle',style:`font-size:11px;fill:${Math.abs(v)>0.6?'#fff':'var(--ink)'};pointer-events:none`,text:v.toFixed(2)},s);});});
+  document.getElementById('corrChart').appendChild(s);})();
+/* truncation */
+(function(){const r=D.trunc.filter(x=>x.preCE>x.keptCE);hbars('truncChart',r.map(x=>({label:`${x.idx.toUpperCase()} ${x.exp.slice(5)}`})),[{name:'calls passing filters',color:'var(--s1)',values:r.map(x=>x.preCE),extra:i=>`puts passing: ${r[i].prePE}, puts scored: ${r[i].keptPE}`},{name:'calls scored',color:'var(--s2)',values:r.map(x=>x.keptCE)}],{max:32,tick:8,labels:true,left:140,label:'calls filtered vs scored'});})();
+/* degen */
+hbars('degenChart',D.degen.map(x=>({label:`${x.strike} ${x.type}`})),[{name:'published',color:'var(--s1)',values:D.degen.map(x=>x.published)},{name:'no vol forecast',color:'var(--s2)',values:D.degen.map(x=>x.noForecast),extra:i=>D.degen[i].factorsUsed}],{max:100,tick:20,labels:true,rowH:28,label:'conviction with and without forecast'});
+/* ROI by band + win rate */
+(function(){const B=['0-29','30-39','40-49','50-59','60-69','70+'];const st=D.val.stocks.bands;
+  const w=540,h=270,left=48,top=16,bot=46;const s=svgRoot(w,h,'Mean ROI on margin by band');const lo=-16,hi=8;const Y=v=>top+(hi-v)/(hi-lo)*(h-top-bot);const bw=(w-left-10)/B.length;
+  for(let t=lo;t<=hi;t+=4){el('line',{x1:left,x2:w-6,y1:Y(t),y2:Y(t),style:`stroke:${t===0?'var(--axis)':'var(--grid)'}`},s);el('text',{x:left-6,y:Y(t)+4,'text-anchor':'end',style:'font-size:11px;fill:var(--muted)',text:t+'%'},s);}
+  B.forEach((b,i)=>{const d=st[b];const x=left+i*bw+bw*.22,ww=bw*.56;const v=d.meanRoi;const r=el('rect',{x,y:Math.min(Y(v),Y(0)),width:ww,height:Math.abs(Y(v)-Y(0)),rx:3,style:`fill:${v>=0?'var(--s1)':'var(--s8)'}`},s);
+    hover(r,`<b>Conviction ${b}</b><br>n = ${d.n}<br>mean ROI ${d.meanRoi}% · median ${d.medRoi}%<br>5th pct ${d.p5Roi}% · worst ${d.worstRoi}%<br>win ${d.winPct}% · ever ITM ${d.everItm}%`);
+    const cx=x+ww/2;el('line',{x1:cx,x2:cx,y1:Y(Math.max(lo,d.p5Roi)),y2:Y(d.medRoi),style:'stroke:var(--ink-2);stroke-width:1.5'},s);el('circle',{cx,cy:Y(d.medRoi),r:3,style:'fill:var(--ink)'},s);
+    if(d.p5Roi<lo)el('text',{x:cx,y:Y(lo)+12,'text-anchor':'middle',style:'font-size:10px;fill:var(--muted)',text:`↓ ${d.p5Roi}`},s);
+    el('text',{x:cx,y:h-26,'text-anchor':'middle',style:'font-size:12px;fill:var(--ink)',text:b},s);el('text',{x:cx,y:h-11,'text-anchor':'middle',style:'font-size:10.5px;fill:var(--muted)',text:`n=${d.n}`},s);
+    el('text',{x:cx,y:(v>=0?Y(v)-5:Y(v)+13),'text-anchor':'middle',style:'font-size:11px;font-weight:650;fill:var(--ink-2)',text:v.toFixed(1)},s);});
+  document.getElementById('roiChart').appendChild(s);
+  hbars('winChart',B.map(b=>({label:'conv '+b})),[{name:'win rate',color:'var(--s3)',values:B.map(b=>st[b].winPct),extra:i=>`n = ${st[B[i]].n} · mean pProfit ${st[B[i]].meanPP}%`}],{max:100,tick:20,fmt:v=>v+'%',labels:true,rowH:30,label:'Win rate by band'});
+})();
+/* calibration */
+(function(){const w=420,h=300,left=46,top=14,bot=40,right=14;const s=svgRoot(w,h,'pProfit calibration');const lo=60,hi=100;const X=v=>left+(v-lo)/(hi-lo)*(w-left-right),Y=v=>top+(hi-v)/(hi-lo)*(h-top-bot);
+  for(let t=lo;t<=hi;t+=10){el('line',{x1:X(t),x2:X(t),y1:top,y2:h-bot,style:'stroke:var(--grid)'},s);el('line',{x1:left,x2:w-right,y1:Y(t),y2:Y(t),style:'stroke:var(--grid)'},s);el('text',{x:X(t),y:h-bot+16,'text-anchor':'middle',style:'font-size:11px;fill:var(--muted)',text:t+'%'},s);el('text',{x:left-6,y:Y(t)+4,'text-anchor':'end',style:'font-size:11px;fill:var(--muted)',text:t+'%'},s);}
+  el('line',{x1:X(lo),y1:Y(lo),x2:X(hi),y2:Y(hi),style:'stroke:var(--axis);stroke-width:1.5;stroke-dasharray:4 3'},s);
+  el('text',{x:X(92),y:Y(88),style:'font-size:10.5px;fill:var(--muted)',text:'perfect'},s);
+  el('text',{x:(left+w-right)/2,y:h-6,'text-anchor':'middle',style:'font-size:11.5px;fill:var(--ink-2)',text:'predicted P(expire OTM)'},s);
+  el('text',{x:12,y:(top+h-bot)/2,'text-anchor':'middle',transform:`rotate(-90 12 ${(top+h-bot)/2})`,style:'font-size:11.5px;fill:var(--ink-2)',text:'realised'},s);
+  const pts=D.val.calib;el('polyline',{points:pts.map(p=>`${X(p.pred)},${Y(p.real)}`).join(' '),style:'fill:none;stroke:var(--s1);stroke-width:2'},s);
+  pts.forEach(p=>{const c=el('circle',{cx:X(p.pred),cy:Y(p.real),r:6,style:'fill:var(--s1);stroke:var(--surface);stroke-width:2'},s);hover(c,`bin ${p.bin}<br>n = ${p.n}<br>predicted ${p.pred}% → realised <b>${p.real}%</b>`);el('text',{x:X(p.pred)+8,y:Y(p.real)+14,style:'font-size:10.5px;fill:var(--ink-2)',text:`n=${p.n}`},s);});
+  document.getElementById('calChart').appendChild(s);})();
+/* spearman */
+(function(){const fs=D.val.factorSpear;const items=[['Conviction (composite)',D.val.spearman.stocks_conv_roi],['Edge factor',fs.f_edge.rho],['edgePct (raw)',fs.edge_pct.rho],['VRP factor',fs.f_vrp.rho],['Direction factor',fs.f_direction.rho],['Cushion factor',fs.f_cushion.rho],['Survival factor',fs.f_survival.rho],['pProfit',fs.p_profit.rho],['Liquidity factor',fs.f_liquidity.rho]];
+  const w=560,rowH=26,left=185,top=8,h=top+items.length*rowH+26;const s=svgRoot(w,h,'Spearman correlation with ROI');const X=v=>left+(v+0.7)/1.4*(w-left-40);
+  for(let t=-0.6;t<=0.61;t+=0.3){el('line',{x1:X(t),x2:X(t),y1:top,y2:h-22,style:`stroke:${Math.abs(t)<1e-9?'var(--axis)':'var(--grid)'}`},s);el('text',{x:X(t),y:h-6,'text-anchor':'middle',style:'font-size:11px;fill:var(--muted)',text:t.toFixed(1)},s);}
+  items.forEach(([n,v],i)=>{const y=top+i*rowH+4;el('text',{x:left-8,y:y+13,'text-anchor':'end',style:`font-size:12px;fill:var(--ink);${i===0?'font-weight:700':''}`,text:n},s);const r=el('rect',{x:X(Math.min(0,v)),y,width:Math.max(2,Math.abs(X(v)-X(0))),height:rowH-8,rx:3,style:`fill:${v>=0?'var(--s1)':'var(--s8)'}`},s);hover(r,`${n}: ρ = <b>${v}</b>`);el('text',{x:v>=0?X(v)+4:X(v)-4,y:y+13,'text-anchor':v>=0?'start':'end',style:'font-size:11px;fill:var(--ink-2)',text:v.toFixed(2)},s);});
+  document.getElementById('rhoChart').appendChild(s);})();
+
+/* ---------- pending table ---------- */
+const PENDING=[
+ ['EOD archiver','Built &amp; running','Private repo <code>xerxes-eod-archive</code>, live since 11-Aug. 20 days captured, ~13 trading days lost 26-Aug–14-Sep, <code>missed-days.json</code> empty. Source is still also on branch <code>claude/xerxes-eod-archiver-jpj17j</code>, which CLAUDE.md says not to keep.','CLAUDE.md “EOD archive”; archive/.gitignore'],
+ ['Conviction Book','Deferred (25-Sep)','Daily performance record of displayed candidates; needs a yes on making list history public.','CLAUDE.md Backlog'],
+ ['Index ivRank passed as null','Undecided','Index scores are a 6-factor blend even though ivRank is computed. Not documented in <code>INDEX_SELL_OPTS</code>; no test pins it.','b-d 447; CLAUDE.md Backlog'],
+ ['Upstox token near-expiry warning','Not started','Nothing records the issue date; expiry means silent failure.','CLAUDE.md Backlog'],
+ ['Chain tab tooltip + IV-smile overlay','Not started','UI nicety.','CLAUDE.md Backlog'],
+ ['Cloudflare Worker (on-demand refresh)','Built, not deployed','<code>STOCK_REFRESH_URL</code> unset, so Refresh / “Fetch latest news” only re-pulls.','worker/; stocks.yml; store.ts:134-160'],
+ ['markAt:"bid"','Implemented, switched off','Held at <code>"ltp"</code> by choice; flipping re-prices every row.','an 463, 564-568'],
+ ['Quote-gate volume fallback','Untested in production','The post-close branch has never fired live (the book persists after close).','an 569-570; CLAUDE.md'],
+ ['Underlying cash turnover in liquidity','Half-built','Documented as a 3-part blend; the third input is always passed as 0.','an 679-697; b-s 448, 456'],
+ ['Tests in CI','Missing','150 tests exist; no workflow runs them.','deploy.yml:130-131'],
+ ['Doc drift','Stale docs','CLAUDE.md: “0 CE / 24 PE is correct” (it is the T1 truncation); stocks cadence “20 min” (observed 15); <code>quoteContext</code> comment says the book vanishes post-close (measured false).','CLAUDE.md; an 479-489'],
+ ['mentionsCompany exchange-ticker fix','Idea','0.6% headline collision rate measured; parked.','CLAUDE.md'],
+ ['MarketAux news source','Idea','Tagged tickers; check NSE mid-cap coverage first.','CLAUDE.md'],
+ ['ranker-data branch','Frozen leftover','Retired 25-Sep; branch kept deliberately.','CLAUDE.md “Retired”'],
+ ['Stale remote branches','Housekeeping','7 <code>claude/*</code> feature branches remain (kronos ranker, light-mode, sell-candidates, long-term, stocks-section, upbeat-hopper, eod-archiver).','git ls-remote'],
+ ['Dead universe rows','Deliberately left','~34 of 241 symbols no longer resolve (ZOMATO→ETERNAL, LTIM→LTM …).','stocks-universe.mjs; CLAUDE.md'],
+ ['Stock outcome settlement','Waiting on data','Only one stock monthly (25-Aug) is settled; 29-Sep settles tomorrow.','state/outcomes.jsonl'],
+];
+document.getElementById('pendingTable').innerHTML='<tr><th>Item</th><th>Status</th><th>Detail</th><th>Where</th></tr>'+PENDING.map(p=>`<tr><td><b>${p[0]}</b></td><td><span class="tag">${p[1]}</span></td><td>${p[2]}</td><td class="mono small">${p[3]}</td></tr>`).join('');
+
+/* ---------- risks ---------- */
+const SEV=['Low','Medium','High','Critical'],LIK=['Rare','Possible','Likely','Happening now'];
+const RISKS=[
+ ['R1','Call candidates dropped before scoring (T1)','High','Happening now','bug'],
+ ['R2','Conviction ranking unvalidated / no rank signal','High','Happening now','validation'],
+ ['R3','Empty or partial stock build publishes as fresh','Critical','Possible','bug'],
+ ['R4','Zombie per-stock files with stale:false','Medium','Happening now','data'],
+ ['R5','Conviction silently built from 2 factors','High','Possible','design'],
+ ['R6','Liquidity lot double-count','Medium','Happening now','bug'],
+ ['R7','Expiry-eve IV rank / term pollution','Medium','Likely','data'],
+ ['R8','Archive day lost without a missed_days record','High','Possible','ops'],
+ ['R9','No intraday failure alert; heartbeat counts runs not names','High','Likely','ops'],
+ ['R10','Tests never run in CI','Medium','Likely','ops'],
+ ['R11','Upstox token: single point of failure, expiry untracked','Critical','Possible','ops'],
+ ['R12','Distance triple-count (cushion/survival/VRP)','Medium','Happening now','design'],
+ ['R13','VRP from wing IV vs ATM forecast','Medium','Happening now','design'],
+ ['R14','No intraday history (force-orphan)','Medium','Happening now','data'],
+ ['R15','No holiday calendar; calendar-time t over weekends','Low','Happening now','data'],
+ ['R16','No Upstox 429 backoff (names silently dropped)','Medium','Possible','ops'],
+ ['R17','Public repo exposes alert history & data','Low','Happening now','security'],
+ ['R18','Unauthenticated Worker refresh if deployed','Low','Rare','security'],
+ ['R19','data.yml plain git push can race a code push','Low','Possible','ops'],
+ ['R20','Physical-settlement risk only a badge','Medium','Possible','design'],
+ ['R21','GitHub backup cron runs hours late (after-hours builds)','Low','Likely','ops'],
+];
+(function(){const g=document.getElementById('heat');let html='<div></div>'+LIK.map(l=>`<div class="hdr">${l}</div>`).join('');
+  for(const s of [...SEV].reverse()){html+=`<div class="hdr">${s}</div>`;LIK.forEach((l,li)=>{const sc=(SEV.indexOf(s)+1)*(li+1);const pct=Math.round(sc/16*70)+6;const chips=RISKS.filter(r=>r[2]===s&&r[3]===l).map(r=>`<span class="chip" data-t="${esc(r[1])}">${r[0]}</span>`).join('');html+=`<div class="cell" style="background:color-mix(in oklab,var(--crit) ${pct}%,var(--surface))">${chips}</div>`;});}
+  g.innerHTML=html;g.querySelectorAll('.chip').forEach(c=>hover(c,`<b>${c.textContent}</b> ${c.dataset.t}`));
+  document.getElementById('riskTable').innerHTML='<tr><th>ID</th><th>Risk</th><th>Severity</th><th>Likelihood</th><th>Type</th></tr>'+RISKS.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td><span class="pill sev-${r[2]}">${r[2]}</span></td><td>${r[3]}</td><td><span class="tag">${r[4]}</span></td></tr>`).join('');
+})();
+
+/* ---------- recommendations ---------- */
+const RECS=[
+ ['Score every filtered strike, then keep the top 24 by conviction','Move the <code>slice(0,24)</code> after scoring (or slice per side). Today 108 index call strikes (plus 11 puts) and 6 stock calls are discarded unscored, so call-selling ideas on deep expiries never reach you.','High','S','Yes','Index call ideas keep going missing; the book skews to puts by construction, not by merit.'],
+ ['Refuse to publish an empty or collapsed stock build','Guard on <code>built ≥ 90%</code> of the previous run (and &gt; 0), not just on <code>asOf</code> moving. Exit non-zero so the run goes red.','Critical','S','No','An expired token force-pushes an empty screener and the archive files an empty day.'],
+ ['Track the Upstox token expiry and fail loudly on 401','Store the issue date as a repo variable; warn at T−30/7/1 days in the heartbeat; treat HTTP 401 as fatal instead of “no chain”.','Critical','S','No','One day the data stops, and every run stays green.'],
+ ['Intraday failure alert on Telegram','After each run: alert if built count drops, if a feed hasn’t refreshed in 30 min during 09:15–15:30, or if the guard skipped publishing. Heartbeat should report names built, not only runs.','High','S','No','You learn about a 10 AM outage at 15:50, or not at all.'],
+ ['Publish a freshness manifest; mark or remove zombie files','Write <code>manifest.json</code> (per-file asOf, build status). Delete or <code>stale:true</code> any per-stock file not rebuilt in 2 runs. Premium Shikari should check age before trusting a file.','High','S','No','A 34-day-old DALBHARAT file keeps looking current to any direct reader.'],
+ ['Minimum factor coverage for a score','If edge/vrp/cushion/survival are absent, don’t emit a conviction (or cap it at 49 and badge it). Surface “n/7 factors” everywhere.','High','S','Yes','An NSE-fallback day can produce direction-only scores ≥ 60 that trigger index alerts.'],
+ ['Weekly conviction scorecard from outcomes.jsonl','Band stats, Spearman ρ, pProfit calibration, per-factor ρ; posted to Telegram. Pre-register a trust bar (e.g. ρ ≥ 0.10 over 3 expiries incl. one high-VIX month).','High','M','No','You keep sizing on a number with no demonstrated edge.'],
+ ['Log displayed-list entries and your real trades','Append-only record at first display (not first scored), with formula version and bid/ask; key Premium Shikari fills to the same contract ID.','High','S','No','Model P&L can never be compared with real P&L.'],
+ ['Record archive failures in missed_days, and alert','Write the row on any failure (including push), and add “archived today?” to the heartbeat.','High','S','No','Another silent multi-day hole in the only history.'],
+ ['Fix liquidity units and recalibrate','Drop the extra ×lot in <code>liquidityScore</code>, <code>sellConviction</code> and <code>quoteQuality</code> sTurn; re-set log thresholds on true ₹ notional.','Medium','S','Yes','The cohort and strike liquidity keep favouring big-lot names; 29 names sit in the wrong bucket.'],
+ ['Constant-tenor IV for IV rank; skip term slope near expiry','Interpolate a 30-day ATM IV for history/rank; ignore term structure when near DTE &lt; 5; don’t stamp current-expiry IVR onto next-month blocks.','Medium','M','Yes','Every expiry week inflates next-month scores (IEX +10) and penalises 2/3 of names as “backwardation”.'],
+ ['VRP on ATM (or smile-adjusted) IV','Compare like with like so smile steepness isn’t read as richness.','Medium','S','Yes','Far wings keep getting a free VRP boost.'],
+ ['Collapse cushion + survival into one factor','ρ = 0.98; redistribute the freed 10% only after the scorecard says where.','Medium','S','Yes','Distance stays over-weighted (~41%), pushing toward low-ROI far strikes.'],
+ ['Run the test suite in CI','Add <code>npm test</code> to <code>deploy.yml</code> or a push-triggered <code>test.yml</code>; add a test pinning per-side candidate counts.','Medium','S','No','A regression in the scorer ships straight to the live screener.'],
+ ['Retry Upstox 429/5xx with backoff','Bounded retry in <code>getJson</code>; log per-run failure counts.','Medium','S','No','Rate-limit bursts silently shrink the universe.'],
+ ['Keep a compact intraday history','Append each run’s <code>candidates.json</code> (gz, ~50 KB) to the archive or a non-orphan branch.','Medium','M','No','You can’t study intraday stability or when alerts first appeared.'],
+ ['NSE holiday calendar + trading-day time','Skip holiday runs; compute σ√t on trading days.','Low','M','Yes','Weekend/holiday score drift and inflated short-tenor variance continue.'],
+ ['Fix doc drift in CLAUDE.md','Correct the “0 CE / 24 PE” explanation, cadence, and the post-close book comment.','Low','S','No','Future agents “protect” a bug as intended behaviour.'],
+ ['Authenticate the Worker before deploying it','Shared secret or origin check plus a rate limit on <code>/refresh</code>.','Low','S','No','Anyone with the URL can trigger unlimited rebuilds.'],
+ ['Full-history secret scan','Run gitleaks/trufflehog on a full clone (this audit saw 50 commits).','Low','S','No','An early committed token would go unnoticed in a public repo.'],
+];
+(function(){const tb=document.getElementById('recTable');const st={sev:'all',conv:'all'};
+  const render=()=>{const rows=RECS.filter(r=>(st.sev==='all'||r[2]===st.sev)&&(st.conv==='all'||r[4]===st.conv));
+    tb.innerHTML='<tr><th>#</th><th>Recommendation</th><th>What / why</th><th>Severity</th><th>Effort</th><th>Touches conviction</th><th>If ignored</th></tr>'+rows.map(r=>`<tr><td>${RECS.indexOf(r)+1}</td><td><b>${r[0]}</b></td><td>${r[1]}</td><td><span class="pill sev-${r[2]}">${r[2]}</span></td><td>${r[3]}</td><td>${r[4]}</td><td class="small">${r[5]}</td></tr>`).join('');
+    document.getElementById('recCount').textContent=`${rows.length} of ${RECS.length}`;};
+  document.querySelectorAll('#recFilters button').forEach(b=>b.addEventListener('click',()=>{st[b.dataset.f]=b.dataset.v;document.querySelectorAll(`#recFilters button[data-f="${b.dataset.f}"]`).forEach(x=>x.setAttribute('aria-pressed',String(x===b)));render();}));
+  render();})();
+
+/* ---------- references ---------- */
+const REFS=[
+ ['Factor weights','an 1167-1175'],['sellConviction body','an 1220-1442'],['Edge factor & 4% clamp','an 1242-1256'],['VRP factor (strike IV)','an 1259-1262'],['Direction factor','an 1265-1270'],['Cushion','an 1275-1282'],['Survival / touch stress 1.3×','an 1286-1293; probTouch 76-80'],['IV rank factor','an 1297-1299'],['Liquidity factor, lot multiplied','an 1303-1320'],['Pro-rata redistribution','an 1322-1331'],['Gap / big-move / term / smirk / quote / tail multipliers','an 1347-1396'],['Final conviction, band','an 1398, 1416'],['pProfit source','an 1412'],['Delivery-risk badge','an 1438'],
+ ['Quote gate defaults','an 456-466'],['quoteQuality (sTurn uses lot)','an 529-595 (584)'],['sellCandidates filters & puts-first sort','an 605-675 (673-674)'],['liquidityScore (lot ×)','an 686-697 (692-693)'],['Liquidity buckets','an 703-710'],['forecastVol','an 824-883'],['terminalSample (seed, block)','an 1008-1042'],['riskMetrics / CVaR','an 1077-1112'],['driftFromVerdict ±10%','an 1139-1144'],['INDEX_SELL_OPTS','an 1196-1205'],['directionScore (8 factors)','an 329-443'],
+ ['Stock constants (2 monthlies, conc. 5, ±30%, 260d)','b-s 37-59'],['Stock computeExpiry slice(0,24)','b-s 170'],['Stock minPremium / maxDelta','b-s 123-124'],['scoreCandidates','b-s 194-260'],['Term structure (current vs next)','b-s 380-389'],['IV history & rank on current expiry, stamped on all blocks','b-s 357-363, 393-401'],['India VIX in stock direction','b-s 420'],['Snapshot stale:false hard-coded','b-s 469'],['underlyingTurnover passed as 0','b-s 448, 456'],['Empty build still writes index/candidates','b-s 717-826'],['Cross-universe cohort, 2/symbol, top 24','b-s 755-817'],['Stable sort (tie order)','b-s 794'],
+ ['Index computeExpiry slice(0,24)','b-d 320'],['Index lotSize not passed to computeExpiry','b-d 356'],['Index ivRank:null, gap:null','b-d 447'],['NSE fallback: no OHLC','b-d 191-214'],['Stale preservation','b-d 523-531'],['Index rv20 overwritten with close-to-close','b-d 372'],
+ ['Upstox fail-soft (chain/quotes/candles)','upstox.mjs 192-195, 216-218, 254-257'],['Instrument retries','upstox.mjs 44-68'],
+ ['stocks.yml seed / guard / publish','stocks.yml 188-198, 244-260, 262-270'],['stocks.yml cron','stocks.yml 156'],['data.yml cron / push','data.yml 44, 77-87'],['deploy.yml no tests','deploy.yml 130-131'],
+ ['Alert thresholds','alerts.mjs 34'],['Stock freshness per file','alerts.mjs 88'],['Diff rules','alerts.mjs 162-191'],['Heartbeat ok = runs > 0','alerts.mjs 319-327, 495'],
+ ['Outcomes (4,230 rows; 3,917 stock)','xerxes-eod-archive state/outcomes.jsonl'],['Settlement proxy caveat','xerxes-eod-archive scripts/settle.mjs 15-28'],['Archive freshness gate (index.json only)','xerxes-eod-archive scripts/archive.mjs 112-138'],['DB over 100 MB → 10-day loss','xerxes-eod-archive .gitignore, eod.yml'],['missed-days empty','xerxes-eod-archive state/missed-days.json'],
+ ['DALBHARAT zombie file','stocks-data@afc593f DALBHARAT.json (asOf 2026-08-25)'],['OI in shares (18,768/18,769 multiples of lot)','stocks-data@afc593f chains'],['Live worked examples','stocks-data@afc593f candidates.json'],['Index truncation evidence','code branch public/data/{nifty,banknifty}.json @ a9963a4'],['Test run','vitest 2.1.9: 4 files, 150 passed'],['Repo public, 0 open issues','GitHub API 2026-09-28'],['Run cadence','GitHub Actions runs #1455-1477 (stocks.yml)'],
+];
+document.getElementById('refTable').innerHTML='<tr><th>Claim</th><th>Reference</th></tr>'+REFS.map(r=>`<tr><td>${r[0]}</td><td class="mono small">${r[1]}</td></tr>`).join('');
+</script>
+</body>
+</html>
