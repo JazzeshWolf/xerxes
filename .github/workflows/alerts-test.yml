@@ -10,6 +10,13 @@ on:
         description: "Also send a mock stock + index alert (labelled MOCK)"
         type: boolean
         default: false
+      eod:
+        description: "Resend today's end-of-day report (contracts above the alert level at the close)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -23,10 +30,18 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ALERT_MIN_CONV_STOCK: ${{ vars.ALERT_MIN_CONV_STOCK }}
+          ALERT_MIN_CONV_INDEX: ${{ vars.ALERT_MIN_CONV_INDEX }}
         run: |
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
             echo "::error::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID secret is missing or misnamed."
             exit 1
           fi
-          node scripts/alerts.mjs --test
+          if [ "${{ inputs.eod }}" = "true" ]; then
+            scripts/alerts-state.sh pull
+            node scripts/alerts.mjs --eod --state-dir _alerts
+          else
+            node scripts/alerts.mjs --test
+          fi
           if [ "${{ inputs.mock }}" = "true" ]; then node scripts/alerts.mjs --mock; fi

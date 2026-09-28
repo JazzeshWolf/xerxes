@@ -258,12 +258,13 @@ function card(events, { threshold, today }) {
   const popOf = (r) => (r.pop == null ? "–" : String(Math.round(r.pop * 100)));
   const key = (r) => `${r.strike}${r.type}`;
   const convOf = (e) =>
-    e.kind === "NEW" ? String(e.row.conviction) : e.kind === "LEFT" ? `${e.from}→–` : `${e.from}→${e.row.conviction}`;
+    e.kind === "NEW" || e.kind === "HELD" ? String(e.row.conviction) : e.kind === "LEFT" ? `${e.from}→–` : `${e.from}→${e.row.conviction}`;
 
   // Sections, in reading order. Exits are split by reason so the reason is the
   // section title rather than a column — one column fewer on a phone.
   const sections = [
     [`NEW`, events.filter((e) => e.kind === "NEW")],
+    [`ABOVE`, events.filter((e) => e.kind === "HELD").sort((a, b) => b.row.conviction - a.row.conviction)],
     [`MOVED`, events.filter((e) => e.kind === "MOVED")],
     [`DROPPED`, events.filter((e) => e.kind === "DROPPED")],
     [`REMOVED`, events.filter((e) => e.kind === "LEFT" && !e.expiring)],
@@ -352,6 +353,48 @@ export function formatHeartbeat(stocksState, indicesState, today) {
   ].join("\n").trimEnd();
 }
 
+/**
+ * End-of-day report: the run counts, then every contract still at or above its
+ * alert level at the close, as the same cards the alerts use. Built from the
+ * tracked sets, which are only updated during market hours — so this is the
+ * closing picture, not whatever a late evening rebuild computed.
+ */
+export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_THRESHOLDS) {
+  const blocks = [];
+  for (const [source, st, icon, label] of [
+    ["stocks", stocksState, "📈", "Stocks"],
+    ["indices", indicesState, "🏛", "Indices"],
+  ]) {
+    const held = Object.values(st?.tracked ?? {}).filter((t) => t.expiry >= date);
+    const t = thresholds[source];
+    blocks.push(`${icon} <b>${label} at ${t}+ at the close (${held.length})</b>` +
+      (source === "indices" && held.length ? "\n<i>⚠ Index 60+ is unproven: few settled trades yet</i>" : "") +
+      (held.length ? "" : "\nNone."));
+    if (held.length) blocks.push(...cards(held.map((row) => ({ kind: "HELD", row })), { threshold: t, today: date }));
+  }
+  const header = formatHeartbeat(stocksState, indicesState, date)
+    .replace("✓ <b>Xerxes alerts · end of day", "📋 <b>Xerxes · end of day")
+    .replace("⚠️ <b>Xerxes alerts · end of day", "⚠️ <b>Xerxes · end of day");
+  const footer = [
+    "<i>PREM ₹ per share · credit/lot = PREM × lot",
+    "ROM % = credit ÷ capital (15% of spot × lot for stocks, 8% for indices)",
+    "POP % = model's chance it expires worthless</i>",
+    `<a href="${SCREENER_URL}">Open screener</a>`,
+  ].join("\n");
+  const out = [];
+  let cur = header;
+  for (const bl of blocks) {
+    if (cur.length + bl.length + footer.length + 4 > TG_LIMIT) {
+      out.push(cur.trimEnd());
+      cur = `📋 <b>Xerxes · end of day ${dm(date)}</b> (cont.)`;
+    }
+    cur += "\n\n" + bl;
+  }
+  out.push(cur.trimEnd() + "\n\n" + footer);
+  return out;
+}
+
+
 // --- state bookkeeping ------------------------------------------------------
 
 export function bumpDay(state, events, today, nowIso) {
@@ -421,6 +464,17 @@ function arg(name, fallback = null) {
   return i > 0 ? process.argv[i + 1] : fallback;
 }
 
+function thresholdsFromEnv() {
+  const pick = (name, fallback) => {
+    const n = Number(process.env[name]);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+  return {
+    stocks: pick("ALERT_MIN_CONV_STOCK", DEFAULT_THRESHOLDS.stocks),
+    indices: pick("ALERT_MIN_CONV_INDEX", DEFAULT_THRESHOLDS.indices),
+  };
+}
+
 async function main() {
   const dry = process.env.ALERTS_DRY_RUN === "1";
   if (!dry && (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID)) {
@@ -436,6 +490,16 @@ async function main() {
       await sendTelegram("🧪 <b>MOCK ALERT (test only, not real)</b>\n\n" + m);
     }
     console.log("Mock alerts sent.");
+    return;
+  }
+  if (process.argv.includes("--eod")) {
+    // Resend the end-of-day report on demand, from the saved state.
+    const dir = arg("state-dir", "_alerts");
+    const st = readJson(resolve(dir, "stocks.json"));
+    const ix = readJson(resolve(dir, "indices.json"));
+    const date = st?.day?.date ?? ix?.day?.date ?? istDate();
+    for (const m of formatEod(st, ix, date, thresholdsFromEnv())) await sendTelegram(m);
+    console.log(`End-of-day report for ${date} sent.`);
     return;
   }
   if (process.argv.includes("--test")) {
@@ -460,7 +524,7 @@ async function main() {
     // The end-of-day summary still goes out if a stock run lands after the window.
     if (source === "stocks" && prev && istMinutes(now) >= CLOSE_IST_MINUTES && prev.heartbeatDate !== today
         && ![0, 6].includes(new Date(now.getTime() + IST_OFFSET_MS).getUTCDay())) {
-      await sendTelegram(formatHeartbeat(prev, readJson(resolve(stateDir, "indices.json")), today));
+      for (const m of formatEod(prev, readJson(resolve(stateDir, "indices.json")), today, thresholdsFromEnv())) await sendTelegram(m);
       writeFileSync(statePath, JSON.stringify({ ...prev, heartbeatDate: today }, null, 1) + "\n");
       console.log("Heartbeat sent.");
     }
@@ -523,7 +587,7 @@ async function main() {
   // stock job stops, the heartbeat stops too — which is the signal.
   if (source === "stocks" && istMinutes(now) >= CLOSE_IST_MINUTES && state.heartbeatDate !== today) {
     const indicesState = readJson(resolve(stateDir, "indices.json"));
-    await sendTelegram(formatHeartbeat(state, indicesState, today));
+    for (const m of formatEod(state, indicesState, today, thresholdsFromEnv())) await sendTelegram(m);
     state.heartbeatDate = today;
     console.log("Heartbeat sent.");
   }

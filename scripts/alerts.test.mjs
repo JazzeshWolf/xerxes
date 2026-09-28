@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, table, inAlertWindow, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
+  isMonthly, table, inAlertWindow, formatEod, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -253,6 +253,21 @@ describe("formatting", () => {
     const idx = collectIndices({ NIFTY: { asOf: "2026-09-16T05:10:00Z", name: "NIFTY 50", lotSize: 65, spot: { price: 23100 },
       expiries: { "2026-10-27": { date: "2026-10-27", candidates: [{ strike: 21600, type: "PE", conviction: 63, ltp: 48.7, pProfit: 0.96 }] } } } });
     expect([...idx.rows.values()][0]).toMatchObject({ spot: 23100, pop: 0.96 });
+  });
+
+  it("end-of-day report lists every tracked contract, drops expired ones, and says None when empty", () => {
+    const st = { day: { date: "2026-09-28", runs: 32, NEW: 1, MOVED: 0, DROPPED: 0, LEFT: 0 }, lastRunAt: "2026-09-28T10:15:00Z",
+      tracked: {
+        a: { ...row({ strike: 1040, type: "PE", conviction: 72, spot: 1252.6, pop: 0.96 }) },
+        b: { ...row({ strike: 900, conviction: 71, expiry: "2026-09-25" }) }, // expired: left out
+      } };
+    const ix = { day: { date: "2026-09-28", runs: 74, NEW: 0, MOVED: 0, DROPPED: 0, LEFT: 0 }, tracked: {} };
+    const [m] = formatEod(st, ix, "2026-09-28");
+    expect(m.startsWith("📋 <b>Xerxes · end of day 28 Sep</b>")).toBe(true);
+    expect(m).toContain("Stocks at 70+ at the close (1)");
+    expect(m).toMatch(/1040PE +72/);
+    expect(m).not.toContain("900CE");
+    expect(m).toMatch(/Indices at 60\+ at the close \(0\)<\/b>\nNone\./);
   });
 
   it("heartbeat warns when a feed ran zero times today", () => {

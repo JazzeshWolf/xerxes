@@ -553,9 +553,13 @@ Things that will bite:
 - **A missing state file arms instead of alerting**: one "alerts armed"
   message listing everything already above the bar, then normal operation.
   Deleting `alerts-state` is the way to reset tracking without a flood.
-- **The heartbeat rides the stock job**, not a GitHub `schedule:` — the first
-  stock run at/after 15:30 IST sends an end-of-day summary (runs checked,
-  events, tracked counts, ⚠️ if either feed ran zero times). No heartbeat by
+- **The end-of-day report rides the stock job**, not a GitHub `schedule:` — the
+  first stock run at/after 15:30 IST sends it (`formatEod`): runs checked,
+  events and tracked counts (⚠️ if either feed ran zero times), then **every
+  contract still at/above its alert level at the close**, as ABOVE cards with the
+  usual columns. It is built from the tracked sets, which only change inside
+  market hours, so it is the closing picture. Resend on demand: Actions → **Send
+  test alert** → tick *eod*. No heartbeat by
   ~15:50 IST on a trading day means the stock job didn't run after the close.
 - Index weekly/monthly labels come from `isMonthly(date, listed)`: last listed
   expiry of its month AND in the month's final 9 days. Date alone can't do it —
