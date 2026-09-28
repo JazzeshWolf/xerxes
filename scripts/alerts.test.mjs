@@ -197,18 +197,19 @@ describe("formatting", () => {
 
   it("renders one card per underlying + expiry, with aligned NEW / OUT / MOVED sections", () => {
     const [m] = formatMessages([
-      { kind: "NEW", row: row({ strike: 190, conviction: 76 }) },
+      { kind: "NEW", row: row({ strike: 190, conviction: 76, spot: 167, pop: 0.934 }) },
       { kind: "DROPPED", from: 72, row: row({ strike: 150, type: "PE", conviction: 66 }) },
       { kind: "MOVED", from: 73, row: row({ strike: 185, conviction: 75, ltp: 1.61 }) },
       { kind: "NEW", row: row({ symbol: "IEX", strike: 125, conviction: 71, lot: 4350, credit: 5742 }) },
     ], { source: "stocks", threshold: 70, when: "10:40", today: "2026-09-26" });
-    expect(m).toContain("<b>WIPRO · 27 Oct</b> · 31d left · lot 3,000");
+    expect(m).toContain("<b>WIPRO · 27 Oct</b> · DTE 31 · lot 3,000");
     // WIPRO (NEW at 76) leads IEX (NEW at 71).
     expect(m.indexOf("WIPRO")).toBeLessThan(m.indexOf("IEX"));
     const pre = m.slice(m.indexOf("<pre>") + 5, m.indexOf("</pre>")).split("\n");
     expect(pre).toEqual([
-      "NEW     CONV PREM CREDIT",
-      "190 CE    76 1.09  3,270 ⭐",
+      "NEW     CONV PREM CREDIT ROM% POP%",
+      // ROM: 3,270 ÷ (15% × 167 × 3,000 = 75,150) = 4.35%. POP: pProfit 0.934.
+      "190 CE    76 1.09  3,270  4.4   93 ⭐",
       "",
       "OUT     CONV REASON",
       "150 PE 72&gt;66 below 70",
@@ -216,6 +217,26 @@ describe("formatting", () => {
       "MOVED   CONV PREM    CHG",
       "185 CE 73&gt;75 1.61     +2",
     ]);
+  });
+
+  it("shows – rather than a made-up ROM or POP when spot or pProfit is missing", () => {
+    const [m] = formatMessages([{ kind: "NEW", row: row() }], { source: "stocks", threshold: 70, when: "10:40", today: "2026-09-26" });
+    expect(m).toMatch(/190 CE +72 1\.09 +3,270 +– +–/);
+  });
+
+  it("prices index ROM on the 8% index margin proxy, not the stock 15%", () => {
+    const r = row({ source: "indices", symbol: "NIFTY", strike: 21600, type: "PE", kind: "Monthly",
+      conviction: 63, ltp: 48.7, lot: 65, credit: 3166, spot: 23100, pop: 0.96 });
+    const [m] = formatMessages([{ kind: "NEW", row: r }], { source: "indices", threshold: 60, when: "10:40", today: "2026-09-26" });
+    // 3,166 ÷ (8% × 23,100 × 65 = 120,120) = 2.64%
+    expect(m).toMatch(/21600 PE +63 +48\.7 +3,166 +2\.6 +96/);
+    expect(m).toContain("8% of spot × lot");
+  });
+
+  it("carries spot and pProfit from the snapshot files into rows", () => {
+    const idx = collectIndices({ NIFTY: { asOf: "2026-09-16T05:10:00Z", name: "NIFTY 50", lotSize: 65, spot: { price: 23100 },
+      expiries: { "2026-10-27": { date: "2026-10-27", candidates: [{ strike: 21600, type: "PE", conviction: 63, ltp: 48.7, pProfit: 0.96 }] } } } });
+    expect([...idx.rows.values()][0]).toMatchObject({ spot: 23100, pop: 0.96 });
   });
 
   it("heartbeat warns when a feed ran zero times today", () => {

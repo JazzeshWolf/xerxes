@@ -32,6 +32,10 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 60 };
+// The scorer's own margin proxies (analytics.mjs / INDEX_SELL_OPTS): capital
+// deployed per lot ≈ this share of spot × lot. ROM in the alert uses the same
+// number the conviction score was normalised by, so the two agree.
+export const MARGIN_PCT = { stocks: 0.15, indices: 0.08 };
 const SCREENER_URL = "https://jazzeshwolf.github.io/xerxes/";
 const TG_LIMIT = 3900; // Telegram caps a message at 4096 chars; leave headroom.
 const INDEX_FILES = { nifty: "NIFTY", banknifty: "BANKNIFTY", sensex: "SENSEX" };
@@ -76,9 +80,11 @@ const key = (sym, expiry, strike, type) => `${sym}|${expiry}|${strike}|${type}`;
 export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
   const rows = new Map();
   const fresh = new Set();
+  const spotOf = {};
   for (const [slug, f] of Object.entries(stockFiles)) {
     if (!f || f.stale) continue;
     const sym = f.index ?? slug;
+    spotOf[sym] = f.spot?.price ?? null;
     if (!sinceAsOf || (f.asOf && f.asOf > sinceAsOf)) fresh.add(sym);
     for (const e of Object.values(f.expiries ?? {})) {
       for (const c of e.candidates ?? []) {
@@ -87,6 +93,7 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
           source: "stocks", symbol: sym, name: f.name, expiry: e.date, dte: e.dte,
           strike: c.strike, type: c.type, conviction: c.conviction, ltp: c.ltp,
           lot: f.lotSize, credit: Math.round(c.ltp * f.lotSize), kind: "Monthly", displayed: false,
+          spot: spotOf[sym], pop: c.pProfit ?? null,
         });
       }
     }
@@ -100,6 +107,7 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
         source: "stocks", symbol: c.symbol, name: c.name, expiry: c.expiry, dte: c.dte,
         strike: c.strike, type: c.type, conviction: c.conviction, ltp: c.ltp,
         lot, credit: c.creditPerLot ?? Math.round(c.ltp * (lot ?? 0)), kind: "Monthly",
+        spot: spotOf[c.symbol] ?? rows.get(k)?.spot ?? null, pop: c.pProfit ?? rows.get(k)?.pop ?? null,
         displayed: true, slot: block.slot,
       });
       fresh.add(c.symbol);
@@ -129,6 +137,7 @@ export function collectIndices(indexFiles, lastAsOf = {}) {
           source: "indices", symbol: sym, name: f.name, expiry: e.date, dte: e.dte,
           strike: c.strike, type: c.type, conviction: c.conviction, ltp: c.ltp,
           lot: f.lotSize, credit: Math.round(c.ltp * f.lotSize),
+          spot: f.spot?.price ?? null, pop: c.pProfit ?? null,
           kind: isMonthly(e.date, listed) ? "Monthly" : "Weekly", displayed: true,
         });
       }
@@ -225,7 +234,7 @@ function card(events, { threshold, today }) {
   const r0 = events[0].row;
   const dte = daysLeft(r0.expiry, today);
   const kind = r0.source === "indices" ? ` · ${r0.kind.toLowerCase()}` : "";
-  const head = `<b>${esc(r0.symbol)} · ${dm(r0.expiry)}</b>${kind} · ${dte <= 0 ? "expires today" : `${dte}d left`} · lot ${lakh(r0.lot)}`;
+  const head = `<b>${esc(r0.symbol)} · ${dm(r0.expiry)}</b>${kind} · ${dte <= 0 ? "expires today" : `DTE ${dte}`} · lot ${lakh(r0.lot)}`;
 
   const nw = events.filter((e) => e.kind === "NEW");
   const out = events.filter((e) => e.kind === "DROPPED" || e.kind === "LEFT");
@@ -240,16 +249,22 @@ function card(events, { threshold, today }) {
     ...mv.map((e) => `${e.from}>${e.row.conviction}`.length), ...out.map((e) => outConv(e).length));
   const c3 = Math.max(4, ...[...nw, ...mv].map((e) => num(e.row.ltp).length));
   const c4 = Math.max(6, ...nw.map((e) => lakh(e.row.credit).length));
+  const romOf = (r) => {
+    const cap = r.spot && r.lot ? MARGIN_PCT[r.source] * r.spot * r.lot : null;
+    return cap ? ((r.credit / cap) * 100).toFixed(1) : "–";
+  };
+  const popOf = (r) => (r.pop == null ? "–" : String(Math.round(r.pop * 100)));
   const L = (v, w) => String(v).padEnd(w);
   const R = (v, w) => String(v).padStart(w);
   const line = (...parts) => parts.join(" ").trimEnd();
 
   const blocks = [];
   if (nw.length) blocks.push([
-    line(L("NEW", c1), R("CONV", c2), R("PREM", c3), R("CREDIT", c4)),
+    line(L("NEW", c1), R("CONV", c2), R("PREM", c3), R("CREDIT", c4), R("ROM%", 4), R("POP%", 4)),
     ...nw.map((e) => {
       const mark = tierMark(e.row.source, e.row.conviction);
-      return line(L(key(e.row), c1), R(e.row.conviction, c2), R(num(e.row.ltp), c3), R(lakh(e.row.credit), c4)) + (mark ? " " + mark : "");
+      return line(L(key(e.row), c1), R(e.row.conviction, c2), R(num(e.row.ltp), c3), R(lakh(e.row.credit), c4),
+        R(romOf(e.row), 4), R(popOf(e.row), 4)) + (mark ? " " + mark : "");
     }),
   ]);
   if (out.length) blocks.push([
@@ -300,7 +315,11 @@ export function formatMessages(events, { source, threshold, when, today = istDat
       : "✅ Alerts armed — nothing above the bar right now");
   if (source === "indices" && events.some((e) => e.kind === "NEW"))
     header.push("<i>⚠ Index 60+ tier: few settled results so far, still unproven</i>");
-  const footer = `<a href="${SCREENER_URL}">Open screener</a> · PREM as quoted · CREDIT ₹ per lot`;
+  const pct = Math.round(MARGIN_PCT[source] * 100);
+  const footer = [
+    `<i>CREDIT ₹ per lot · ROM = credit ÷ capital (${pct}% of spot × lot) · POP = model's chance it expires worthless · DTE = days to expiry</i>`,
+    `<a href="${SCREENER_URL}">Open screener</a>`,
+  ].join("\n");
   const out = [];
   let cur = header.join("\n");
   for (const block of cards(events, { threshold, today })) {
@@ -346,12 +365,13 @@ export function bumpDay(state, events, today, nowIso) {
  *  options (60, 63, 65) crossing the bar, plus a few moves and exits so every
  *  section of a card is on show. */
 export function mockEvents() {
-  const stock = (symbol, strike, type, conviction, ltp, lot) => ({ kind: "NEW", row: {
+  const SPOT = { WIPRO: 167, IEX: 112, BANKBARODA: 233, NIFTY: 23140, SENSEX: 73896, BANKNIFTY: 55580 };
+  const stock = (symbol, strike, type, conviction, ltp, lot, pop = 0.93) => ({ kind: "NEW", row: {
     source: "stocks", symbol, expiry: "2026-10-27", strike, type, conviction, ltp, lot,
-    credit: Math.round(ltp * lot), kind: "Monthly" } });
-  const index = (symbol, expiry, strike, type, conviction, ltp, lot, kind) => ({ kind: "NEW", row: {
+    credit: Math.round(ltp * lot), kind: "Monthly", spot: SPOT[symbol], pop } });
+  const index = (symbol, expiry, strike, type, conviction, ltp, lot, kind, pop = 0.9) => ({ kind: "NEW", row: {
     source: "indices", symbol, expiry, strike, type, conviction, ltp, lot,
-    credit: Math.round(ltp * lot), kind } });
+    credit: Math.round(ltp * lot), kind, spot: SPOT[symbol], pop } });
   return [
     ["stocks", 70, [
       stock("WIPRO", 190, "CE", 71, 1.09, 3000),
