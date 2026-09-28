@@ -513,16 +513,17 @@ silent messages (2026-09-25), score moves included. Don't reintroduce
 rests on a handful of settled trades (see the backlog's Conviction Book note).
 Messages are **cards**, one per underlying + expiry: a bold `SYMBOL · 27 Oct`
 line, then `Monthly · 31 days left · lot 65`, then one `<pre>` block (Telegram
-has no table markup). Inside it, sections NEW / MOVED / BELOW 70 / OFF LIST /
+has no table markup). Inside it, sections NEW / MOVED / DROPPED / REMOVED /
 EXPIRED — the exit reason is the section title, not a column — and **every row
 carries the same five columns**: strike+type, CONV (`64→63` for a change), PREM,
 **ROM%** (credit ÷ the scorer's own margin proxy: 15% × spot × lot for stocks,
 8% for indices — `MARGIN_PCT`) and **POP%** (`pProfit`, the real-world
 forecast-vol probability of expiring worthless — never `probProfit`, which is
 1−|Δ| and carries no information). Missing inputs print `–`, never a guess.
-**Rows must stay ≤ ~32 chars**: Telegram on an upright iPhone scrolls a `<pre>`
-sideways past ~34, which hid the last column when CREDIT and CHG columns were
-there (owner's screenshot, 2026-09-28). That is why credit per lot is not a
+**Rows must stay ≤ 28 chars**: Telegram on the owner's upright iPhone scrolls a
+`<pre>` sideways at ~30 (two screenshots, 2026-09-28 — the first at 36, the
+second at 30). Hence `55000CE` with no space, `ROM`/`POP` headers, premiums
+≥ ₹100 to one decimal, and 7-letter section titles. That is why credit per lot is not a
 column — it is PREM × lot, and the lot is in the card header. A test pins the
 width. Cards holding a NEW lead, highest conviction first. Manual check: Actions → **Send test alert** (tick
 *mock* to see a sample alert).
@@ -531,6 +532,14 @@ Things that will bite:
 - **Entry is displayed-list only; tracking is not.** A stock that leaves the
   cross-universe top 24 keeps being followed through its own file (which scores
   more strikes). An index contract has no such fallback — it gets one LEFT.
+- **Scores are only compared 09:15–15:50 IST on weekdays** (`inAlertWindow`).
+  Outside the session a rebuild re-prices the *same* closing quotes with less
+  time to expiry (wall-clock time), so fair value falls and conviction drifts up
+  with nothing traded. Found live: a GitHub `schedule:` run of data.yml fired
+  ~7 h late at 23:17 IST and announced BANKNIFTY 55000 CE 66→69 on identical
+  prices. Outside the window nothing is compared or saved; only the end-of-day
+  heartbeat may still go out. (The underlying scorer behaviour — overnight
+  hours counted as decay — is untouched and worth a look on its own.)
 - **Freshness gates everything.** Stocks run only when the publish guard says
   `ok`; indices compare each index's `asOf` with the last one processed (data.yml
   has no guard of its own). A name whose file wasn't refreshed this run is held

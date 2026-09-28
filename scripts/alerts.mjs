@@ -41,6 +41,21 @@ const TG_LIMIT = 3900; // Telegram caps a message at 4096 chars; leave headroom.
 const INDEX_FILES = { nifty: "NIFTY", banknifty: "BANKNIFTY", sensex: "SENSEX" };
 // The heartbeat goes out on the first stock run at or after the close.
 const CLOSE_IST_MINUTES = 15 * 60 + 30;
+// Scores are only compared while the market is open. Outside it a rebuild
+// re-prices the SAME closing quotes with less time to expiry (time is measured
+// by the wall clock), so fair value falls and conviction drifts up with nothing
+// traded. Seen live: a GitHub schedule run fired ~7 h late at 23:17 IST and
+// announced BANKNIFTY 66→69 on identical prices.
+const OPEN_IST_MINUTES = 9 * 60 + 15;
+const LAST_IST_MINUTES = 15 * 60 + 50;
+
+/** Weekday and between the open and just after the close, IST. */
+export function inAlertWindow(d) {
+  const ist = new Date(d.getTime() + IST_OFFSET_MS);
+  const dow = ist.getUTCDay();
+  const m = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  return dow >= 1 && dow <= 5 && m >= OPEN_IST_MINUTES && m <= LAST_IST_MINUTES;
+}
 
 // --- time helpers ---------------------------------------------------------
 
@@ -216,7 +231,9 @@ export function table(head, rows, align) {
   })].join("\n");
 }
 
-const num = (n) => (n >= 1000 ? Math.round(n).toLocaleString("en-IN") : String(Number(Number(n).toFixed(2))));
+// ≥ ₹100 to one decimal, so a premium never needs more than 5 characters.
+const num = (n) => (n >= 1000 ? Math.round(n).toLocaleString("en-IN")
+  : n >= 100 ? String(Number(Number(n).toFixed(1))) : String(Number(Number(n).toFixed(2))));
 const lakh = (n) => Math.round(n).toLocaleString("en-IN");
 const daysLeft = (expiry, today) =>
   Math.round((Date.parse(expiry + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400000);
@@ -239,7 +256,7 @@ function card(events, { threshold, today }) {
     return cap ? ((r.credit / cap) * 100).toFixed(1) : "–";
   };
   const popOf = (r) => (r.pop == null ? "–" : String(Math.round(r.pop * 100)));
-  const key = (r) => `${r.strike} ${r.type}`;
+  const key = (r) => `${r.strike}${r.type}`;
   const convOf = (e) =>
     e.kind === "NEW" ? String(e.row.conviction) : e.kind === "LEFT" ? `${e.from}→–` : `${e.from}→${e.row.conviction}`;
 
@@ -248,8 +265,8 @@ function card(events, { threshold, today }) {
   const sections = [
     [`NEW`, events.filter((e) => e.kind === "NEW")],
     [`MOVED`, events.filter((e) => e.kind === "MOVED")],
-    [`BELOW ${threshold}`, events.filter((e) => e.kind === "DROPPED")],
-    [`OFF LIST`, events.filter((e) => e.kind === "LEFT" && !e.expiring)],
+    [`DROPPED`, events.filter((e) => e.kind === "DROPPED")],
+    [`REMOVED`, events.filter((e) => e.kind === "LEFT" && !e.expiring)],
     [`EXPIRED`, events.filter((e) => e.kind === "LEFT" && e.expiring)],
   ].filter(([, evs]) => evs.length);
 
@@ -257,12 +274,12 @@ function card(events, { threshold, today }) {
   const cells = (e) => [key(e.row), convOf(e), e.row.ltp == null ? "–" : num(e.row.ltp), romOf(e.row), popOf(e.row)];
   const all = events.map(cells);
   const w = [0, 1, 2, 3, 4].map((i) =>
-    Math.max(i === 0 ? Math.max(...sections.map(([t]) => t.length)) : ["", "CONV", "PREM", "ROM%", "POP%"][i].length,
+    Math.max(i === 0 ? Math.max(...sections.map(([t]) => t.length)) : ["", "CONV", "PREM", "ROM", "POP"][i].length,
       ...all.map((c) => c[i].length)));
   const fmt = (c) => [c[0].padEnd(w[0]), ...c.slice(1).map((v, i) => v.padStart(w[i + 1]))].join(" ").trimEnd();
 
   const body = sections.map(([title, evs]) =>
-    [fmt([title, "CONV", "PREM", "ROM%", "POP%"]), ...evs.map((e) => fmt(cells(e)))].join("\n"));
+    [fmt([title, "CONV", "PREM", "ROM", "POP"]), ...evs.map((e) => fmt(cells(e)))].join("\n"));
   return `${head}\n<pre>${esc(body.join("\n\n"))}</pre>`;
 }
 
@@ -300,7 +317,7 @@ export function formatMessages(events, { source, threshold, when, today = istDat
     header.push("<i>⚠ Index 60+ is unproven: few settled trades yet</i>");
   const pct = Math.round(MARGIN_PCT[source] * 100);
   const footer = [
-    `<i>PREM ₹ per share · credit per lot = PREM × lot\nROM% = credit ÷ capital (${pct}% of spot × lot)\nPOP% = model's chance it expires worthless</i>`,
+    `<i>PREM ₹ per share · credit/lot = PREM × lot\nROM % = credit ÷ capital (${pct}% of spot × lot)\nPOP % = model's chance it expires worthless\nDROPPED = fell below ${threshold} · REMOVED = off the list</i>`,
     `<a href="${SCREENER_URL}">Open screener</a>`,
   ].join("\n");
   const out = [];
@@ -437,6 +454,18 @@ async function main() {
   const today = istDate(now);
   const statePath = resolve(stateDir, `${source}.json`);
   const prev = readJson(statePath);
+
+  if (!inAlertWindow(now)) {
+    console.log(`Outside market hours (${istTime(now)} IST) — scores not compared, nothing sent.`);
+    // The end-of-day summary still goes out if a stock run lands after the window.
+    if (source === "stocks" && prev && istMinutes(now) >= CLOSE_IST_MINUTES && prev.heartbeatDate !== today
+        && ![0, 6].includes(new Date(now.getTime() + IST_OFFSET_MS).getUTCDay())) {
+      await sendTelegram(formatHeartbeat(prev, readJson(resolve(stateDir, "indices.json")), today));
+      writeFileSync(statePath, JSON.stringify({ ...prev, heartbeatDate: today }, null, 1) + "\n");
+      console.log("Heartbeat sent.");
+    }
+    return;
+  }
 
   let collected;
   let asOfUpdate;

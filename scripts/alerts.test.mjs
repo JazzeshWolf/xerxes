@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, table, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
+  isMonthly, table, inAlertWindow, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -31,6 +31,22 @@ describe("isMonthly", () => {
   });
   it("does not promote a mid-month weekly when the list is truncated", () => {
     expect(isMonthly("2026-10-19", ["2026-10-06", "2026-10-13", "2026-10-19"])).toBe(false);
+  });
+});
+
+describe("inAlertWindow", () => {
+  const at = (iso) => inAlertWindow(new Date(iso));
+  it("is open on a weekday between 09:15 and 15:50 IST", () => {
+    expect(at("2026-09-28T03:45:00Z")).toBe(true);  // Mon 09:15 IST
+    expect(at("2026-09-28T10:20:00Z")).toBe(true);  // Mon 15:50 IST
+    expect(at("2026-09-28T03:40:00Z")).toBe(false); // 09:10, pre-open
+    expect(at("2026-09-28T10:25:00Z")).toBe(false); // 15:55, after the close
+  });
+  it("is shut for the late GitHub run that raised a phantom alert at 23:17 IST", () => {
+    expect(at("2026-09-28T17:47:23Z")).toBe(false);
+  });
+  it("is shut at weekends", () => {
+    expect(at("2026-09-26T06:00:00Z")).toBe(false); // Sat 11:30 IST
   });
 });
 
@@ -154,7 +170,7 @@ describe("formatting", () => {
     expect(msgs.length).toBeGreaterThan(1);
     for (const m of msgs) expect(m.length).toBeLessThanOrEqual(4096);
     expect(msgs[0]).toContain("M&amp;M");
-    expect(msgs.join("").match(/\n\d+ CE +72/g)).toHaveLength(200);
+    expect(msgs.join("").match(/\n\d+CE +72/g)).toHaveLength(200);
     for (const m of msgs) expect((m.match(/<pre>/g) ?? []).length).toBe((m.match(/<\/pre>/g) ?? []).length);
   });
 
@@ -169,7 +185,7 @@ describe("formatting", () => {
     const armed = formatMessages([{ kind: "NEW", row: row() }], { source: "stocks", threshold: 70, when: "09:20", armed: true });
     expect(armed[0]).toContain("Alerts armed");
     expect(armed[0]).toContain("<b>WIPRO · 27 Oct</b>");
-    expect(armed[0]).toContain("190 CE");
+    expect(armed[0]).toContain("190CE");
     expect(formatMessages([], { source: "stocks", threshold: 70, when: "09:20", armed: true })[0]).toContain("nothing above the bar");
     expect(formatMessages([], { source: "stocks", threshold: 70, when: "09:20" })).toEqual([]);
   });
@@ -202,25 +218,26 @@ describe("formatting", () => {
     const pre = m.slice(m.indexOf("<pre>") + 5, m.indexOf("</pre>")).split("\n");
     // ROM: 3,270 ÷ (15% × 167 × 3,000 = 75,150) = 4.35%.
     expect(pre).toEqual([
-      "NEW       CONV PREM ROM% POP%",
-      "190 CE      76 1.09  4.4   93",
+      "NEW      CONV PREM ROM POP",
+      "190CE      76 1.09 4.4  93",
       "",
-      "MOVED     CONV PREM ROM% POP%",
-      "185 CE   73→75 1.61  6.4   89",
+      "MOVED    CONV PREM ROM POP",
+      "185CE   73→75 1.61 6.4  89",
       "",
-      "BELOW 70  CONV PREM ROM% POP%",
-      "150 PE   72→66 1.55  6.2   90",
+      "DROPPED  CONV PREM ROM POP",
+      "150PE   72→66 1.55 6.2  90",
       "",
-      "OFF LIST  CONV PREM ROM% POP%",
-      "200 CE    71→–  0.8    –    –",
+      "REMOVED  CONV PREM ROM POP",
+      "200CE    71→–  0.8   –   –",
     ]);
-    // Narrow enough for a phone held upright (Telegram scrolls past ~34).
-    for (const l of pre) expect(l.length).toBeLessThanOrEqual(32);
+    // Narrow enough for a phone held upright at a large text size: the owner's
+    // screenshot scrolled sideways at ~30 characters.
+    for (const l of pre) expect(l.length).toBeLessThanOrEqual(28);
   });
 
   it("shows – rather than a made-up ROM or POP when spot or pProfit is missing", () => {
     const [m] = formatMessages([{ kind: "NEW", row: row() }], { source: "stocks", threshold: 70, when: "10:40", today: "2026-09-26" });
-    expect(m).toMatch(/190 CE +72 1\.09 +– +–/);
+    expect(m).toMatch(/190CE +72 1\.09 +– +–/);
   });
 
   it("prices index ROM on the 8% index margin proxy, not the stock 15%", () => {
@@ -228,7 +245,7 @@ describe("formatting", () => {
       conviction: 63, ltp: 48.7, lot: 65, credit: 3166, spot: 23100, pop: 0.96 });
     const [m] = formatMessages([{ kind: "NEW", row: r }], { source: "indices", threshold: 60, when: "10:40", today: "2026-09-26" });
     // 3,166 ÷ (8% × 23,100 × 65 = 120,120) = 2.64%
-    expect(m).toMatch(/21600 PE +63 +48\.7 +2\.6 +96/);
+    expect(m).toMatch(/21600PE +63 +48\.7 +2\.6 +96/);
     expect(m).toContain("8% of spot × lot");
   });
 
