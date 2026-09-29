@@ -59,7 +59,9 @@ Setup steps are documented in `worker/README.md`.
    (A "test run" does NOT save a job — a classic trap.)
 2. Recent `workflow_dispatch` runs in Actions — firing? succeeding?
 3. The PAT — expired/revoked → every cron 401s.
-4. The Upstox token — expired → runs "succeed" but preserve stale data (fail-soft).
+4. The Upstox token — expired → index runs "succeed" but preserve stale data
+   (fail-soft); **stocks runs go red** with `Refusing to publish the stock
+   screener: built 0 stocks` (see the build-health gotcha below).
 
 **Stale data outside market hours is normal and correct** — NSE/BSE are closed, so
 the last post-close snapshot is final until the next open. Don't debug that.
@@ -70,7 +72,7 @@ the last post-close snapshot is final until the next open. Don't debug that.
 
 | Secret | Where | Expires | Symptom when dead |
 |---|---|---|---|
-| `UPSTOX_ACCESS_TOKEN` | repo secret (Actions) | ~1 yr from issue | runs succeed, data frozen/`stale:true` |
+| `UPSTOX_ACCESS_TOKEN` | repo secret (Actions) | ~1 yr from issue | index runs succeed with data frozen/`stale:true`; stocks runs go red (0 built) |
 | GitHub PAT `xerxes-cron` | cron-job.org headers | **2027-08-05** | crons 401, data stops refreshing |
 | `STOCK_REFRESH_URL` (optional) | repo *variable* | n/a | in-app Refresh falls back to re-pull |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | repo secrets (Actions) | never (revoke via @BotFather `/revoke`) | "Conviction alerts" step goes red; no end-of-day heartbeat |
@@ -415,6 +417,16 @@ what `VolPremiumCard`'s `kind="index"` copy says when VRP drops near or below 1.
   to republish when it hasn't moved (with a `::warning::`). Never weaken that back
   to a bare file-exists check — it turns a failure into a green run that
   force-pushes stale data.
+- **…and a moved `asOf` does not prove a real build either.** `main` stamps a
+  fresh `asOf` even when it built nothing, so an expired token or a rate-limit
+  storm used to publish an empty (`count: 0`) or half-empty screener as a green
+  run — the asOf guard waved it through. `buildHealth` now runs before
+  `index.json` is written: zero names never publishes, and a full run must reach
+  `STOCKS_MIN_BUILT_RATIO` (repo variable, default 0.9) of the previous run's
+  `count`. Failing exits 1, so the run goes red, nothing is published or alerted,
+  and `stocks-data` keeps the last good snapshot. If SEBI genuinely trims the F&O
+  list by more than 10%, set the variable to `0` for one run so the smaller
+  universe becomes the new baseline, then clear it.
 - **Don't re-list candidate fields by hand.** `candidates.json` rows spread the
   scored candidate; an earlier explicit field list silently dropped
   `tailReliance`/`cvar`/`worst` so the per-stock files had them and the UI (which

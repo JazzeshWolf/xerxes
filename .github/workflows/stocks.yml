@@ -85,10 +85,16 @@ jobs:
             echo "asof=none" >> "$GITHUB_OUTPUT"
           fi
 
+      # A full run exits non-zero (red run, nothing published) when it built
+      # zero names or fewer than STOCKS_MIN_BUILT_RATIO (default 0.9) of the
+      # previous run's count — see buildHealth in scripts/build-stocks.mjs. The
+      # asOf guard below cannot catch that: an empty build still stamps a fresh
+      # asOf. Set the repo variable to 0 for one run if the F&O list shrinks.
       - name: Build stock screener
         env:
           UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
           SYMBOL: ${{ github.event.inputs.symbol }}
+          STOCKS_MIN_BUILT_RATIO: ${{ vars.STOCKS_MIN_BUILT_RATIO }}
         run: node scripts/build-stocks.mjs
 
       # Publish stock JSON to a dedicated, force-pushed data branch so the code

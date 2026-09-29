@@ -57,6 +57,14 @@ const NEWS_PER_RUN = 25;
 // One name's strike ladder is a handful of near-identical trades, and without a
 // cap a single high-VRP stock crowds out the whole cross-universe list.
 const MAX_PER_SYMBOL = 2;
+// A full run must build at least this share of the previous full run's names
+// before it may publish. Override with the repo variable STOCKS_MIN_BUILT_RATIO
+// (e.g. 0 for one run) when the F&O list genuinely shrinks.
+const MIN_BUILT_RATIO = (() => {
+  const raw = (process.env.STOCKS_MIN_BUILT_RATIO ?? "").trim();
+  const v = Number(raw);
+  return raw !== "" && Number.isFinite(v) && v >= 0 ? v : 0.9;
+})();
 
 // On-demand single-stock refresh: SYMBOL=INDIGO rebuilds only that stock and
 // merges it into the already-published set (the workflow seeds public/data/stocks
@@ -578,6 +586,35 @@ export function pickNewsQueue(symbols, newsAsOfBySymbol, limit) {
 }
 
 /**
+ * May a full build publish? The workflow's guard only checks that `asOf` moved,
+ * and `main` stamps a fresh `asOf` even when nothing was built — so an expired
+ * token or a rate-limit storm used to force-push an empty or half-empty
+ * screener as a green run. Zero names never passes; otherwise the run must
+ * reach `minRatio` of the previous full run's count (unknown on a first run).
+ */
+export function buildHealth(built, prevCount, minRatio = 0.9) {
+  if (!(built > 0)) return { ok: false, reason: "built 0 stocks" };
+  const floor = prevCount > 0 ? Math.ceil(prevCount * minRatio) : 0;
+  if (built < floor) {
+    return {
+      ok: false,
+      reason: `built ${built} stocks, below ${Math.round(minRatio * 100)}% of the previous run's ${prevCount} (need ${floor})`,
+    };
+  }
+  return { ok: true, reason: null };
+}
+
+/** Name count of the previously published full run (the seeded index.json), or null. */
+async function readPrevCount() {
+  try {
+    const j = JSON.parse(await readFile(resolve(STOCKS_DIR, "index.json"), "utf8"));
+    return Number.isFinite(j?.count) ? j.count : Array.isArray(j?.stocks) ? j.stocks.length : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * News + corporate events for one symbol. Google News and the NSE calendar are
  * independent and both flaky, so they're settled separately — one failing must
  * not cost us the other.
@@ -684,6 +721,9 @@ async function main() {
     return;
   }
 
+  // The previous full run's size, read before this run overwrites index.json.
+  const prevCount = await readPrevCount();
+
   // Read every previous file up front: it carries each name's ivHistory, its
   // cached news/events, and the `newsAsOf` the news rotation is ordered by.
   const prevBySlug = Object.fromEntries(
@@ -722,6 +762,20 @@ async function main() {
   });
 
   const ok = built.filter((b) => b && b.ok);
+
+  // Refuse to publish an empty or collapsed build. Exiting non-zero BEFORE
+  // index.json is rewritten fails the step, so the publish and alert steps are
+  // skipped, stocks-data keeps the last good snapshot, and the run goes red.
+  const health = buildHealth(ok.length, prevCount, MIN_BUILT_RATIO);
+  if (!health.ok) {
+    console.error(
+      `::error::Refusing to publish the stock screener: ${health.reason} ` +
+        `(${live.length} of ${STOCKS.length} symbols returned a chain). stocks-data keeps the last good snapshot. ` +
+        `Check the Upstox token and rate limits; if the F&O universe genuinely shrank, set the repo variable ` +
+        `STOCKS_MIN_BUILT_RATIO=0 for one run.`,
+    );
+    process.exit(1);
+  }
   // Cross-universe liquidity percentile → bucket.
   const scores = ok.map((b) => b.liquidityRaw).sort((a, b) => a - b);
   const rankOf = (x) => (scores.length ? scores.filter((v) => v <= x).length / scores.length : 0);

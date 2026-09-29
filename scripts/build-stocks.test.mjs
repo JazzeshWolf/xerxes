@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as A from "./analytics.mjs";
-import { pickNewsQueue, buildStock } from "./build-stocks.mjs";
+import { pickNewsQueue, buildStock, buildHealth } from "./build-stocks.mjs";
 import { bars, denseChain } from "./test-fixtures.mjs";
 
 // The news rotation has no persisted cursor: each run re-fetches the stalest
@@ -94,5 +94,30 @@ describe("buildStock candidate cap", () => {
     expect(got.filter((c) => c.type === "PE")).toHaveLength(A.CANDIDATES_PER_SIDE);
     expect(got.filter((c) => c.type === "CE").length).toBeGreaterThan(0);
     expect(got.every((c) => c.conviction != null)).toBe(true);
+  });
+});
+
+describe("buildHealth", () => {
+  // The asOf guard in stocks.yml cannot see these: an empty build still stamps
+  // a fresh asOf, so an expired token used to publish an empty screener green.
+  it("never lets an empty build publish, even with no previous run to compare", () => {
+    expect(buildHealth(0, 207).ok).toBe(false);
+    expect(buildHealth(0, null).ok).toBe(false);
+    expect(buildHealth(0, null, 0).ok).toBe(false); // the override cannot publish nothing
+  });
+
+  it("refuses a collapsed build below the ratio of the previous run", () => {
+    const h = buildHealth(60, 207, 0.9);
+    expect(h.ok).toBe(false);
+    expect(h.reason).toMatch(/built 60 stocks.*207.*need 187/);
+    expect(buildHealth(186, 207, 0.9).ok).toBe(false);
+    expect(buildHealth(187, 207, 0.9).ok).toBe(true);
+  });
+
+  it("passes a normal run, a first run, and a run with the ratio overridden to 0", () => {
+    expect(buildHealth(207, 207).ok).toBe(true);
+    expect(buildHealth(210, 207).ok).toBe(true);
+    expect(buildHealth(150, null).ok).toBe(true);
+    expect(buildHealth(60, 207, 0).ok).toBe(true);
   });
 });
