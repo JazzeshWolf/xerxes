@@ -674,6 +674,23 @@ export function sellCandidates(
   return out.sort((a, b) => (a.type === b.type ? evKeep(b) - evKeep(a) : a.type === "PE" ? -1 : 1));
 }
 
+/** How many scored candidates each expiry block keeps, per side. */
+export const CANDIDATES_PER_SIDE = 24;
+
+/**
+ * Keep the first `n` candidates of EACH side, preserving the list's order.
+ *
+ * The cap must be per side and must run AFTER scoring. `sellCandidates` returns
+ * every put before any call, so a flat `.slice(0, 24)` ahead of scoring threw
+ * the calls away unscored whenever a deep expiry had 24+ puts — live, 108 index
+ * calls that cleared every filter never got a conviction, and NIFTY and
+ * BANKNIFTY's monthly showed "0 CE / 24 PE", which read as market data.
+ */
+export function topPerSide(list, n = CANDIDATES_PER_SIDE) {
+  const kept = { CE: 0, PE: 0 };
+  return (list ?? []).filter((c) => (kept[c.type] = (kept[c.type] ?? 0) + 1) <= n);
+}
+
 // --- Liquidity (for the stock screener) ------------------------------------
 /**
  * Raw option-liquidity magnitude for one underlying: a log-blend of total

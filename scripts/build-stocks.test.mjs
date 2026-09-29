@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { pickNewsQueue } from "./build-stocks.mjs";
+import * as A from "./analytics.mjs";
+import { pickNewsQueue, buildStock } from "./build-stocks.mjs";
+import { bars, denseChain } from "./test-fixtures.mjs";
 
 // The news rotation has no persisted cursor: each run re-fetches the stalest
 // few names by `newsAsOf`, so the ordering IS the scheduler. These tests pin
@@ -69,5 +71,28 @@ describe("pickNewsQueue", () => {
     const q = pickNewsQueue(symbols, asOf, 3);
     expect(q.size).toBe(3);
     for (const s of q) expect(symbols).toContain(s);
+  });
+});
+
+describe("buildStock candidate cap", () => {
+  // Same regression as the index builder: a flat pre-scoring `.slice(0, 24)`
+  // kept only puts whenever 24+ of them cleared the filters.
+  it("scores calls even when more than 24 puts clear the filters, capping per side", () => {
+    const spot = 1000;
+    const expiry = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    const ohlc = bars();
+    const { snap } = buildStock(
+      "Test Ltd",
+      {
+        symbol: "TEST", spot, prevClose: spot, closes: ohlc.map((b) => b.c), ohlc,
+        chainsByExpiry: { [expiry]: denseChain(spot, 30) }, orderedExpiries: [expiry],
+        lotSize: 75, future: null, sector: null,
+      },
+      { value: 14, closes: [] },
+    );
+    const got = snap.expiries[expiry].candidates;
+    expect(got.filter((c) => c.type === "PE")).toHaveLength(A.CANDIDATES_PER_SIDE);
+    expect(got.filter((c) => c.type === "CE").length).toBeGreaterThan(0);
+    expect(got.every((c) => c.conviction != null)).toBe(true);
   });
 });

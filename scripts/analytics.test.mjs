@@ -954,3 +954,25 @@ describe("sellConviction quote factor", () => {
     expect(poor.notes.join(" ")).toMatch(/marginal quote/);
   });
 });
+
+describe("topPerSide", () => {
+  const row = (type, conviction) => ({ type, conviction });
+
+  it("caps each side separately, so a long put list cannot crowd out the calls", () => {
+    // sellCandidates' order: every put first, then every call.
+    const list = [...Array.from({ length: 30 }, (_, i) => row("PE", 90 - i)), ...Array.from({ length: 5 }, (_, i) => row("CE", 50 - i))];
+    const kept = A.topPerSide(list, 24);
+    expect(kept.filter((c) => c.type === "PE")).toHaveLength(24);
+    expect(kept.filter((c) => c.type === "CE")).toHaveLength(5);
+  });
+
+  it("preserves the input order and keeps the first n of each side", () => {
+    const list = [row("CE", 80), row("PE", 75), row("CE", 70), row("PE", 60), row("CE", 55)];
+    expect(A.topPerSide(list, 2)).toEqual([row("CE", 80), row("PE", 75), row("CE", 70), row("PE", 60)]);
+  });
+
+  it("tolerates an empty or missing list", () => {
+    expect(A.topPerSide([])).toEqual([]);
+    expect(A.topPerSide(null)).toEqual([]);
+  });
+});

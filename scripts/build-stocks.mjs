@@ -122,10 +122,11 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
   const candidates = A.sellCandidates(chain, spot, t, expectedMove, {
     maxDelta: 0.25,
     minPremium: Math.max(1, spot * 0.0004),
-    // The per-strike quote gate lives HERE, upstream of the `.slice(0, 24)`
-    // below. Gating after the slice would take a block of 24 stale strikes down
-    // to a handful; gating before it lets 24 *tradable* strikes be picked in the
-    // first place. `lotSize` is required because the OI floor is in lots.
+    // The per-strike quote gate lives HERE, upstream of the per-side cap in
+    // `scoreCandidates`. Gating after the cap would take a block of 24 stale
+    // strikes down to a handful; gating before it lets 24 *tradable* strikes be
+    // picked in the first place. `lotSize` is required because the OI floor is
+    // in lots.
     lotSize: ctx.lotSize ?? 1,
     stats: gate,
   });
@@ -167,7 +168,9 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
       skew: A.round(skew, 4),
       gex,
     },
-    candidates: candidates.slice(0, 24),
+    // Every strike that cleared the filters, uncapped: the cap is applied per
+    // side AFTER scoring (see `A.topPerSide`), never here.
+    candidates,
     chain: slimChain(chain),
     _pcr: pcr.oi,
     _maxPain: maxPain,
@@ -190,6 +193,10 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
  * price: raw rupees favour expensive stocks, `1−|delta|` is the risk-neutral
  * P(OTM) which is fair by construction, and dividing distance by the straddle
  * made high-IV names look safe *because* their IV was high.
+ *
+ * Every filtered strike is scored, and only then is the block capped at
+ * `A.CANDIDATES_PER_SIDE` per side — so a deep put ladder can no longer crowd
+ * the calls out before they are ever looked at.
  */
 function scoreCandidates(block, { spot, lotSize, verdict, gap, term, ivRank, returns }) {
   const t = block._t;
@@ -255,8 +262,8 @@ function scoreCandidates(block, { spot, lotSize, verdict, gap, term, ivRank, ret
     });
   }
   scored.sort((a, b) => b.conviction - a.conviction);
-  block.candidates = scored;
-  return scored;
+  block.candidates = A.topPerSide(scored);
+  return block.candidates;
 }
 
 const HORIZONS = [{ key: "1W", target: 7 }, { key: "1M", target: 30 }, { key: "2M", target: 60 }];

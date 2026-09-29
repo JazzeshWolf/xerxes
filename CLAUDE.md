@@ -154,10 +154,18 @@ outside the header band where the toggle was added.
     was negative on 118 of 127 candidates. `INDEX_SELL_OPTS.marginPct` (0.08) already
     normalises against stocks' 0.15, so index scores are not structurally depressed.
     Don't "fix" the scorer for this.
-  - Short and lopsided lists are also correct — `sellCandidates` filters on Δ ≤ 0.25
-    and a minimum premium, so NIFTY had 5 candidates at 4d vs 24 at 67d, and 0 CE /
-    24 PE at 39d. Hence the counts on the All | Puts | Calls chips: without them a
-    tap on "Calls" lands on an empty list with no explanation.
+  - Short lists near expiry are correct — `sellCandidates` filters on Δ ≤ 0.25 and a
+    minimum premium, so NIFTY had 5 candidates at 4d. Hence the counts on the
+    All | Puts | Calls chips: without them a tap on "Calls" can land on an empty list
+    with no explanation.
+  - **But "0 CE / 24 PE" on a deep expiry was a BUG, not the market** (fixed
+    2026-09-29). `sellCandidates` lists every put before any call, and the builders
+    used to `.slice(0, 24)` that list *before* scoring — so whenever 24+ puts cleared
+    the filters, every call was discarded unscored (108 index calls on 2026-09-28;
+    NIFTY and BANKNIFTY 27-Oct showed zero). Now every filtered strike is scored and
+    `A.topPerSide` keeps the top `CANDIDATES_PER_SIDE` (24) **per side, after
+    scoring**, in both builders. A block can therefore hold up to 48 rows. Pinned by
+    the `candidate cap` tests in `build-data.test.mjs` / `build-stocks.test.mjs`.
 - **Opening a stock from a screener candidate carries that candidate's EXPIRY.**
   `CandidateRow`'s `onOpen(file, name, expiry)` → `app.tsx` stock route state →
   `StockDashboard`'s `initialExpiry`, which seeds `selectedExpiry` instead of

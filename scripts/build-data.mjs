@@ -317,7 +317,9 @@ function computeExpiry(chain, spot, expiryIso, label, ctx = {}) {
       skew: A.round(skew, 4),
       gex,
     },
-    candidates: candidates.slice(0, 24),
+    // Every strike that cleared the filters, uncapped: the cap is applied per
+    // side AFTER scoring in `buildIndex` (see `A.topPerSide`), never here.
+    candidates,
     chain: slimChain(chain),
     _flow: flow,
     _pcr: pcr.oi,
@@ -433,7 +435,10 @@ function buildIndex(cfg, raw, prev) {
     const sample = sf > 0 ? A.terminalSample(indexReturns, A.tradingDaysTo(b.dte), sf) : null;
     const mu = A.driftFromVerdict(b.verdict);
     const byStrike = new Map((b._rawChain ?? []).map((o) => [`${o.type}:${o.strike}`, o]));
-    b.candidates = b.candidates
+    // Score everything that cleared the filters, THEN cap per side. A flat
+    // pre-scoring slice kept the first 24 puts and dropped every call on deep
+    // expiries (sellCandidates lists puts first).
+    b.candidates = A.topPerSide(b.candidates
       .map((c) => {
         const row = byStrike.get(`${c.type}:${c.strike}`);
         const conv = A.sellConviction({
@@ -458,7 +463,7 @@ function buildIndex(cfg, raw, prev) {
             }
           : c;
       })
-      .sort((x, y) => (y.conviction ?? -1) - (x.conviction ?? -1));
+      .sort((x, y) => (y.conviction ?? -1) - (x.conviction ?? -1)));
   }
 
   // Horizon map: 1W / 1M / 2M → the fetched expiry whose DTE is closest to the
