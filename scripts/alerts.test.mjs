@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, DEFAULT_THRESHOLDS, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
+  isMonthly, DEFAULT_THRESHOLDS, RULES, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -155,6 +155,71 @@ describe("return bar (ROM)", () => {
   it("alert header states both bars", () => {
     const [m] = formatMessages([{ kind: "NEW", row: at(3800) }], { source: "stocks", threshold: 70, minRom: 5, when: "10:40", today: TODAY });
     expect(m).toContain("Alert level: conviction 70+ · ROM 5%+");
+  });
+});
+
+describe("index anti-noise rules", () => {
+  const ix = (over = {}) => row({ source: "indices", symbol: "NIFTY", strike: 21600, type: "PE", kind: "Monthly",
+    conviction: 61, spot: 23100, lot: 65, credit: 4000, ...over });
+  const step = (tracked, rows, announced = new Set(), today = TODAY) =>
+    diff(tracked, cur(...rows), { threshold: 60, today, isFresh: always, minRom: 3, ...RULES.indices, announced });
+
+  it("reports a move only once it reaches 3 points from the last reported score", () => {
+    let { tracked } = step({}, [ix({ conviction: 61 })]);
+    for (const c of [62, 63]) {
+      const d = step(tracked, [ix({ conviction: c })]);
+      expect(d.events).toEqual([]);
+      tracked = d.tracked;
+    }
+    const d = step(tracked, [ix({ conviction: 64 })]);
+    expect(d.events).toMatchObject([{ kind: "MOVED", from: 61, row: { conviction: 64 } }]);
+    // the next move is measured from 64
+    expect(step(d.tracked, [ix({ conviction: 62 })]).events).toEqual([]);
+  });
+
+  it("drops only below 57", () => {
+    let { tracked } = step({}, [ix({ conviction: 60 })]);
+    for (const c of [59, 58]) {
+      const d = step(tracked, [ix({ conviction: c })]);
+      expect(d.events).toEqual([]); // under 60 but inside the buffer: still tracked, quiet
+      tracked = d.tracked;
+    }
+    const at57 = step(tracked, [ix({ conviction: 57 })]);
+    expect(at57.events).toMatchObject([{ kind: "MOVED", from: 60 }]); // a 3-point move, still tracked
+    expect(step(at57.tracked, [ix({ conviction: 56 })]).events).toMatchObject([{ kind: "DROPPED", from: 57 }]);
+  });
+
+  it("announces a contract NEW at most once a day", () => {
+    const announced = new Set();
+    const a = step({}, [ix({ conviction: 61 })], announced);
+    expect(a.events[0].kind).toBe("NEW");
+    announced.add("NIFTY|2026-10-27|21600|PE");
+    const dropped = step(a.tracked, [ix({ conviction: 50 })], announced);
+    expect(dropped.events[0].kind).toBe("DROPPED");
+    const back = step(dropped.tracked, [ix({ conviction: 62 })], announced);
+    expect(back.events).toEqual([]);                  // same day: silent…
+    expect(Object.keys(back.tracked)).toHaveLength(1); // …but tracked again
+    expect(step(dropped.tracked, [ix({ conviction: 62 })], new Set()).events[0].kind).toBe("NEW"); // next day
+  });
+
+  it("reports REMOVED only after two runs off the list", () => {
+    const { tracked } = step({}, [ix()]);
+    const one = step(tracked, []);
+    expect(one.events).toEqual([]);
+    expect(Object.keys(one.tracked)).toHaveLength(1);
+    expect(step(one.tracked, []).events[0].kind).toBe("LEFT");
+    // reappearing resets the count
+    const back = step(one.tracked, [ix()]);
+    expect(step(back.tracked, []).events).toEqual([]);
+  });
+
+  it("still reports an expiry-day disappearance at once", () => {
+    const { tracked } = step({}, [ix({ expiry: TODAY })]);
+    expect(step(tracked, []).events[0]).toMatchObject({ kind: "LEFT", expiring: true });
+  });
+
+  it("leaves stocks on the old behaviour", () => {
+    expect(RULES.stocks).toEqual({ moveMin: 1, exitBuffer: 0, leftAfter: 1, newOncePerDay: false });
   });
 });
 

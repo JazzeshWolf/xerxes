@@ -535,12 +535,23 @@ clears `DEFAULT_MIN_ROM` — 5% stocks, 3% indices; repo variables
 **ROM is never an exit**: it shrinks as the option decays in the seller's favour,
 so exiting on it would announce every winning trade as a drop. State `version: 2`
 marks the switch; a v1 state has its sub-bar contracts dropped silently once.
-Measured by replaying real index runs through the script: **59 messages on
-29 Sep, 37 on 30 Sep** (~60 before). The bar alone does little for indices — the
-volume comes from contracts flickering around 60 and 1-point moves. Anti-noise
-rules (3-pt move threshold, drop only below 57, NEW once a day, LEFT after two
-misses) were designed and replayed at ~15–25/day, and **deferred by the owner**;
-they are the next lever if volume is still a problem.
+**Index anti-noise rules (2026-10-01, `RULES.indices`; stocks deliberately
+excluded — `RULES.stocks` keeps every move).** Moves are reported only at 3+
+points from the last *reported* score (`reported` on the tracked snapshot, so
+small steps add up); DROPPED only below 57 (3 under the bar — 57–59 stays tracked
+quietly, and is left out of the EOD/snapshot lists, which show only 60+); NEW at
+most once per IST day (`announced` in state; a same-day re-cross re-tracks
+silently); REMOVED only after 2 consecutive runs off the list (expiry day stays
+immediate). Replayed through the real script, index messages per day:
+
+| | before | return bar only | + anti-noise |
+|---|---|---|---|
+| 29 Sep (busy) | ~60 | 59 | **43** (events 529 → 131) |
+| 30 Sep | ~57 | 37 | **26** |
+
+Events fell ~4×, messages less, because most remaining runs carry 1–2 genuine
+changes. The next lever, if still too many, is batching (e.g. an hourly digest
+— replayed at ~10/day), which changes *when* messages arrive, not what counts.
 
 Things that will bite:
 - **Entry is displayed-list only; tracking is not.** A stock that leaves the
