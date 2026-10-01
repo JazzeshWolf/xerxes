@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, table, inAlertWindow, formatEod, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
+  isMonthly, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -117,6 +117,44 @@ describe("diff", () => {
     const { tracked } = run({}, cur(a, b));
     const d = run(tracked, cur(row({ strike: 185, conviction: 72 }), row({ strike: 195, conviction: 75 })));
     expect(d.events.map((e) => e.kind)).toEqual(["NEW", "LEFT", "MOVED"]);
+  });
+});
+
+describe("return bar (ROM)", () => {
+  // WIPRO lot 3,000 at spot 167: capital = 15% × 167 × 3,000 = 75,150.
+  const at = (credit, over = {}) => row({ conviction: 72, spot: 167, credit, ...over });
+  const go = (tracked, rows, minRom) => diff(tracked, cur(...rows), { threshold: 70, today: TODAY, isFresh: always, minRom });
+
+  it("computes ROM on the scorer's margin proxy", () => {
+    expect(romPct(at(3758))).toBeCloseTo(5.0, 1);
+    expect(romPct(at(3758, { source: "indices", spot: 23100, lot: 65, credit: 3166 }))).toBeCloseTo(2.64, 2);
+    expect(romPct(row({ spot: null }))).toBeNull();
+  });
+
+  it("a 70+ stock needs ROM 5%+ to enter", () => {
+    expect(go({}, [at(3680)], 5).events).toEqual([]);          // 4.9%
+    expect(go({}, [at(3758)], 5).events[0].kind).toBe("NEW");  // 5.0%
+    expect(go({}, [row({ conviction: 80, spot: null })], 5).events).toEqual([]); // unverifiable
+  });
+
+  it("a 60+ index option needs ROM 3%+ to enter", () => {
+    const ix = (credit) => row({ source: "indices", symbol: "NIFTY", strike: 21600, type: "PE", kind: "Monthly",
+      conviction: 61, spot: 23100, lot: 65, credit });
+    const run = (r) => diff({}, cur(r), { threshold: 60, today: TODAY, isFresh: always, minRom: 3 });
+    expect(run(ix(3480)).events).toEqual([]);         // 2.9%
+    expect(run(ix(3604)).events[0].kind).toBe("NEW"); // 3.0%
+  });
+
+  it("ROM is not an exit: a tracked contract whose ROM falls stays tracked", () => {
+    const { tracked } = go({}, [at(3800)], 5);
+    const d = go(tracked, [at(1500, { conviction: 73 })], 5); // premium decayed to 2% ROM
+    expect(d.events.map((e) => e.kind)).toEqual(["MOVED"]);
+    expect(Object.keys(d.tracked)).toHaveLength(1);
+  });
+
+  it("alert header states both bars", () => {
+    const [m] = formatMessages([{ kind: "NEW", row: at(3800) }], { source: "stocks", threshold: 70, minRom: 5, when: "10:40", today: TODAY });
+    expect(m).toContain("Alert level: conviction 70+ · ROM 5%+");
   });
 });
 

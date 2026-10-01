@@ -32,6 +32,11 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 60 };
+// Minimum return on capital (ROM %, see romPct) for a contract to START being
+// tracked. Owner's call (2026-10-01) to cut alert volume: a 70+ stock must
+// also return 5%+, a 60+ index option 3%+. Entry only — ROM shrinks as the
+// option decays in the seller's favour, so using it to exit would spam drops.
+export const DEFAULT_MIN_ROM = { stocks: 5, indices: 3 };
 // The scorer's own margin proxies (analytics.mjs / INDEX_SELL_OPTS): capital
 // deployed per lot ≈ this share of spot × lot. ROM in the alert uses the same
 // number the conviction score was normalised by, so the two agree.
@@ -170,11 +175,17 @@ const snapshotOf = (r) => ({
   credit: r.credit, spot: r.spot ?? null, pop: r.pop ?? null,
 });
 
+/** Credit ÷ capital (margin proxy × spot × lot), in %. null when an input is missing. */
+export function romPct(r) {
+  const cap = r?.spot && r?.lot && r?.credit != null ? MARGIN_PCT[r.source] * r.spot * r.lot : null;
+  return cap ? (r.credit / cap) * 100 : null;
+}
+
 /**
  * Compare tracked state with the current rows. Pure: returns the events and
  * the next tracked map, never mutates its inputs.
  */
-export function diff(tracked, current, { threshold, today, isFresh }) {
+export function diff(tracked, current, { threshold, today, isFresh, minRom = 0 }) {
   const next = {};
   const events = [];
   for (const [k, t] of Object.entries(tracked)) {
@@ -195,6 +206,8 @@ export function diff(tracked, current, { threshold, today, isFresh }) {
   }
   for (const [k, r] of current) {
     if (k in tracked || !r.displayed || r.conviction < threshold || r.expiry < today) continue;
+    // Return bar: entry only, and a missing ROM can't be verified, so it can't enter.
+    if (minRom > 0 && !(romPct(r) >= minRom)) continue;
     // A contract that just dropped out this run is not re-entered in the same run.
     if (events.some((e) => key(e.row.symbol, e.row.expiry, e.row.strike, e.row.type) === k)) continue;
     events.push({ kind: "NEW", row: r });
@@ -252,8 +265,8 @@ function card(events, { threshold, today }) {
   const head = `<b>${esc(r0.symbol)} · ${dm(r0.expiry)}</b>\n${kind}${left} · lot ${lakh(r0.lot)}`;
 
   const romOf = (r) => {
-    const cap = r.spot && r.lot && r.credit != null ? MARGIN_PCT[r.source] * r.spot * r.lot : null;
-    return cap ? ((r.credit / cap) * 100).toFixed(1) : "–";
+    const v = romPct(r);
+    return v == null ? "–" : v.toFixed(1);
   };
   const popOf = (r) => (r.pop == null ? "–" : String(Math.round(r.pop * 100)));
   const key = (r) => `${r.strike}${r.type}`;
@@ -305,11 +318,11 @@ function cards(events, opts) {
 }
 
 /** One message per run (split only if Telegram's length cap forces it). */
-export function formatMessages(events, { source, threshold, when, today = istDate(), armed = false }) {
+export function formatMessages(events, { source, threshold, minRom = 0, when, today = istDate(), armed = false }) {
   if (!events.length && !armed) return [];
   const icon = source === "stocks" ? "📈" : "🏛";
   const header = [`${icon} <b>Xerxes · ${source === "stocks" ? "Stocks" : "Indices"}</b> · ${when} IST`];
-  header.push(`<i>Alert level: conviction ${threshold}+</i>`);
+  header.push(`<i>Alert level: conviction ${threshold}+${minRom ? ` · ROM ${minRom}%+` : ""}</i>`);
   if (armed)
     header.push(events.length
       ? `✅ Alerts armed — already above the bar, now tracked (${events.length})`
@@ -367,7 +380,8 @@ export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_
   ]) {
     const held = Object.values(st?.tracked ?? {}).filter((t) => t.expiry >= date);
     const t = thresholds[source];
-    blocks.push(`${icon} <b>${label} at ${t}+ at the close (${held.length})</b>` +
+    const rom = thresholds.rom?.[source];
+    blocks.push(`${icon} <b>${label} at ${t}+${rom ? ` · ROM ${rom}%+` : ""} at the close (${held.length})</b>` +
       (source === "indices" && held.length ? "\n<i>⚠ Index 60+ is unproven: few settled trades yet</i>" : "") +
       (held.length ? "" : "\nNone."));
     if (held.length) blocks.push(...cards(held.map((row) => ({ kind: "HELD", row })), { threshold: t, today: date }));
@@ -472,6 +486,10 @@ function thresholdsFromEnv() {
   return {
     stocks: pick("ALERT_MIN_CONV_STOCK", DEFAULT_THRESHOLDS.stocks),
     indices: pick("ALERT_MIN_CONV_INDEX", DEFAULT_THRESHOLDS.indices),
+    rom: {
+      stocks: pick("ALERT_MIN_ROM_STOCK", DEFAULT_MIN_ROM.stocks),
+      indices: pick("ALERT_MIN_ROM_INDEX", DEFAULT_MIN_ROM.indices),
+    },
   };
 }
 
@@ -486,7 +504,7 @@ async function main() {
     // alert looks and sounds like. Contracts and prices are invented.
     const when = istTime(new Date());
     for (const [source, threshold, events] of mockEvents()) {
-      const [m] = formatMessages(events, { source, threshold, when });
+      const [m] = formatMessages(events, { source, threshold, minRom: DEFAULT_MIN_ROM[source], when });
       await sendTelegram("🧪 <b>MOCK ALERT (test only, not real)</b>\n\n" + m);
     }
     console.log("Mock alerts sent.");
@@ -513,6 +531,7 @@ async function main() {
   if (!["stocks", "indices"].includes(source)) throw new Error("--source must be stocks or indices");
   const envMin = Number(process.env[source === "stocks" ? "ALERT_MIN_CONV_STOCK" : "ALERT_MIN_CONV_INDEX"]);
   const threshold = Number.isFinite(envMin) && envMin > 0 ? envMin : DEFAULT_THRESHOLDS[source];
+  const minRom = thresholdsFromEnv().rom[source];
 
   const now = process.env.ALERTS_NOW ? new Date(process.env.ALERTS_NOW) : new Date();
   const today = istDate(now);
@@ -561,21 +580,30 @@ async function main() {
     asOfUpdate = { ...(prev?.lastAsOf ?? {}), ...collected.asOf };
   }
 
-  const { events, tracked } = diff(prev?.tracked ?? {}, collected.rows, {
-    threshold, today, isFresh: collected.isFresh,
+  // One-time clean-up when the return bar arrived (state v1 → v2): anything
+  // already tracked below the bar is let go silently rather than announced.
+  let prevTracked = prev?.tracked ?? {};
+  if (prev && (prev.version ?? 1) < 2) {
+    const kept = Object.fromEntries(Object.entries(prevTracked).filter(([, t]) => romPct(t) >= minRom));
+    console.log(`State v1 → v2: dropped ${Object.keys(prevTracked).length - Object.keys(kept).length} tracked contracts below ROM ${minRom}% (no message).`);
+    prevTracked = kept;
+  }
+
+  const { events, tracked } = diff(prevTracked, collected.rows, {
+    threshold, today, isFresh: collected.isFresh, minRom,
   });
 
-  let state = { version: 1, ...(prev ?? {}), tracked, lastAsOf: asOfUpdate };
+  let state = { ...(prev ?? {}), version: 2, tracked, lastAsOf: asOfUpdate };
   if (!prev) {
     // First ever run: announce the starting set in ONE message rather
     // than a loud NEW per contract, so switching alerts on never floods — but
     // nothing already above the bar is swallowed either.
-    const msgs = formatMessages(events, { source, threshold, when: istTime(now), today, armed: true });
+    const msgs = formatMessages(events, { source, threshold, minRom, when: istTime(now), today, armed: true });
     for (const m of msgs) await sendTelegram(m);
     console.log(`First run for ${source}: armed, tracking ${Object.keys(tracked).length} contracts at ≥ ${threshold}.`);
     state = bumpDay(state, [], today, now.toISOString());
   } else {
-    const msgs = formatMessages(events, { source, threshold, when: istTime(now), today });
+    const msgs = formatMessages(events, { source, threshold, minRom, when: istTime(now), today });
     for (const m of msgs) await sendTelegram(m);
     const tally = events.reduce((a, e) => ((a[e.kind] = (a[e.kind] ?? 0) + 1), a), {});
     console.log(`${source}: ${events.length} events ${JSON.stringify(tally)}, ${Object.keys(tracked).length} tracked, ${msgs.length} message(s) sent.`);

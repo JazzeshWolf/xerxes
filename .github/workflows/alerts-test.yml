@@ -32,7 +32,9 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ALERT_MIN_CONV_STOCK: ${{ vars.ALERT_MIN_CONV_STOCK }}
+          ALERT_MIN_ROM_STOCK: ${{ vars.ALERT_MIN_ROM_STOCK }}
           ALERT_MIN_CONV_INDEX: ${{ vars.ALERT_MIN_CONV_INDEX }}
+          ALERT_MIN_ROM_INDEX: ${{ vars.ALERT_MIN_ROM_INDEX }}
         run: |
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
             echo "::error::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID secret is missing or misnamed."

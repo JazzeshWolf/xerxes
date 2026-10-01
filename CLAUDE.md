@@ -500,7 +500,7 @@ Telegram bot when a contract crosses the bar, and follows it afterwards:
 
 | event | when |
 |---|---|
-| 🔔 NEW | a contract on the **displayed** list reaches stocks ≥ 70 / indices ≥ 60 |
+| 🔔 NEW | a contract on the **displayed** list reaches stocks ≥ 70 **and ROM ≥ 5%** / indices ≥ 60 **and ROM ≥ 3%** |
 | ⬆️⬇️ MOVED | tracked, still above the bar, score changed by any amount |
 | 🔻 DROPPED | tracked, fell below the bar → untracked (re-crossing is NEW again) |
 | 🚪 LEFT | tracked, no longer scored at all (or expiry day) → untracked |
@@ -527,6 +527,20 @@ second at 30). Hence `55000CE` with no space, `ROM`/`POP` headers, premiums
 column — it is PREM × lot, and the lot is in the card header. A test pins the
 width. Cards holding a NEW lead, highest conviction first. Manual check: Actions → **Send test alert** (tick
 *mock* to see a sample alert).
+
+**The return bar (2026-10-01, owner's call to cut volume).** A contract only
+*starts* being tracked if its ROM (`romPct`: credit ÷ margin proxy × spot × lot)
+clears `DEFAULT_MIN_ROM` — 5% stocks, 3% indices; repo variables
+`ALERT_MIN_ROM_STOCK` / `ALERT_MIN_ROM_INDEX` override. Missing ROM → no entry.
+**ROM is never an exit**: it shrinks as the option decays in the seller's favour,
+so exiting on it would announce every winning trade as a drop. State `version: 2`
+marks the switch; a v1 state has its sub-bar contracts dropped silently once.
+Measured by replaying real index runs through the script: **59 messages on
+29 Sep, 37 on 30 Sep** (~60 before). The bar alone does little for indices — the
+volume comes from contracts flickering around 60 and 1-point moves. Anti-noise
+rules (3-pt move threshold, drop only below 57, NEW once a day, LEFT after two
+misses) were designed and replayed at ~15–25/day, and **deferred by the owner**;
+they are the next lever if volume is still a problem.
 
 Things that will bite:
 - **Entry is displayed-list only; tracking is not.** A stock that leaves the
