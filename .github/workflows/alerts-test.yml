@@ -14,6 +14,10 @@ on:
         description: "Resend today's end-of-day report (contracts above the alert level at the close)"
         type: boolean
         default: false
+      snapshot:
+        description: "Send what passes the alert rules right now (from the last run), real data"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -43,6 +47,9 @@ jobs:
           if [ "${{ inputs.eod }}" = "true" ]; then
             scripts/alerts-state.sh pull
             node scripts/alerts.mjs --eod --state-dir _alerts
+          elif [ "${{ inputs.snapshot }}" = "true" ]; then
+            scripts/alerts-state.sh pull
+            node scripts/alerts.mjs --snapshot --state-dir _alerts
           else
             node scripts/alerts.mjs --test
           fi

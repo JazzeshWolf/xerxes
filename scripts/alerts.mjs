@@ -372,21 +372,29 @@ export function formatHeartbeat(stocksState, indicesState, today) {
  * tracked sets, which are only updated during market hours — so this is the
  * closing picture, not whatever a late evening rebuild computed.
  */
-export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_THRESHOLDS) {
+export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_THRESHOLDS, { snapshotAt = null } = {}) {
+  // snapshotAt ("13:15"): the same list mid-session, labelled as a snapshot, not a close.
+  const when = snapshotAt ? "now" : "at the close";
   const blocks = [];
   for (const [source, st, icon, label] of [
     ["stocks", stocksState, "📈", "Stocks"],
     ["indices", indicesState, "🏛", "Indices"],
   ]) {
-    const held = Object.values(st?.tracked ?? {}).filter((t) => t.expiry >= date);
     const t = thresholds[source];
     const rom = thresholds.rom?.[source];
-    blocks.push(`${icon} <b>${label} at ${t}+${rom ? ` · ROM ${rom}%+` : ""} at the close (${held.length})</b>` +
+    // A snapshot means "passes the rules right now", so it also re-applies the
+    // return bar (a tracked contract can have slipped under it — ROM is only an
+    // entry rule). The end-of-day report lists everything still tracked.
+    const held = Object.values(st?.tracked ?? {}).filter((x) => x.expiry >= date
+      && (!snapshotAt || !rom || romPct(x) >= rom));
+    blocks.push(`${icon} <b>${label} at ${t}+${rom ? ` · ROM ${rom}%+` : ""} ${when} (${held.length})</b>` +
       (source === "indices" && held.length ? "\n<i>⚠ Index 60+ is unproven: few settled trades yet</i>" : "") +
       (held.length ? "" : "\nNone."));
     if (held.length) blocks.push(...cards(held.map((row) => ({ kind: "HELD", row })), { threshold: t, today: date }));
   }
-  const header = formatHeartbeat(stocksState, indicesState, date)
+  const header = snapshotAt
+    ? `📸 <b>Xerxes · snapshot ${dm(date)}</b>\n<i>Contracts passing the alert rules as of the last run, ${snapshotAt} IST</i>`
+    : formatHeartbeat(stocksState, indicesState, date)
     .replace("✓ <b>Xerxes alerts · end of day", "📋 <b>Xerxes · end of day")
     .replace("⚠️ <b>Xerxes alerts · end of day", "⚠️ <b>Xerxes · end of day");
   const footer = [
@@ -400,7 +408,7 @@ export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_
   for (const bl of blocks) {
     if (cur.length + bl.length + footer.length + 4 > TG_LIMIT) {
       out.push(cur.trimEnd());
-      cur = `📋 <b>Xerxes · end of day ${dm(date)}</b> (cont.)`;
+      cur = snapshotAt ? `📸 <b>Xerxes · snapshot ${dm(date)}</b> (cont.)` : `📋 <b>Xerxes · end of day ${dm(date)}</b> (cont.)`;
     }
     cur += "\n\n" + bl;
   }
@@ -518,6 +526,17 @@ async function main() {
     const date = st?.day?.date ?? ix?.day?.date ?? istDate();
     for (const m of formatEod(st, ix, date, thresholdsFromEnv())) await sendTelegram(m);
     console.log(`End-of-day report for ${date} sent.`);
+    return;
+  }
+  if (process.argv.includes("--snapshot")) {
+    // What currently passes the alert rules: the tracked sets from the last run.
+    const dir = arg("state-dir", "_alerts");
+    const st = readJson(resolve(dir, "stocks.json"));
+    const ix = readJson(resolve(dir, "indices.json"));
+    const last = [st?.lastRunAt, ix?.lastRunAt].filter(Boolean).sort().pop();
+    const at = last ? istTime(new Date(last)) : istTime();
+    for (const m of formatEod(st, ix, istDate(), thresholdsFromEnv(), { snapshotAt: at })) await sendTelegram(m);
+    console.log(`Snapshot as of ${at} IST sent.`);
     return;
   }
   if (process.argv.includes("--test")) {

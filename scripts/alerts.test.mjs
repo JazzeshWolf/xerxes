@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
+  isMonthly, DEFAULT_THRESHOLDS, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -306,6 +306,17 @@ describe("formatting", () => {
     expect(m).toMatch(/1040PE +72/);
     expect(m).not.toContain("900CE");
     expect(m).toMatch(/Indices at 60\+ at the close \(0\)<\/b>\nNone\./);
+  });
+
+  it("snapshot mode lists the same contracts under a snapshot heading, without run counts", () => {
+    // 3,270 ÷ 75,150 = 4.35% < 5%: tracked, but not passing right now.
+    const st = { tracked: { a: row({ conviction: 72, spot: 167, pop: 0.9, credit: 4000 }), b: row({ strike: 200, conviction: 71, spot: 167 }) } };
+    const [m] = formatEod(st, { tracked: {} }, TODAY, { ...DEFAULT_THRESHOLDS, rom: { stocks: 5, indices: 3 } }, { snapshotAt: "13:15" });
+    expect(m).not.toContain("200CE");
+    expect(m.startsWith("📸 <b>Xerxes · snapshot 16 Sep</b>")).toBe(true);
+    expect(m).toContain("as of the last run, 13:15 IST");
+    expect(m).toContain("Stocks at 70+ · ROM 5%+ now (1)");
+    expect(m).not.toContain("Runs");
   });
 
   it("heartbeat warns when a feed ran zero times today", () => {

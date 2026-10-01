@@ -573,7 +573,9 @@ Things that will bite:
   contract still at/above its alert level at the close**, as ABOVE cards with the
   usual columns. It is built from the tracked sets, which only change inside
   market hours, so it is the closing picture. Resend on demand: Actions → **Send
-  test alert** → tick *eod*. No heartbeat by
+  test alert** → tick *eod*. Tick *snapshot* instead for **what passes the rules
+  right now** (tracked contracts from the last run, re-filtered by the return
+  bar, since a tracked contract can slip under it), headed "snapshot … as of". No heartbeat by
   ~15:50 IST on a trading day means the stock job didn't run after the close.
 - Index weekly/monthly labels come from `isMonthly(date, listed)`: last listed
   expiry of its month AND in the month's final 9 days. Date alone can't do it —
