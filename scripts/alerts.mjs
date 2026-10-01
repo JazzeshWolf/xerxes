@@ -37,6 +37,18 @@ export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 60 };
 // also return 5%+, a 60+ index option 3%+. Entry only — ROM shrinks as the
 // option decays in the seller's favour, so using it to exit would spam drops.
 export const DEFAULT_MIN_ROM = { stocks: 5, indices: 3 };
+// Anti-noise rules, indices only (owner's call, 2026-10-01). Index scores sit
+// around the 60 bar and move a point most 10-minute runs, which produced
+// ~40-60 messages a day. Stocks keep every move (their volume is low).
+//   moveMin     report a move only when the score has moved this far since it
+//               was last reported
+//   exitBuffer  DROPPED only below threshold − exitBuffer (57 for indices)
+//   leftAfter   REMOVED only after this many consecutive runs off the list
+//   newOncePerDay  a contract re-crossing the bar the same IST day re-enters silently
+export const RULES = {
+  stocks: { moveMin: 1, exitBuffer: 0, leftAfter: 1, newOncePerDay: false },
+  indices: { moveMin: 3, exitBuffer: 3, leftAfter: 2, newOncePerDay: true },
+};
 // The scorer's own margin proxies (analytics.mjs / INDEX_SELL_OPTS): capital
 // deployed per lot ≈ this share of spot × lot. ROM in the alert uses the same
 // number the conviction score was normalised by, so the two agree.
@@ -185,7 +197,10 @@ export function romPct(r) {
  * Compare tracked state with the current rows. Pure: returns the events and
  * the next tracked map, never mutates its inputs.
  */
-export function diff(tracked, current, { threshold, today, isFresh, minRom = 0 }) {
+export function diff(tracked, current, {
+  threshold, today, isFresh, minRom = 0,
+  moveMin = 1, exitBuffer = 0, leftAfter = 1, announced = null,
+}) {
   const next = {};
   const events = [];
   for (const [k, t] of Object.entries(tracked)) {
@@ -194,14 +209,23 @@ export function diff(tracked, current, { threshold, today, isFresh, minRom = 0 }
       next[k] = t; // no fresh data for this name this run — hold, say nothing
       continue;
     }
+    // `reported` is the score last announced; moves are measured from it, so
+    // several small steps add up to one reportable move.
+    const reported = t.reported ?? t.conviction;
     const r = current.get(k);
     if (!r) {
-      events.push({ kind: "LEFT", from: t.conviction, row: t, expiring: t.expiry === today });
-    } else if (r.conviction < threshold) {
-      events.push({ kind: "DROPPED", from: t.conviction, row: r });
+      const missing = (t.missing ?? 0) + 1;
+      if (t.expiry === today || missing >= leftAfter) {
+        events.push({ kind: "LEFT", from: reported, row: t, expiring: t.expiry === today });
+      } else {
+        next[k] = { ...t, missing }; // one miss: often back next run, say nothing yet
+      }
+    } else if (r.conviction < threshold - exitBuffer) {
+      events.push({ kind: "DROPPED", from: reported, row: r });
     } else {
-      if (r.conviction !== t.conviction) events.push({ kind: "MOVED", from: t.conviction, row: r });
-      next[k] = snapshotOf(r);
+      const moved = Math.abs(r.conviction - reported) >= moveMin;
+      if (moved) events.push({ kind: "MOVED", from: reported, row: r });
+      next[k] = { ...snapshotOf(r), reported: moved ? r.conviction : reported };
     }
   }
   for (const [k, r] of current) {
@@ -210,8 +234,10 @@ export function diff(tracked, current, { threshold, today, isFresh, minRom = 0 }
     if (minRom > 0 && !(romPct(r) >= minRom)) continue;
     // A contract that just dropped out this run is not re-entered in the same run.
     if (events.some((e) => key(e.row.symbol, e.row.expiry, e.row.strike, e.row.type) === k)) continue;
+    next[k] = { ...snapshotOf(r), reported: r.conviction };
+    // Already announced today (dropped and came back): track it again, quietly.
+    if (announced?.has(k)) continue;
     events.push({ kind: "NEW", row: r });
-    next[k] = snapshotOf(r);
   }
   const order = { NEW: 0, DROPPED: 1, LEFT: 2, MOVED: 3 };
   events.sort((a, b) => order[a.kind] - order[b.kind] || b.row.conviction - a.row.conviction);
@@ -385,7 +411,8 @@ export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_
     // A snapshot means "passes the rules right now", so it also re-applies the
     // return bar (a tracked contract can have slipped under it — ROM is only an
     // entry rule). The end-of-day report lists everything still tracked.
-    const held = Object.values(st?.tracked ?? {}).filter((x) => x.expiry >= date
+    // Contracts in the drop buffer (e.g. index 57–59) stay tracked but are not "at 60+".
+    const held = Object.values(st?.tracked ?? {}).filter((x) => x.expiry >= date && x.conviction >= t
       && (!snapshotAt || !rom || romPct(x) >= rom));
     blocks.push(`${icon} <b>${label} at ${t}+${rom ? ` · ROM ${rom}%+` : ""} ${when} (${held.length})</b>` +
       (source === "indices" && held.length ? "\n<i>⚠ Index 60+ is unproven: few settled trades yet</i>" : "") +
@@ -608,11 +635,18 @@ async function main() {
     prevTracked = kept;
   }
 
+  const rules = RULES[source];
+  const announcedToday = new Set(prev?.announced?.date === today ? prev.announced.keys : []);
   const { events, tracked } = diff(prevTracked, collected.rows, {
     threshold, today, isFresh: collected.isFresh, minRom,
+    moveMin: rules.moveMin, exitBuffer: rules.exitBuffer, leftAfter: rules.leftAfter,
+    announced: rules.newOncePerDay ? announcedToday : null,
   });
+  for (const e of events)
+    if (e.kind === "NEW") announcedToday.add(key(e.row.symbol, e.row.expiry, e.row.strike, e.row.type));
 
-  let state = { ...(prev ?? {}), version: 2, tracked, lastAsOf: asOfUpdate };
+  let state = { ...(prev ?? {}), version: 2, tracked, lastAsOf: asOfUpdate,
+    announced: { date: today, keys: [...announcedToday] } };
   if (!prev) {
     // First ever run: announce the starting set in ONE message rather
     // than a loud NEW per contract, so switching alerts on never floods — but
