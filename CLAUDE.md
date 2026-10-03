@@ -500,24 +500,28 @@ Telegram bot when a contract crosses the bar, and follows it afterwards:
 
 | event | when |
 |---|---|
-| 🔔 NEW | a contract on the **displayed** list reaches stocks ≥ 70 **and ROM ≥ 5%** / indices ≥ 60 **and ROM ≥ 3%** |
+| 🔔 NEW | a contract on the **displayed** list passes its entry gate (see *The firing gates* below) — stocks: conviction ≥ 70, ROM ≥ 5%, ≥ 5 days; indices: conviction ≥ 60, **`cushionSigmaF` ≥ 1.5σ**, best strike of its card. **Once per contract, ever** |
 | ⬆️⬇️ MOVED | tracked, still above the bar, score changed by any amount |
-| 🔻 DROPPED | tracked, fell below the bar → untracked (re-crossing is NEW again) |
+| 🔻 DROPPED | tracked, fell below the bar → untracked (a re-cross re-tracks silently — never a second NEW) |
 | 🚪 LEFT | tracked, no longer scored at all (or expiry day) → untracked |
 
 One message per run, **always with sound** — the owner explicitly asked for no
 silent messages (2026-09-25), score moves included. Don't reintroduce
-`disable_notification` without asking. Thresholds default to 70/60 and are overridable with repo
-**variables** `ALERT_MIN_CONV_STOCK` / `ALERT_MIN_CONV_INDEX`. Stock alerts mark
-⭐ 75+ / 🔥 80+; index NEW alerts carry an "unproven" line, because 60+ index
-rests on a handful of settled trades (see the backlog's Conviction Book note).
+`disable_notification` without asking. Every gate is overridable with repo
+**variables**: `ALERT_MIN_CONV_STOCK` / `ALERT_MIN_ROM_STOCK` / `ALERT_MIN_DTE_STOCK`
+and `ALERT_MIN_CONV_INDEX` / `ALERT_MIN_ROM_INDEX` / `ALERT_MIN_CUSHION_INDEX`
+(all six are passed to all three alert workflows, since the EOD report renders
+both sources). Stock alerts mark ⭐ 75+ / 🔥 80+; index NEW alerts carry the
+archive basis line instead (`INDEX_BASIS`), which says plainly that 60+ rests on
+only 7 settled trades.
 Messages are **cards**, one per underlying + expiry: a bold `SYMBOL · 27 Oct`
 line, then `Monthly · 31 days left · lot 65`, then one `<pre>` block (Telegram
 has no table markup). Inside it, sections NEW / MOVED / DROPPED / REMOVED /
 EXPIRED — the exit reason is the section title, not a column — and **every row
 carries the same five columns**: strike+type, CONV (`64→63` for a change), PREM,
-**ROM%** (credit ÷ the scorer's own margin proxy: 15% × spot × lot for stocks,
-8% for indices — `MARGIN_PCT`) and **POP%** (`pProfit`, the real-world
+**ROM%** on stock cards (credit ÷ the scorer's own margin proxy: 15% × spot × lot,
+`MARGIN_PCT`) or **CUSH** on index cards (distance to strike in forecast σ — the
+index gate, so it leads; percent OTM is deliberately never shown) and **POP%** (`pProfit`, the real-world
 forecast-vol probability of expiring worthless — never `probProfit`, which is
 1−|Δ| and carries no information). Missing inputs print `–`, never a guess.
 **Rows must stay ≤ 28 chars**: Telegram on the owner's upright iPhone scrolls a
@@ -530,7 +534,8 @@ width. Cards holding a NEW lead, highest conviction first. Manual check: Actions
 
 **The return bar (2026-10-01, owner's call to cut volume).** A contract only
 *starts* being tracked if its ROM (`romPct`: credit ÷ margin proxy × spot × lot)
-clears `DEFAULT_MIN_ROM` — 5% stocks, 3% indices; repo variables
+clears `DEFAULT_MIN_ROM` — 5% stocks (indices had 3% until cushion replaced it on
+2026-10-03; now 0); repo variables
 `ALERT_MIN_ROM_STOCK` / `ALERT_MIN_ROM_INDEX` override. Missing ROM → no entry.
 **ROM is never an exit**: it shrinks as the option decays in the seller's favour,
 so exiting on it would announce every winning trade as a drop. State `version: 2`
@@ -539,9 +544,8 @@ marks the switch; a v1 state has its sub-bar contracts dropped silently once.
 excluded — `RULES.stocks` keeps every move).** Moves are reported only at 3+
 points from the last *reported* score (`reported` on the tracked snapshot, so
 small steps add up); DROPPED only below 57 (3 under the bar — 57–59 stays tracked
-quietly, and is left out of the EOD/snapshot lists, which show only 60+); NEW at
-most once per IST day (`announced` in state; a same-day re-cross re-tracks
-silently); REMOVED only after 2 consecutive runs off the list (expiry day stays
+quietly, and is left out of the EOD/snapshot lists, which show only 60+); NEW
+once per contract ever (originally once per IST day — see below); REMOVED only after 2 consecutive runs off the list (expiry day stays
 immediate). Replayed through the real script, index messages per day:
 
 | | before | return bar only | + anti-noise |
@@ -552,6 +556,50 @@ immediate). Replayed through the real script, index messages per day:
 Events fell ~4×, messages less, because most remaining runs carry 1–2 genuine
 changes. The next lever, if still too many, is batching (e.g. an hourly digest
 — replayed at ~10/day), which changes *when* messages arrive, not what counts.
+
+**The firing gates (2026-10-03, owner's rule — the stricter gate on top of the
+screener; the screener itself still shows everything it scores).**
+
+| source | entry gate |
+|---|---|
+| indices | conviction ≥ 60 **and** `cushionSigmaF` ≥ 1.5σ (`cushionSigma` only if F is null) **and** the best qualifying strike of its index + expiry **and** not on expiry day |
+| stocks | conviction ≥ 70 **and** ROM ≥ 5% **and** ≥ 5 days to expiry |
+
+All in `qualifies()` + `RULES` + `DEFAULT_*` at the top of `alerts.mjs`. Why:
+
+- **Cushion, not days, for indices.** Measured on the EOD archive
+  (`state/outcomes.jsonl`, settled index trades, `cushion_sigma` = forecast σ):
+  outcomes are monotone in cushion. To 2 Oct, at cushion ≥ 1.5σ: **136 at conviction
+  40+, 0 finished ITM, worst +0.5%; 65 at 50+; only 7 at 60+.** The 1.25–1.5σ band
+  is where the losers were (SENSEX 1 Oct 72100–72300 PE, worst −3.2% at 40+), so
+  the owner's 1.25 became 1.5. Sigma already contains the horizon, which a percent
+  or a day count doesn't.
+- **60 and best-strike are for VOLUME, not evidence.** The owner's 40+ · 1.5σ let
+  ~80 index contracts qualify at any moment; replayed 28 Sep–1 Oct that was 40–110
+  NEW a day. The archive's "handful a day" counts one snapshot a day; the bot sees
+  every 10-minute run, where strikes churn along the ladder. 60+ evidence is thin
+  (7 trades) and the alert says so.
+- **No expiry-day entry.** Archive entries are post-close, so `entry_dte ≥ 1`; an
+  intraday same-day sale was never measured.
+- **Cushion is measured on indices ONLY.** Nobody has run the cut on the stock
+  book; stocks stay on conviction/ROM/days until someone does. Don't unify them.
+- **No path-dependent rules** (stops, profit takes, rolls): the archive has a gap
+  in daily marks 26 Aug – 14 Sep, so only entry-to-settlement is measured.
+- **Exits stay conviction-based**, as with ROM — cushion shrinks as spot moves and
+  time passes, and exiting on it would announce trades as drops for the wrong reason.
+- **Once per contract, ever** (`announced: {key: expiry}` in state, pruned at
+  expiry, both sources; `loadAnnounced` also reads the old `{date, keys}` shape).
+  A strike that loses "best" keeps being followed; the next best is NEW once.
+
+Replayed through the real script (chained state, 28 Sep – 1 Oct), index NEW per
+day **18 / 3 / 11 / 21**, no contract NEW twice. Messages per day were 29 / 20 /
+26 / 37 — mostly MOVED follow-ups, which the owner chose to keep. If that is still
+too many, the levers are the index `moveMin` or batching follow-ups; the entry
+side is already where the owner wanted it.
+
+State `version: 3` marks this switch: a v1/v2 state is **cleared and re-armed**
+(one "armed" message per feed listing what qualifies now), and today's old
+`announced` keys are forgotten so nothing is tracked silently out of the armed list.
 
 Things that will bite:
 - **Entry is displayed-list only; tracking is not.** A stock that leaves the

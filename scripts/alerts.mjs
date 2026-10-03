@@ -31,7 +31,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 40 };
+export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 60 };
 // Minimum return on capital (ROM %, see romPct) for a contract to START being
 // tracked. Owner's call (2026-10-01) to cut alert volume: a 70+ stock must
 // also return 5%+. (Indices had a 3% bar until 2026-10-03; cushion replaced
@@ -40,9 +40,13 @@ export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 40 };
 export const DEFAULT_MIN_ROM = { stocks: 5, indices: 0 };
 // Index gate (2026-10-03, owner's rule, measured on the EOD archive): an index
 // contract qualifies on CUSHION IN FORECAST SIGMAS, not days or percent — sigma
-// already contains the horizon. Archive to 2 Oct: cushion ≥ 1.5σ → 201 settled
-// index trades, 0 finished ITM, worst +0.5%; 1.25–1.5σ had 9 losers (worst −20%).
-// Measured on indices ONLY — stocks stay on conviction / ROM / days to expiry.
+// already contains the horizon. Archive outcomes to 2 Oct, settled index trades at
+// cushion ≥ 1.5σ: 136 at conviction 40+ (0 finished ITM, worst +0.5%), 65 at 50+,
+// only 7 at 60+. The 1.25–1.5σ band had the losers (worst −3.2% at 40+), hence 1.5.
+// Conviction is 60, not 40, for VOLUME: ~80 index contracts pass 40+ · 1.5σ at
+// any moment intraday (replayed 28 Sep–1 Oct) — the archive counts one snapshot
+// a day, the bot sees every 10-minute run. Measured on indices ONLY — stocks stay
+// on conviction / ROM / days to expiry.
 export const DEFAULT_MIN_CUSHION = { stocks: 0, indices: 1.5 };
 // Stocks need at least this many days to expiry (owner's existing rule).
 export const DEFAULT_MIN_DTE = { stocks: 5, indices: 0 };
@@ -55,10 +59,15 @@ export const DEFAULT_GATES = { ...DEFAULT_THRESHOLDS, rom: DEFAULT_MIN_ROM, cush
 //               was last reported
 //   exitBuffer  DROPPED only below threshold − exitBuffer (57 for indices)
 //   leftAfter   REMOVED only after this many consecutive runs off the list
-//   newOncePerDay  a contract re-crossing the bar the same IST day re-enters silently
+//   bestPerCard  only the best qualifying strike per underlying + expiry may
+//               enter (2026-10-03): a ladder of neighbouring strikes is one trade
+//   noExpiryDay  no entry on expiry day — the archive's entries are post-close,
+//               so a same-day sale was never measured
+// Every contract is announced NEW once in its life, both sources (state
+// `announced`); a re-cross after DROPPED is tracked again silently.
 export const RULES = {
-  stocks: { moveMin: 1, exitBuffer: 0, leftAfter: 1, newOncePerDay: false },
-  indices: { moveMin: 3, exitBuffer: 3, leftAfter: 2, newOncePerDay: true },
+  stocks: { moveMin: 1, exitBuffer: 0, leftAfter: 1, bestPerCard: false, noExpiryDay: false },
+  indices: { moveMin: 3, exitBuffer: 3, leftAfter: 2, bestPerCard: true, noExpiryDay: true },
 };
 // The scorer's own margin proxies (analytics.mjs / INDEX_SELL_OPTS): capital
 // deployed per lot ≈ this share of spot × lot. ROM in the alert uses the same
@@ -229,7 +238,7 @@ export function qualifies(r, { threshold, minRom = 0, minCushion = 0, minDte = 0
  */
 export function diff(tracked, current, {
   threshold, today, isFresh, minRom = 0, minCushion = 0, minDte = 0,
-  moveMin = 1, exitBuffer = 0, leftAfter = 1, announced = null,
+  moveMin = 1, exitBuffer = 0, leftAfter = 1, announced = null, bestPerCard = false, noExpiryDay = false,
 }) {
   const next = {};
   const events = [];
@@ -258,22 +267,47 @@ export function diff(tracked, current, {
       next[k] = { ...snapshotOf(r), reported: moved ? r.conviction : reported };
     }
   }
-  for (const [k, r] of current) {
-    if (k in tracked || !r.displayed || r.expiry < today) continue;
-    // Entry gate only (conviction / ROM / cushion / days). Exits stay conviction-based:
-    // ROM and cushion both drift as the trade ages, and exiting on them would
-    // announce winners as drops.
-    if (!qualifies(r, { threshold, minRom, minCushion, minDte }, today)) continue;
+  // Entry gate only (conviction / ROM / cushion / days). Exits stay conviction-based:
+  // ROM and cushion both drift as the trade ages, and exiting on them would
+  // announce winners as drops.
+  let entries = [...current].filter(([k, r]) => !(k in tracked) && r.displayed && r.expiry >= today
+    && !(noExpiryDay && r.expiry === today)
+    && qualifies(r, { threshold, minRom, minCushion, minDte }, today));
+  if (bestPerCard) {
+    // One strike per underlying + expiry: the highest conviction, then the most
+    // cushion. Neighbouring strikes on one ladder are the same trade.
+    const best = new Map();
+    const better = (a, b) => a.conviction - b.conviction || (a.cushion ?? 0) - (b.cushion ?? 0) || a.strike - b.strike;
+    for (const [k, r] of current) {
+      if (!r.displayed || !qualifies(r, { threshold, minRom, minCushion, minDte }, today)) continue;
+      const g = `${r.symbol}|${r.expiry}`;
+      if (!best.has(g) || better(r, best.get(g)[1]) > 0) best.set(g, [k, r]);
+    }
+    const winners = new Set([...best.values()].map(([k]) => k));
+    entries = entries.filter(([k]) => winners.has(k));
+  }
+  for (const [k, r] of entries) {
     // A contract that just dropped out this run is not re-entered in the same run.
     if (events.some((e) => key(e.row.symbol, e.row.expiry, e.row.strike, e.row.type) === k)) continue;
     next[k] = { ...snapshotOf(r), reported: r.conviction };
-    // Already announced today (dropped and came back): track it again, quietly.
+    // Announced before (dropped and came back): track it again, quietly. Each
+    // contract is announced once in its life.
     if (announced?.has(k)) continue;
     events.push({ kind: "NEW", row: r });
   }
   const order = { NEW: 0, DROPPED: 1, LEFT: 2, MOVED: 3 };
   events.sort((a, b) => order[a.kind] - order[b.kind] || b.row.conviction - a.row.conviction);
   return { events, tracked: next };
+}
+
+/** Once-ever dedupe state: { key: expiry }, pruned once the expiry has passed.
+ *  A v2 state stored { date, keys } for one day only; its keys are carried over. */
+export function loadAnnounced(stored, today) {
+  const map = Array.isArray(stored?.keys)
+    ? Object.fromEntries(stored.keys.map((k) => [k, k.split("|")[1]]))
+    : { ...(stored ?? {}) };
+  for (const [k, exp] of Object.entries(map)) if (!(exp >= today)) delete map[k];
+  return map;
 }
 
 // --- formatting -------------------------------------------------------------
@@ -384,17 +418,19 @@ function cards(events, opts) {
 
 /** One message per run (split only if Telegram's length cap forces it). */
 /** "conviction 40+ · cushion 1.5σ+" — the entry gate in words, for headers. */
-export function gateText({ threshold, minRom = 0, minCushion = 0, minDte = 0 }) {
+export function gateText({ threshold, minRom = 0, minCushion = 0, minDte = 0 }, source = null) {
   return [`conviction ${threshold}+`, minCushion ? `cushion ${minCushion}σ+` : null,
-    minRom ? `ROM ${minRom}%+` : null, minDte ? `${minDte}+ days` : null].filter(Boolean).join(" · ");
+    minRom ? `ROM ${minRom}%+` : null, minDte ? `${minDte}+ days` : null,
+    RULES[source]?.bestPerCard ? "best strike" : null].filter(Boolean).join(" · ");
 }
-const INDEX_BASIS = "<i>Archive: 0 of 201 index trades sold at 1.5σ+ cushion finished in the money</i>";
+// Settled index trades in the EOD archive (outcomes.jsonl, to 2 Oct 2026).
+const INDEX_BASIS = "<i>Archive, index trades sold at 1.5σ+: 136 at conviction 40+, none finished in the money — only 7 so far at 60+</i>";
 
 export function formatMessages(events, { source, threshold, minRom = 0, minCushion = 0, minDte = 0, when, today = istDate(), armed = false }) {
   if (!events.length && !armed) return [];
   const icon = source === "stocks" ? "📈" : "🏛";
   const header = [`${icon} <b>Xerxes · ${source === "stocks" ? "Stocks" : "Indices"}</b> · ${when} IST`];
-  header.push(`<i>Alert level: ${gateText({ threshold, minRom, minCushion, minDte })}</i>`);
+  header.push(`<i>Alert level: ${gateText({ threshold, minRom, minCushion, minDte }, source)}</i>`);
   if (armed)
     header.push(events.length
       ? `✅ Alerts armed — already above the bar, now tracked (${events.length})`
@@ -403,7 +439,7 @@ export function formatMessages(events, { source, threshold, minRom = 0, minCushi
     header.push(INDEX_BASIS);
   const pct = Math.round(MARGIN_PCT[source] * 100);
   const footer = [
-    `<i>${source === "indices" ? "CUSH = distance to strike in forecast σ\n" : ""}PREM ₹ per share · credit/lot = PREM × lot\n${source === "stocks" ? `ROM % = credit ÷ capital (${pct}% of spot × lot)\n` : ""}POP % = model's chance it expires worthless\nDROPPED = fell below ${threshold} · REMOVED = off the list</i>`,
+    `<i>${source === "indices" ? "CUSH = distance to strike in forecast σ\n" : ""}PREM ₹ per share · credit/lot = PREM × lot\n${source === "stocks" ? `ROM % = credit ÷ capital (${pct}% of spot × lot)\n` : ""}POP % = model's chance it expires worthless\nDROPPED = fell below ${threshold - (RULES[source]?.exitBuffer ?? 0)} · REMOVED = off the list</i>`,
     `<a href="${SCREENER_URL}">Open screener</a>`,
   ].join("\n");
   const out = [];
@@ -501,7 +537,7 @@ export function bumpDay(state, events, today, nowIso) {
 }
 
 /** Invented sample for `--mock`: three stocks (71, 76, 72) and three index
- *  options (conviction 44-52, cushion 1.6σ+) crossing the bar, plus a few moves and exits so every
+ *  options (conviction 61-68, cushion 1.6σ+) crossing the bar, plus a few moves and exits so every
  *  section of a card is on show. */
 export function mockEvents() {
   const SPOT = { WIPRO: 167, IEX: 112, BANKBARODA: 233, NIFTY: 23140, SENSEX: 73896, BANKNIFTY: 55580 };
@@ -520,12 +556,12 @@ export function mockEvents() {
       { ...stock("WIPRO", 185, "CE", 75, 1.61, 3000), kind: "MOVED", from: 73 },
       { ...stock("IEX", 120, "CE", 70, 1.9, 4350), kind: "MOVED", from: 71 },
     ]],
-    ["indices", 40, [
-      index("NIFTY", "2026-10-27", 21600, "PE", 52, 48.7, 65, "Monthly", 2.41),
-      index("SENSEX", "2026-10-08", 76000, "CE", 47, 250, 20, "Weekly", 1.62),
-      index("BANKNIFTY", "2026-10-27", 52000, "PE", 44, 112.4, 30, "Monthly", 1.87),
-      { ...index("NIFTY", "2026-10-27", 21700, "PE", 49, 52.05, 65, "Monthly", 2.28), kind: "MOVED", from: 45 },
-      { ...index("SENSEX", "2026-10-08", 76500, "CE", 36, 180, 20, "Weekly", 1.55), kind: "DROPPED", from: 41 },
+    ["indices", 60, [
+      index("NIFTY", "2026-10-27", 21600, "PE", 68, 48.7, 65, "Monthly", 2.41),
+      index("SENSEX", "2026-10-08", 76000, "CE", 64, 250, 20, "Weekly", 1.62),
+      index("BANKNIFTY", "2026-10-27", 52000, "PE", 61, 112.4, 30, "Monthly", 1.87),
+      { ...index("NIFTY", "2026-10-27", 21700, "PE", 66, 52.05, 65, "Monthly", 2.28), kind: "MOVED", from: 62 },
+      { ...index("SENSEX", "2026-10-08", 76500, "CE", 55, 180, 20, "Weekly", 1.55), kind: "DROPPED", from: 61 },
     ]],
   ];
 }
@@ -685,24 +721,25 @@ async function main() {
   let prevTracked = prev?.tracked ?? {};
   const rearm = !!prev && (prev.version ?? 1) < 3;
   if (rearm) {
-    console.log(`State v${prev.version ?? 1} → v3: cleared ${Object.keys(prevTracked).length} tracked contracts; re-arming under ${gateText(gate)}.`);
+    console.log(`State v${prev.version ?? 1} → v3: cleared ${Object.keys(prevTracked).length} tracked contracts; re-arming under ${gateText(gate, source)}.`);
     prevTracked = {};
   }
 
   const rules = RULES[source];
   // A re-arm also forgets today's announcements, or a contract NEW'd earlier
   // under the old rules would be tracked silently and missing from the armed list.
-  const announcedToday = new Set(!rearm && prev?.announced?.date === today ? prev.announced.keys : []);
+  const announcedMap = rearm ? {} : loadAnnounced(prev?.announced, today);
+  const announcedSet = new Set(Object.keys(announcedMap));
   const { events, tracked } = diff(prevTracked, collected.rows, {
     ...gate, today, isFresh: collected.isFresh,
     moveMin: rules.moveMin, exitBuffer: rules.exitBuffer, leftAfter: rules.leftAfter,
-    announced: rules.newOncePerDay ? announcedToday : null,
+    announced: announcedSet, bestPerCard: rules.bestPerCard, noExpiryDay: rules.noExpiryDay,
   });
   for (const e of events)
-    if (e.kind === "NEW") announcedToday.add(key(e.row.symbol, e.row.expiry, e.row.strike, e.row.type));
+    if (e.kind === "NEW") announcedMap[key(e.row.symbol, e.row.expiry, e.row.strike, e.row.type)] = e.row.expiry;
 
   let state = { ...(prev ?? {}), version: 3, tracked, lastAsOf: asOfUpdate,
-    announced: { date: today, keys: [...announcedToday] } };
+    announced: announcedMap };
   if (!prev || rearm) {
     // First ever run: announce the starting set in ONE message rather
     // than a loud NEW per contract, so switching alerts on never floods — but

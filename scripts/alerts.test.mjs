@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, DEFAULT_THRESHOLDS, DEFAULT_GATES, RULES, qualifies, cushionOf, mockEvents, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
+  isMonthly, DEFAULT_THRESHOLDS, DEFAULT_GATES, RULES, qualifies, cushionOf, mockEvents, loadAnnounced, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -167,8 +167,8 @@ describe("firing gates (2026-10-03)", () => {
   const st = (over = {}) => row({ conviction: 72, spot: 167, credit: 4500, dte: 5, ...over });
   const go = (r, gate) => diff({}, cur(r), { today: TODAY, isFresh: always, ...gate }).events.map((e) => e.kind);
 
-  it("defaults: index conviction 40 + cushion 1.5σ, stock conviction 70 + ROM 5% + 5 days, no index ROM bar", () => {
-    expect(DEFAULT_GATES).toMatchObject({ stocks: 70, indices: 40, rom: { stocks: 5, indices: 0 },
+  it("defaults: index conviction 60 + cushion 1.5σ, stock conviction 70 + ROM 5% + 5 days, no index ROM bar", () => {
+    expect(DEFAULT_GATES).toMatchObject({ stocks: 70, indices: 60, rom: { stocks: 5, indices: 0 },
       cushion: { stocks: 0, indices: 1.5 }, dte: { stocks: 5, indices: 0 } });
   });
 
@@ -217,7 +217,7 @@ describe("firing gates (2026-10-03)", () => {
 
   it("header states the gate per source", () => {
     const [i] = formatMessages([{ kind: "NEW", row: ix() }], { source: "indices", ...IDX, when: "10:40", today: TODAY });
-    expect(i).toContain("Alert level: conviction 40+ · cushion 1.5σ+</i>");
+    expect(i).toContain("Alert level: conviction 40+ · cushion 1.5σ+ · best strike</i>");
     const [s2] = formatMessages([{ kind: "NEW", row: st() }], { source: "stocks", ...STK, when: "10:40", today: TODAY });
     expect(s2).toContain("Alert level: conviction 70+ · ROM 5%+ · 5+ days</i>");
   });
@@ -264,7 +264,7 @@ describe("index anti-noise rules", () => {
     expect(step(at57.tracked, [ix({ conviction: 56 })]).events).toMatchObject([{ kind: "DROPPED", from: 57 }]);
   });
 
-  it("announces a contract NEW at most once a day", () => {
+  it("announces a contract NEW once in its life", () => {
     const announced = new Set();
     const a = step({}, [ix({ conviction: 61 })], announced);
     expect(a.events[0].kind).toBe("NEW");
@@ -272,9 +272,9 @@ describe("index anti-noise rules", () => {
     const dropped = step(a.tracked, [ix({ conviction: 50 })], announced);
     expect(dropped.events[0].kind).toBe("DROPPED");
     const back = step(dropped.tracked, [ix({ conviction: 62 })], announced);
-    expect(back.events).toEqual([]);                  // same day: silent…
+    expect(back.events).toEqual([]);                  // re-cross, any day: silent…
     expect(Object.keys(back.tracked)).toHaveLength(1); // …but tracked again
-    expect(step(dropped.tracked, [ix({ conviction: 62 })], new Set()).events[0].kind).toBe("NEW"); // next day
+    expect(step(dropped.tracked, [ix({ conviction: 62 })], new Set()).events[0].kind).toBe("NEW"); // never announced
   });
 
   it("reports REMOVED only after two runs off the list", () => {
@@ -289,12 +289,35 @@ describe("index anti-noise rules", () => {
   });
 
   it("still reports an expiry-day disappearance at once", () => {
-    const { tracked } = step({}, [ix({ expiry: TODAY })]);
-    expect(step(tracked, []).events[0]).toMatchObject({ kind: "LEFT", expiring: true });
+    const t = ix({ expiry: TODAY });
+    expect(step({ [k(t)]: t }, []).events[0]).toMatchObject({ kind: "LEFT", expiring: true });
+  });
+
+  it("does not enter an index contract on its expiry day (never measured: archive entries are post-close)", () => {
+    expect(step({}, [ix({ expiry: TODAY })]).events).toEqual([]);
+    expect(step({}, [ix({ expiry: "2026-09-17" })]).events[0].kind).toBe("NEW");
+  });
+
+  it("keeps the announced set across days, prunes it at expiry, and reads the old per-day shape", () => {
+    expect(loadAnnounced({ "NIFTY|2026-10-27|21600|PE": "2026-10-27", "NIFTY|2026-09-15|22000|CE": "2026-09-15" }, TODAY))
+      .toEqual({ "NIFTY|2026-10-27|21600|PE": "2026-10-27" });
+    expect(loadAnnounced({ date: "2026-09-15", keys: ["SENSEX|2026-10-08|76000|CE"] }, TODAY))
+      .toEqual({ "SENSEX|2026-10-08|76000|CE": "2026-10-08" });
+    expect(loadAnnounced(undefined, TODAY)).toEqual({});
+  });
+
+  it("lets only the best strike per underlying + expiry enter", () => {
+    const a = ix({ strike: 21600, conviction: 63 }), b = ix({ strike: 21500, conviction: 66 }), c = ix({ strike: 21400, conviction: 66, cushion: 2 });
+    const other = ix({ expiry: "2026-11-23", strike: 21000, conviction: 61 });
+    const d = step({}, [a, b, c, other]);
+    expect(d.events.map((e) => `${e.row.expiry} ${e.row.strike}`).sort()).toEqual(["2026-10-27 21400", "2026-11-23 21000"]);
+    // When the best leaves, the next one up enters; the first stays tracked through its own row.
+    const d2 = step(d.tracked, [a, b, ix({ strike: 21400, conviction: 50 }), other]);
+    expect(d2.events.map((e) => [e.kind, e.row.strike])).toEqual([["NEW", 21500], ["DROPPED", 21400]]);
   });
 
   it("leaves stocks on the old behaviour", () => {
-    expect(RULES.stocks).toEqual({ moveMin: 1, exitBuffer: 0, leftAfter: 1, newOncePerDay: false });
+    expect(RULES.stocks).toEqual({ moveMin: 1, exitBuffer: 0, leftAfter: 1, bestPerCard: false, noExpiryDay: false });
   });
 });
 
@@ -355,10 +378,10 @@ describe("formatting", () => {
   it("cites the archive basis on new index alerts only", () => {
     const idx = formatMessages([{ kind: "NEW", row: row({ source: "indices", symbol: "NIFTY", kind: "Monthly", cushion: 1.8 }) }],
       { source: "indices", threshold: 40, minCushion: 1.5, when: "10:40" });
-    expect(idx[0]).toContain("0 of 201 index trades sold at 1.5σ+ cushion");
+    expect(idx[0]).toContain("index trades sold at 1.5σ+: 136 at conviction 40+, none finished in the money — only 7 so far at 60+");
     expect(idx[0]).not.toContain("unproven");
     const stk = formatMessages([{ kind: "NEW", row: row() }], { source: "stocks", threshold: 70, when: "10:40" });
-    expect(stk[0]).not.toContain("201 index trades");
+    expect(stk[0]).not.toContain("index trades");
   });
 
   it("arming lists the starting set, and says so when it is empty", () => {
@@ -451,7 +474,7 @@ describe("formatting", () => {
     expect(m).toContain("Stocks · conviction 70+ · ROM 5%+ · 5+ days · at the close (1)");
     expect(m).toMatch(/1040PE +72/);
     expect(m).not.toContain("900CE");
-    expect(m).toMatch(/Indices · conviction 40\+ · cushion 1\.5σ\+ · at the close \(0\)<\/b>\nNone\./);
+    expect(m).toMatch(/Indices · conviction 60\+ · cushion 1\.5σ\+ · at the close \(0\)<\/b>\nNone\./);
   });
 
   it("snapshot mode lists the same contracts under a snapshot heading, without run counts", () => {
