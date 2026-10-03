@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMonthly, DEFAULT_THRESHOLDS, RULES, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
+  isMonthly, DEFAULT_THRESHOLDS, DEFAULT_GATES, RULES, qualifies, cushionOf, mockEvents, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -158,6 +158,81 @@ describe("return bar (ROM)", () => {
   });
 });
 
+describe("firing gates (2026-10-03)", () => {
+  const IDX = { threshold: 40, minCushion: 1.5 };
+  const STK = { threshold: 70, minRom: 5, minDte: 5 };
+  const ix = (over = {}) => row({ source: "indices", symbol: "NIFTY", strike: 21600, type: "PE", kind: "Monthly",
+    conviction: 45, spot: 23100, lot: 65, credit: 300, cushion: 1.5, ...over });
+  // WIPRO lot 3,000 at spot 167: 4,500 credit = 6% ROM.
+  const st = (over = {}) => row({ conviction: 72, spot: 167, credit: 4500, dte: 5, ...over });
+  const go = (r, gate) => diff({}, cur(r), { today: TODAY, isFresh: always, ...gate }).events.map((e) => e.kind);
+
+  it("defaults: index conviction 40 + cushion 1.5σ, stock conviction 70 + ROM 5% + 5 days, no index ROM bar", () => {
+    expect(DEFAULT_GATES).toMatchObject({ stocks: 70, indices: 40, rom: { stocks: 5, indices: 0 },
+      cushion: { stocks: 0, indices: 1.5 }, dte: { stocks: 5, indices: 0 } });
+  });
+
+  it("index: cushion 1.50 enters, 1.49 does not, whatever the ROM", () => {
+    expect(go(ix({ cushion: 1.49 }), IDX)).toEqual([]);
+    expect(go(ix({ cushion: 1.5 }), IDX)).toEqual(["NEW"]);
+    expect(romPct(ix())).toBeLessThan(1); // tiny ROM is no obstacle for indices
+  });
+
+  it("index: conviction 39 does not enter even at a 3σ cushion", () => {
+    expect(go(ix({ conviction: 39, cushion: 3 }), IDX)).toEqual([]);
+  });
+
+  it("index: cushionSigmaF wins, cushionSigma only fills a null, both null means no entry", () => {
+    expect(cushionOf({ cushionSigmaF: 1.2, cushionSigma: 2 })).toBe(1.2);
+    expect(cushionOf({ cushionSigmaF: null, cushionSigma: 1.7 })).toBe(1.7);
+    expect(cushionOf({})).toBeNull();
+    expect(go(ix({ cushion: null }), IDX)).toEqual([]);
+  });
+
+  it("collectIndices reads the forecast-sigma cushion into rows", () => {
+    const f = (c) => ({ NIFTY: { asOf: "2026-09-16T05:10:00Z", lotSize: 65, spot: { price: 23100 },
+      expiries: { "2026-10-27": { date: "2026-10-27", candidates: [{ strike: 21600, type: "PE", conviction: 45, ltp: 5, ...c }] } } } });
+    expect([...collectIndices(f({ cushionSigmaF: 1.62, cushionSigma: 2.4 })).rows.values()][0].cushion).toBe(1.62);
+    expect([...collectIndices(f({ cushionSigma: 2.4 })).rows.values()][0].cushion).toBe(2.4);
+  });
+
+  it("stock: needs 5+ days to expiry and ROM 5%+ on top of conviction 70", () => {
+    expect(go(st({ dte: 4 }), STK)).toEqual([]);
+    expect(go(st({ dte: 5 }), STK)).toEqual(["NEW"]);
+    expect(go(st({ credit: 3680 }), STK)).toEqual([]); // ROM 4.9%
+    expect(go(st({ conviction: 69 }), STK)).toEqual([]);
+  });
+
+  it("stock days fall back to the calendar when the row carries no dte", () => {
+    expect(qualifies(st({ dte: null, expiry: "2026-09-20" }), STK, TODAY)).toBe(false); // 4 days
+    expect(qualifies(st({ dte: null, expiry: "2026-09-21" }), STK, TODAY)).toBe(true);  // 5 days
+  });
+
+  it("exits stay conviction-based: a tracked index contract whose cushion shrinks keeps being followed", () => {
+    const { tracked } = diff({}, cur(ix({ cushion: 2 })), { today: TODAY, isFresh: always, ...IDX });
+    const d = diff(tracked, cur(ix({ cushion: 0.8, conviction: 41 })), { today: TODAY, isFresh: always, ...IDX });
+    expect(d.events.map((e) => e.kind)).toEqual(["MOVED"]); // not DROPPED
+    expect(Object.keys(d.tracked)).toHaveLength(1);
+  });
+
+  it("header states the gate per source", () => {
+    const [i] = formatMessages([{ kind: "NEW", row: ix() }], { source: "indices", ...IDX, when: "10:40", today: TODAY });
+    expect(i).toContain("Alert level: conviction 40+ · cushion 1.5σ+</i>");
+    const [s2] = formatMessages([{ kind: "NEW", row: st() }], { source: "stocks", ...STK, when: "10:40", today: TODAY });
+    expect(s2).toContain("Alert level: conviction 70+ · ROM 5%+ · 5+ days</i>");
+  });
+
+  it("the mock sample passes its own gate and keeps every card within 28 characters", () => {
+    for (const [source, , events] of mockEvents()) {
+      const gate = source === "indices" ? IDX : STK;
+      for (const e of events.filter((x) => x.kind === "NEW")) expect(qualifies(e.row, gate, "2026-10-03")).toBe(true);
+      const [m] = formatMessages(events, { source, ...gate, when: "10:40", today: "2026-10-03" });
+      for (const pre of m.match(/<pre>[\s\S]*?<\/pre>/g))
+        for (const l of pre.replace(/<\/?pre>/g, "").split("\n")) expect(l.length).toBeLessThanOrEqual(28);
+    }
+  });
+});
+
 describe("index anti-noise rules", () => {
   const ix = (over = {}) => row({ source: "indices", symbol: "NIFTY", strike: 21600, type: "PE", kind: "Monthly",
     conviction: 61, spot: 23100, lot: 65, credit: 4000, ...over });
@@ -277,11 +352,13 @@ describe("formatting", () => {
     for (const m of msgs) expect((m.match(/<pre>/g) ?? []).length).toBe((m.match(/<\/pre>/g) ?? []).length);
   });
 
-  it("carries the unproven caveat on new index alerts only", () => {
-    const idx = formatMessages([{ kind: "NEW", row: row({ source: "indices", symbol: "NIFTY", kind: "Monthly" }) }], { source: "indices", threshold: 60, when: "10:40" });
-    expect(idx[0]).toContain("unproven");
+  it("cites the archive basis on new index alerts only", () => {
+    const idx = formatMessages([{ kind: "NEW", row: row({ source: "indices", symbol: "NIFTY", kind: "Monthly", cushion: 1.8 }) }],
+      { source: "indices", threshold: 40, minCushion: 1.5, when: "10:40" });
+    expect(idx[0]).toContain("0 of 201 index trades sold at 1.5σ+ cushion");
+    expect(idx[0]).not.toContain("unproven");
     const stk = formatMessages([{ kind: "NEW", row: row() }], { source: "stocks", threshold: 70, when: "10:40" });
-    expect(stk[0]).not.toContain("unproven");
+    expect(stk[0]).not.toContain("201 index trades");
   });
 
   it("arming lists the starting set, and says so when it is empty", () => {
@@ -343,13 +420,17 @@ describe("formatting", () => {
     expect(m).toMatch(/190CE +72 1\.09 +– +–/);
   });
 
-  it("prices index ROM on the 8% index margin proxy, not the stock 15%", () => {
+  it("index cards lead with cushion instead of ROM, within the 28-character width", () => {
     const r = row({ source: "indices", symbol: "NIFTY", strike: 21600, type: "PE", kind: "Monthly",
-      conviction: 63, ltp: 48.7, lot: 65, credit: 3166, spot: 23100, pop: 0.96 });
-    const [m] = formatMessages([{ kind: "NEW", row: r }], { source: "indices", threshold: 60, when: "10:40", today: "2026-09-26" });
-    // 3,166 ÷ (8% × 23,100 × 65 = 120,120) = 2.64%
-    expect(m).toMatch(/21600PE +63 +48\.7 +2\.6 +96/);
-    expect(m).toContain("8% of spot × lot");
+      conviction: 43, ltp: 48.7, lot: 65, credit: 3166, spot: 23100, pop: 0.96, cushion: 1.82 });
+    const [m] = formatMessages([{ kind: "NEW", row: r }, { kind: "MOVED", from: 44, row: { ...r, strike: 55000, type: "CE", ltp: 1234.5, conviction: 48, cushion: null } }],
+      { source: "indices", threshold: 40, minCushion: 1.5, when: "10:40", today: "2026-09-26" });
+    expect(m).toMatch(/NEW +CONV CUSH +PREM POP/);
+    expect(m).toMatch(/21600PE +43 +1\.82 +48\.7 +96/);
+    expect(m).toMatch(/55000CE +44→48 +– +1,235/);
+    expect(m).toContain("CUSH = distance to strike in forecast σ");
+    expect(m).not.toContain("ROM %");
+    for (const l of m.match(/<pre>([\s\S]*?)<\/pre>/)[1].split("\n")) expect(l.length).toBeLessThanOrEqual(28);
   });
 
   it("carries spot and pProfit from the snapshot files into rows", () => {
@@ -367,20 +448,20 @@ describe("formatting", () => {
     const ix = { day: { date: "2026-09-28", runs: 74, NEW: 0, MOVED: 0, DROPPED: 0, LEFT: 0 }, tracked: {} };
     const [m] = formatEod(st, ix, "2026-09-28");
     expect(m.startsWith("📋 <b>Xerxes · end of day 28 Sep</b>")).toBe(true);
-    expect(m).toContain("Stocks at 70+ at the close (1)");
+    expect(m).toContain("Stocks · conviction 70+ · ROM 5%+ · 5+ days · at the close (1)");
     expect(m).toMatch(/1040PE +72/);
     expect(m).not.toContain("900CE");
-    expect(m).toMatch(/Indices at 60\+ at the close \(0\)<\/b>\nNone\./);
+    expect(m).toMatch(/Indices · conviction 40\+ · cushion 1\.5σ\+ · at the close \(0\)<\/b>\nNone\./);
   });
 
   it("snapshot mode lists the same contracts under a snapshot heading, without run counts", () => {
     // 3,270 ÷ 75,150 = 4.35% < 5%: tracked, but not passing right now.
     const st = { tracked: { a: row({ conviction: 72, spot: 167, pop: 0.9, credit: 4000 }), b: row({ strike: 200, conviction: 71, spot: 167 }) } };
-    const [m] = formatEod(st, { tracked: {} }, TODAY, { ...DEFAULT_THRESHOLDS, rom: { stocks: 5, indices: 3 } }, { snapshotAt: "13:15" });
+    const [m] = formatEod(st, { tracked: {} }, TODAY, DEFAULT_GATES, { snapshotAt: "13:15" });
     expect(m).not.toContain("200CE");
     expect(m.startsWith("📸 <b>Xerxes · snapshot 16 Sep</b>")).toBe(true);
     expect(m).toContain("as of the last run, 13:15 IST");
-    expect(m).toContain("Stocks at 70+ · ROM 5%+ now (1)");
+    expect(m).toContain("Stocks · conviction 70+ · ROM 5%+ · 5+ days · now (1)");
     expect(m).not.toContain("Runs");
   });
 

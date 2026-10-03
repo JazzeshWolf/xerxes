@@ -139,6 +139,10 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ALERT_MIN_CONV_STOCK: ${{ vars.ALERT_MIN_CONV_STOCK }}
           ALERT_MIN_ROM_STOCK: ${{ vars.ALERT_MIN_ROM_STOCK }}
+          ALERT_MIN_DTE_STOCK: ${{ vars.ALERT_MIN_DTE_STOCK }}
+          ALERT_MIN_CONV_INDEX: ${{ vars.ALERT_MIN_CONV_INDEX }}
+          ALERT_MIN_ROM_INDEX: ${{ vars.ALERT_MIN_ROM_INDEX }}
+          ALERT_MIN_CUSHION_INDEX: ${{ vars.ALERT_MIN_CUSHION_INDEX }}
         run: |
           scripts/alerts-state.sh pull
           node scripts/alerts.mjs --source stocks --state-dir _alerts --data public/data/stocks

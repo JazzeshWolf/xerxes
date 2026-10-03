@@ -31,12 +31,23 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 60 };
+export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 40 };
 // Minimum return on capital (ROM %, see romPct) for a contract to START being
 // tracked. Owner's call (2026-10-01) to cut alert volume: a 70+ stock must
-// also return 5%+, a 60+ index option 3%+. Entry only — ROM shrinks as the
+// also return 5%+. (Indices had a 3% bar until 2026-10-03; cushion replaced
+// it — see below.) Entry only — ROM shrinks as the
 // option decays in the seller's favour, so using it to exit would spam drops.
-export const DEFAULT_MIN_ROM = { stocks: 5, indices: 3 };
+export const DEFAULT_MIN_ROM = { stocks: 5, indices: 0 };
+// Index gate (2026-10-03, owner's rule, measured on the EOD archive): an index
+// contract qualifies on CUSHION IN FORECAST SIGMAS, not days or percent — sigma
+// already contains the horizon. Archive to 2 Oct: cushion ≥ 1.5σ → 201 settled
+// index trades, 0 finished ITM, worst +0.5%; 1.25–1.5σ had 9 losers (worst −20%).
+// Measured on indices ONLY — stocks stay on conviction / ROM / days to expiry.
+export const DEFAULT_MIN_CUSHION = { stocks: 0, indices: 1.5 };
+// Stocks need at least this many days to expiry (owner's existing rule).
+export const DEFAULT_MIN_DTE = { stocks: 5, indices: 0 };
+/** Every default gate in the shape thresholdsFromEnv() returns. */
+export const DEFAULT_GATES = { ...DEFAULT_THRESHOLDS, rom: DEFAULT_MIN_ROM, cushion: DEFAULT_MIN_CUSHION, dte: DEFAULT_MIN_DTE };
 // Anti-noise rules, indices only (owner's call, 2026-10-01). Index scores sit
 // around the 60 bar and move a point most 10-minute runs, which produced
 // ~40-60 messages a day. Stocks keep every move (their volume is low).
@@ -125,7 +136,7 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
           source: "stocks", symbol: sym, name: f.name, expiry: e.date, dte: e.dte,
           strike: c.strike, type: c.type, conviction: c.conviction, ltp: c.ltp,
           lot: f.lotSize, credit: Math.round(c.ltp * f.lotSize), kind: "Monthly", displayed: false,
-          spot: spotOf[sym], pop: c.pProfit ?? null,
+          spot: spotOf[sym], pop: c.pProfit ?? null, cushion: cushionOf(c),
         });
       }
     }
@@ -140,6 +151,7 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
         strike: c.strike, type: c.type, conviction: c.conviction, ltp: c.ltp,
         lot, credit: c.creditPerLot ?? Math.round(c.ltp * (lot ?? 0)), kind: "Monthly",
         spot: spotOf[c.symbol] ?? rows.get(k)?.spot ?? null, pop: c.pProfit ?? rows.get(k)?.pop ?? null,
+        cushion: cushionOf(c) ?? rows.get(k)?.cushion ?? null,
         displayed: true, slot: block.slot,
       });
       fresh.add(c.symbol);
@@ -169,7 +181,7 @@ export function collectIndices(indexFiles, lastAsOf = {}) {
           source: "indices", symbol: sym, name: f.name, expiry: e.date, dte: e.dte,
           strike: c.strike, type: c.type, conviction: c.conviction, ltp: c.ltp,
           lot: f.lotSize, credit: Math.round(c.ltp * f.lotSize),
-          spot: f.spot?.price ?? null, pop: c.pProfit ?? null,
+          spot: f.spot?.price ?? null, pop: c.pProfit ?? null, cushion: cushionOf(c),
           kind: isMonthly(e.date, listed) ? "Monthly" : "Weekly", displayed: true,
         });
       }
@@ -184,8 +196,13 @@ const snapshotOf = (r) => ({
   source: r.source, symbol: r.symbol, name: r.name, expiry: r.expiry, strike: r.strike, type: r.type,
   conviction: r.conviction, ltp: r.ltp, lot: r.lot, kind: r.kind,
   // Kept so an OFF LIST row can still show its last ROM / POP.
-  credit: r.credit, spot: r.spot ?? null, pop: r.pop ?? null,
+  credit: r.credit, spot: r.spot ?? null, pop: r.pop ?? null, cushion: r.cushion ?? null, dte: r.dte ?? null,
 });
+
+/** Cushion in FORECAST sigmas. `cushionSigma` (IV-based) is a different measure and
+ *  only a fallback when the forecast one is missing; the 1.5 floor is calibrated
+ *  on `cushionSigmaF`. */
+export const cushionOf = (c) => c?.cushionSigmaF ?? c?.cushionSigma ?? null;
 
 /** Credit ÷ capital (margin proxy × spot × lot), in %. null when an input is missing. */
 export function romPct(r) {
@@ -193,12 +210,25 @@ export function romPct(r) {
   return cap ? (r.credit / cap) * 100 : null;
 }
 
+/** The entry gate: may this contract START being tracked? A missing input that a
+ *  gate needs means no — the bot never fires on something it can't verify. */
+export function qualifies(r, { threshold, minRom = 0, minCushion = 0, minDte = 0 }, today) {
+  if (!(r.conviction >= threshold)) return false;
+  if (minRom > 0 && !(romPct(r) >= minRom)) return false;
+  if (minCushion > 0 && !(r.cushion >= minCushion)) return false;
+  if (minDte > 0) {
+    const dte = r.dte ?? (today ? daysLeft(r.expiry, today) : null);
+    if (!(dte >= minDte)) return false;
+  }
+  return true;
+}
+
 /**
  * Compare tracked state with the current rows. Pure: returns the events and
  * the next tracked map, never mutates its inputs.
  */
 export function diff(tracked, current, {
-  threshold, today, isFresh, minRom = 0,
+  threshold, today, isFresh, minRom = 0, minCushion = 0, minDte = 0,
   moveMin = 1, exitBuffer = 0, leftAfter = 1, announced = null,
 }) {
   const next = {};
@@ -229,9 +259,11 @@ export function diff(tracked, current, {
     }
   }
   for (const [k, r] of current) {
-    if (k in tracked || !r.displayed || r.conviction < threshold || r.expiry < today) continue;
-    // Return bar: entry only, and a missing ROM can't be verified, so it can't enter.
-    if (minRom > 0 && !(romPct(r) >= minRom)) continue;
+    if (k in tracked || !r.displayed || r.expiry < today) continue;
+    // Entry gate only (conviction / ROM / cushion / days). Exits stay conviction-based:
+    // ROM and cushion both drift as the trade ages, and exiting on them would
+    // announce winners as drops.
+    if (!qualifies(r, { threshold, minRom, minCushion, minDte }, today)) continue;
     // A contract that just dropped out this run is not re-entered in the same run.
     if (events.some((e) => key(e.row.symbol, e.row.expiry, e.row.strike, e.row.type) === k)) continue;
     next[k] = { ...snapshotOf(r), reported: r.conviction };
@@ -311,15 +343,22 @@ function card(events, { threshold, today }) {
   ].filter(([, evs]) => evs.length);
 
   // Every row carries the same five columns, so they share one set of widths.
-  const cells = (e) => [key(e.row), convOf(e), e.row.ltp == null ? "–" : num(e.row.ltp), romOf(e.row), popOf(e.row)];
+  // Indices lead with CUSH (σ) — their gate — in place of ROM, which isn't.
+  const prem = (e) => (e.row.ltp == null ? "–" : num(e.row.ltp));
+  const cushOf = (r) => (r.cushion == null ? "–" : Number(r.cushion).toFixed(2));
+  const isIndex = r0.source === "indices";
+  const HEAD = isIndex ? ["", "CONV", "CUSH", "PREM", "POP"] : ["", "CONV", "PREM", "ROM", "POP"];
+  const cells = isIndex
+    ? (e) => [key(e.row), convOf(e), cushOf(e.row), prem(e), popOf(e.row)]
+    : (e) => [key(e.row), convOf(e), prem(e), romOf(e.row), popOf(e.row)];
   const all = events.map(cells);
   const w = [0, 1, 2, 3, 4].map((i) =>
-    Math.max(i === 0 ? Math.max(...sections.map(([t]) => t.length)) : ["", "CONV", "PREM", "ROM", "POP"][i].length,
+    Math.max(i === 0 ? Math.max(...sections.map(([t]) => t.length)) : HEAD[i].length,
       ...all.map((c) => c[i].length)));
   const fmt = (c) => [c[0].padEnd(w[0]), ...c.slice(1).map((v, i) => v.padStart(w[i + 1]))].join(" ").trimEnd();
 
   const body = sections.map(([title, evs]) =>
-    [fmt([title, "CONV", "PREM", "ROM", "POP"]), ...evs.map((e) => fmt(cells(e)))].join("\n"));
+    [fmt([title, ...HEAD.slice(1)]), ...evs.map((e) => fmt(cells(e)))].join("\n"));
   return `${head}\n<pre>${esc(body.join("\n\n"))}</pre>`;
 }
 
@@ -344,20 +383,27 @@ function cards(events, opts) {
 }
 
 /** One message per run (split only if Telegram's length cap forces it). */
-export function formatMessages(events, { source, threshold, minRom = 0, when, today = istDate(), armed = false }) {
+/** "conviction 40+ · cushion 1.5σ+" — the entry gate in words, for headers. */
+export function gateText({ threshold, minRom = 0, minCushion = 0, minDte = 0 }) {
+  return [`conviction ${threshold}+`, minCushion ? `cushion ${minCushion}σ+` : null,
+    minRom ? `ROM ${minRom}%+` : null, minDte ? `${minDte}+ days` : null].filter(Boolean).join(" · ");
+}
+const INDEX_BASIS = "<i>Archive: 0 of 201 index trades sold at 1.5σ+ cushion finished in the money</i>";
+
+export function formatMessages(events, { source, threshold, minRom = 0, minCushion = 0, minDte = 0, when, today = istDate(), armed = false }) {
   if (!events.length && !armed) return [];
   const icon = source === "stocks" ? "📈" : "🏛";
   const header = [`${icon} <b>Xerxes · ${source === "stocks" ? "Stocks" : "Indices"}</b> · ${when} IST`];
-  header.push(`<i>Alert level: conviction ${threshold}+${minRom ? ` · ROM ${minRom}%+` : ""}</i>`);
+  header.push(`<i>Alert level: ${gateText({ threshold, minRom, minCushion, minDte })}</i>`);
   if (armed)
     header.push(events.length
       ? `✅ Alerts armed — already above the bar, now tracked (${events.length})`
       : "✅ Alerts armed — nothing above the bar right now");
-  if (source === "indices" && events.some((e) => e.kind === "NEW"))
-    header.push("<i>⚠ Index 60+ is unproven: few settled trades yet</i>");
+  if (source === "indices" && minCushion >= 1.5 && events.some((e) => e.kind === "NEW"))
+    header.push(INDEX_BASIS);
   const pct = Math.round(MARGIN_PCT[source] * 100);
   const footer = [
-    `<i>PREM ₹ per share · credit/lot = PREM × lot\nROM % = credit ÷ capital (${pct}% of spot × lot)\nPOP % = model's chance it expires worthless\nDROPPED = fell below ${threshold} · REMOVED = off the list</i>`,
+    `<i>${source === "indices" ? "CUSH = distance to strike in forecast σ\n" : ""}PREM ₹ per share · credit/lot = PREM × lot\n${source === "stocks" ? `ROM % = credit ÷ capital (${pct}% of spot × lot)\n` : ""}POP % = model's chance it expires worthless\nDROPPED = fell below ${threshold} · REMOVED = off the list</i>`,
     `<a href="${SCREENER_URL}">Open screener</a>`,
   ].join("\n");
   const out = [];
@@ -398,7 +444,7 @@ export function formatHeartbeat(stocksState, indicesState, today) {
  * tracked sets, which are only updated during market hours — so this is the
  * closing picture, not whatever a late evening rebuild computed.
  */
-export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_THRESHOLDS, { snapshotAt = null } = {}) {
+export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_GATES, { snapshotAt = null } = {}) {
   // snapshotAt ("13:15"): the same list mid-session, labelled as a snapshot, not a close.
   const when = snapshotAt ? "now" : "at the close";
   const blocks = [];
@@ -408,14 +454,14 @@ export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_
   ]) {
     const t = thresholds[source];
     const rom = thresholds.rom?.[source];
-    // A snapshot means "passes the rules right now", so it also re-applies the
-    // return bar (a tracked contract can have slipped under it — ROM is only an
-    // entry rule). The end-of-day report lists everything still tracked.
-    // Contracts in the drop buffer (e.g. index 57–59) stay tracked but are not "at 60+".
+    const gate = { threshold: t, minRom: rom ?? 0, minCushion: thresholds.cushion?.[source] ?? 0, minDte: thresholds.dte?.[source] ?? 0 };
+    // Contracts in the drop buffer (e.g. index 37–39) stay tracked but are not "at 40+".
+    // A snapshot re-applies the whole entry gate (a tracked contract can slip under
+    // ROM or cushion); the end-of-day report lists everything still tracked at t+.
     const held = Object.values(st?.tracked ?? {}).filter((x) => x.expiry >= date && x.conviction >= t
-      && (!snapshotAt || !rom || romPct(x) >= rom));
-    blocks.push(`${icon} <b>${label} at ${t}+${rom ? ` · ROM ${rom}%+` : ""} ${when} (${held.length})</b>` +
-      (source === "indices" && held.length ? "\n<i>⚠ Index 60+ is unproven: few settled trades yet</i>" : "") +
+      && (!snapshotAt || qualifies(x, gate, date)));
+    blocks.push(`${icon} <b>${label} · ${gateText(gate)} · ${when} (${held.length})</b>` +
+      (source === "indices" && held.length && gate.minCushion >= 1.5 ? "\n" + INDEX_BASIS : "") +
       (held.length ? "" : "\nNone."));
     if (held.length) blocks.push(...cards(held.map((row) => ({ kind: "HELD", row })), { threshold: t, today: date }));
   }
@@ -426,7 +472,8 @@ export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_
     .replace("⚠️ <b>Xerxes alerts · end of day", "⚠️ <b>Xerxes · end of day");
   const footer = [
     "<i>PREM ₹ per share · credit/lot = PREM × lot",
-    "ROM % = credit ÷ capital (15% of spot × lot for stocks, 8% for indices)",
+    "CUSH = distance to strike in forecast σ (indices)",
+    "ROM % = credit ÷ capital (15% of spot × lot, stocks)",
     "POP % = model's chance it expires worthless</i>",
     `<a href="${SCREENER_URL}">Open screener</a>`,
   ].join("\n");
@@ -454,31 +501,31 @@ export function bumpDay(state, events, today, nowIso) {
 }
 
 /** Invented sample for `--mock`: three stocks (71, 76, 72) and three index
- *  options (60, 63, 65) crossing the bar, plus a few moves and exits so every
+ *  options (conviction 44-52, cushion 1.6σ+) crossing the bar, plus a few moves and exits so every
  *  section of a card is on show. */
 export function mockEvents() {
   const SPOT = { WIPRO: 167, IEX: 112, BANKBARODA: 233, NIFTY: 23140, SENSEX: 73896, BANKNIFTY: 55580 };
   const stock = (symbol, strike, type, conviction, ltp, lot, pop = 0.93) => ({ kind: "NEW", row: {
     source: "stocks", symbol, expiry: "2026-10-27", strike, type, conviction, ltp, lot,
     credit: Math.round(ltp * lot), kind: "Monthly", spot: SPOT[symbol], pop } });
-  const index = (symbol, expiry, strike, type, conviction, ltp, lot, kind, pop = 0.9) => ({ kind: "NEW", row: {
+  const index = (symbol, expiry, strike, type, conviction, ltp, lot, kind, cushion, pop = 0.9) => ({ kind: "NEW", row: {
     source: "indices", symbol, expiry, strike, type, conviction, ltp, lot,
-    credit: Math.round(ltp * lot), kind, spot: SPOT[symbol], pop } });
+    credit: Math.round(ltp * lot), kind, spot: SPOT[symbol], pop, cushion } });
   return [
     ["stocks", 70, [
-      stock("WIPRO", 190, "CE", 71, 1.09, 3000),
+      stock("WIPRO", 190, "CE", 71, 1.3, 3000),
       stock("IEX", 125, "CE", 76, 1.32, 4350),
       stock("BANKBARODA", 250, "CE", 72, 2.5, 2925),
       { ...stock("WIPRO", 150, "PE", 66, 1.55, 3000), kind: "DROPPED", from: 72 },
       { ...stock("WIPRO", 185, "CE", 75, 1.61, 3000), kind: "MOVED", from: 73 },
       { ...stock("IEX", 120, "CE", 70, 1.9, 4350), kind: "MOVED", from: 71 },
     ]],
-    ["indices", 60, [
-      index("NIFTY", "2026-10-27", 21600, "PE", 65, 48.7, 65, "Monthly"),
-      index("SENSEX", "2026-10-01", 76000, "CE", 63, 250, 20, "Weekly"),
-      index("BANKNIFTY", "2026-10-27", 52000, "PE", 60, 112.4, 30, "Monthly"),
-      { ...index("NIFTY", "2026-10-27", 21700, "PE", 62, 52.05, 65, "Monthly"), kind: "MOVED", from: 61 },
-      { ...index("SENSEX", "2026-10-01", 76500, "CE", 58, 180, 20, "Weekly"), kind: "DROPPED", from: 61 },
+    ["indices", 40, [
+      index("NIFTY", "2026-10-27", 21600, "PE", 52, 48.7, 65, "Monthly", 2.41),
+      index("SENSEX", "2026-10-08", 76000, "CE", 47, 250, 20, "Weekly", 1.62),
+      index("BANKNIFTY", "2026-10-27", 52000, "PE", 44, 112.4, 30, "Monthly", 1.87),
+      { ...index("NIFTY", "2026-10-27", 21700, "PE", 49, 52.05, 65, "Monthly", 2.28), kind: "MOVED", from: 45 },
+      { ...index("SENSEX", "2026-10-08", 76500, "CE", 36, 180, 20, "Weekly", 1.55), kind: "DROPPED", from: 41 },
     ]],
   ];
 }
@@ -525,7 +572,14 @@ function thresholdsFromEnv() {
       stocks: pick("ALERT_MIN_ROM_STOCK", DEFAULT_MIN_ROM.stocks),
       indices: pick("ALERT_MIN_ROM_INDEX", DEFAULT_MIN_ROM.indices),
     },
+    cushion: { stocks: DEFAULT_MIN_CUSHION.stocks, indices: pick("ALERT_MIN_CUSHION_INDEX", DEFAULT_MIN_CUSHION.indices) },
+    dte: { stocks: pick("ALERT_MIN_DTE_STOCK", DEFAULT_MIN_DTE.stocks), indices: DEFAULT_MIN_DTE.indices },
   };
+}
+
+/** The full entry gate for one source. */
+function gateFor(source, th = thresholdsFromEnv()) {
+  return { threshold: th[source], minRom: th.rom[source], minCushion: th.cushion[source], minDte: th.dte[source] };
 }
 
 async function main() {
@@ -539,7 +593,7 @@ async function main() {
     // alert looks and sounds like. Contracts and prices are invented.
     const when = istTime(new Date());
     for (const [source, threshold, events] of mockEvents()) {
-      const [m] = formatMessages(events, { source, threshold, minRom: DEFAULT_MIN_ROM[source], when });
+      const [m] = formatMessages(events, { source, ...gateFor(source), threshold, when });
       await sendTelegram("🧪 <b>MOCK ALERT (test only, not real)</b>\n\n" + m);
     }
     console.log("Mock alerts sent.");
@@ -575,9 +629,8 @@ async function main() {
   const source = arg("source");
   const stateDir = arg("state-dir", "_alerts");
   if (!["stocks", "indices"].includes(source)) throw new Error("--source must be stocks or indices");
-  const envMin = Number(process.env[source === "stocks" ? "ALERT_MIN_CONV_STOCK" : "ALERT_MIN_CONV_INDEX"]);
-  const threshold = Number.isFinite(envMin) && envMin > 0 ? envMin : DEFAULT_THRESHOLDS[source];
-  const minRom = thresholdsFromEnv().rom[source];
+  const gate = gateFor(source);
+  const { threshold, minRom } = gate;
 
   const now = process.env.ALERTS_NOW ? new Date(process.env.ALERTS_NOW) : new Date();
   const today = istDate(now);
@@ -626,37 +679,40 @@ async function main() {
     asOfUpdate = { ...(prev?.lastAsOf ?? {}), ...collected.asOf };
   }
 
-  // One-time clean-up when the return bar arrived (state v1 → v2): anything
-  // already tracked below the bar is let go silently rather than announced.
+  // State v3 = the cushion / days gate (2026-10-03). Older state was tracked
+  // under different rules, so it is cleared and the bot RE-ARMS: one message
+  // listing what qualifies now, instead of a burst of NEWs or stale follow-ups.
   let prevTracked = prev?.tracked ?? {};
-  if (prev && (prev.version ?? 1) < 2) {
-    const kept = Object.fromEntries(Object.entries(prevTracked).filter(([, t]) => romPct(t) >= minRom));
-    console.log(`State v1 → v2: dropped ${Object.keys(prevTracked).length - Object.keys(kept).length} tracked contracts below ROM ${minRom}% (no message).`);
-    prevTracked = kept;
+  const rearm = !!prev && (prev.version ?? 1) < 3;
+  if (rearm) {
+    console.log(`State v${prev.version ?? 1} → v3: cleared ${Object.keys(prevTracked).length} tracked contracts; re-arming under ${gateText(gate)}.`);
+    prevTracked = {};
   }
 
   const rules = RULES[source];
-  const announcedToday = new Set(prev?.announced?.date === today ? prev.announced.keys : []);
+  // A re-arm also forgets today's announcements, or a contract NEW'd earlier
+  // under the old rules would be tracked silently and missing from the armed list.
+  const announcedToday = new Set(!rearm && prev?.announced?.date === today ? prev.announced.keys : []);
   const { events, tracked } = diff(prevTracked, collected.rows, {
-    threshold, today, isFresh: collected.isFresh, minRom,
+    ...gate, today, isFresh: collected.isFresh,
     moveMin: rules.moveMin, exitBuffer: rules.exitBuffer, leftAfter: rules.leftAfter,
     announced: rules.newOncePerDay ? announcedToday : null,
   });
   for (const e of events)
     if (e.kind === "NEW") announcedToday.add(key(e.row.symbol, e.row.expiry, e.row.strike, e.row.type));
 
-  let state = { ...(prev ?? {}), version: 2, tracked, lastAsOf: asOfUpdate,
+  let state = { ...(prev ?? {}), version: 3, tracked, lastAsOf: asOfUpdate,
     announced: { date: today, keys: [...announcedToday] } };
-  if (!prev) {
+  if (!prev || rearm) {
     // First ever run: announce the starting set in ONE message rather
     // than a loud NEW per contract, so switching alerts on never floods — but
     // nothing already above the bar is swallowed either.
-    const msgs = formatMessages(events, { source, threshold, minRom, when: istTime(now), today, armed: true });
+    const msgs = formatMessages(events, { source, ...gate, when: istTime(now), today, armed: true });
     for (const m of msgs) await sendTelegram(m);
     console.log(`First run for ${source}: armed, tracking ${Object.keys(tracked).length} contracts at ≥ ${threshold}.`);
     state = bumpDay(state, [], today, now.toISOString());
   } else {
-    const msgs = formatMessages(events, { source, threshold, minRom, when: istTime(now), today });
+    const msgs = formatMessages(events, { source, ...gate, when: istTime(now), today });
     for (const m of msgs) await sendTelegram(m);
     const tally = events.reduce((a, e) => ((a[e.kind] = (a[e.kind] ?? 0) + 1), a), {});
     console.log(`${source}: ${events.length} events ${JSON.stringify(tally)}, ${Object.keys(tracked).length} tracked, ${msgs.length} message(s) sent.`);
