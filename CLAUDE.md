@@ -194,6 +194,15 @@ outside the header band where the toggle was added.
   NSE single-stock chains really are thin. `thin: true` renders the warning.
 - Candidate rows expand into their factor breakdown; `VolPremiumCard` (stock-only)
   carries the IV-vs-forecast-RV case on the stock dashboard.
+- **Stock views re-pull every 5 min and on return to foreground** (`useAutoRefresh`
+  in `store.ts`, ≥60 s apart). Before this they loaded once, so tapping a
+  Telegram alert opened a backgrounded PWA on hours-old data that contradicted
+  the alert. A same-stock re-pull keeps the old snapshot on screen (no
+  "Loading" flash, chosen expiry kept). Separately, raw.githubusercontent
+  **ignores the `?t=` query** in its cache key (measured 2026-10-07: distinct
+  random `?t=` values → MISS, HIT, HIT), so any read can be up to 5 min
+  (`max-age=300`) behind a publish. Accepted, not fixed — data only moves every
+  20 min. Alerts are unaffected by any of this; they fire from the workflow.
 - Refresh buttons: if `VITE_STOCK_REFRESH_URL` is set they trigger a real rebuild
   and poll; otherwise they just re-pull the last published snapshot.
 
