@@ -3,6 +3,14 @@ export function fmt(n: number | null | undefined, d = 0): string {
   return n.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
+/** A strike or strike-level (wall, max pain, pin). Keeps the fraction: plain
+ *  `fmt` rounds to 0 dp, which turned RVNL's 212.5 into a "213" strike that
+ *  doesn't exist on the exchange. */
+export function fmtStrike(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+}
+
 /** Indian-style compact OI: 1.2Cr / 34.5L / 12k. */
 export function fmtOi(n: number | null | undefined, signed = false): string {
   if (n == null || !Number.isFinite(n)) return "—";

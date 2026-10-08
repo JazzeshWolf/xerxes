@@ -1,5 +1,5 @@
 import type { Snapshot, ExpiryBlock, Point } from "../lib/types";
-import { fmt } from "../lib/format";
+import { fmt, fmtStrike } from "../lib/format";
 import { C } from "../lib/palette";
 import { Card } from "./ui";
 
@@ -52,9 +52,9 @@ export function PriceLevelsChart({ snap, exp }: { snap: Snapshot; exp: ExpiryBlo
   // Right-edge labels: staggered so nearby levels never overlap.
   type Lbl = { y: number; lineY: number; color: string; text: string; bold?: boolean };
   const lbls: Lbl[] = [];
-  if (m.callWall != null) lbls.push({ y: y(m.callWall), lineY: y(m.callWall), color: C.bear, text: `CW ${fmt(m.callWall)}` });
-  if (m.putWall != null) lbls.push({ y: y(m.putWall), lineY: y(m.putWall), color: C.bull, text: `PW ${fmt(m.putWall)}` });
-  if (m.maxPain != null) lbls.push({ y: y(m.maxPain), lineY: y(m.maxPain), color: C.warn, text: `MP ${fmt(m.maxPain)}` });
+  if (m.callWall != null) lbls.push({ y: y(m.callWall), lineY: y(m.callWall), color: C.bear, text: `CW ${fmtStrike(m.callWall)}` });
+  if (m.putWall != null) lbls.push({ y: y(m.putWall), lineY: y(m.putWall), color: C.bull, text: `PW ${fmtStrike(m.putWall)}` });
+  if (m.maxPain != null) lbls.push({ y: y(m.maxPain), lineY: y(m.maxPain), color: C.warn, text: `MP ${fmtStrike(m.maxPain)}` });
   lbls.push({ y: y(spot), lineY: y(spot), color: C.info, text: `spot ${fmt(spot)}`, bold: true });
   const placed = layoutLabels(lbls);
 

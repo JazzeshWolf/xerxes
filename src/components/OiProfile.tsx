@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import type { Snapshot, ExpiryBlock, ChainRow } from "../lib/types";
-import { fmt, fmtOi } from "../lib/format";
+import { fmt, fmtStrike, fmtOi } from "../lib/format";
 import { C, mix } from "../lib/palette";
 import { Card } from "./ui";
 
@@ -107,7 +107,7 @@ export function OiProfile({ snap, exp }: { snap: Snapshot; exp: ExpiryBlock }) {
                       isMaxPain ? "text-amber-300 font-bold" : isCeWall || isPeWall ? "text-white font-semibold" : "text-white/60"
                     }`}
                   >
-                    {fmt(r.strike)}
+                    {fmtStrike(r.strike)}
                   </div>
                   <div className="text-[8px] text-white/45 tnum">
                     {avgIv(r) != null ? `${(avgIv(r)! * 100).toFixed(1)}` : "—"}

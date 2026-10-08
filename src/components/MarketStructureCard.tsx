@@ -1,5 +1,5 @@
 import type { Structure, ExpiryBlock } from "../lib/types";
-import { fmt, fmtPct } from "../lib/format";
+import { fmtStrike, fmtPct } from "../lib/format";
 import { Card } from "./ui";
 
 /**
@@ -61,12 +61,12 @@ export function MarketStructureCard({ structure, exp }: { structure: Structure |
 function pinningLine(maxPain: number | null, gex: ExpiryBlock["metrics"]["gex"]): string | null {
   if (maxPain == null && !gex) return null;
   const parts: string[] = [];
-  if (maxPain != null) parts.push(`max pain ${fmt(maxPain)}`);
+  if (maxPain != null) parts.push(`max pain ${fmtStrike(maxPain)}`);
   if (gex) {
     const regime =
       gex.regime === "pinning" ? "dealer gamma pins toward big strikes" :
       gex.regime === "volatile" ? "short gamma — moves can run" : "gamma balanced";
-    parts.push(`${regime}${gex.pinStrike != null ? ` (pin ${fmt(gex.pinStrike)})` : ""}`);
+    parts.push(`${regime}${gex.pinStrike != null ? ` (pin ${fmtStrike(gex.pinStrike)})` : ""}`);
   }
   return `Pinning: ${parts.join(" · ")}`;
 }

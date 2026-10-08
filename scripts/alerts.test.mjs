@@ -222,13 +222,16 @@ describe("firing gates (2026-10-03)", () => {
     expect(s2).toContain("Alert level: conviction 70+ · ROM 5%+ · 5+ days</i>");
   });
 
-  it("the mock sample passes its own gate and keeps every card within 28 characters", () => {
+  it("the mock sample passes its own gate and keeps cards within phone width (28 stocks, 32 indices)", () => {
     for (const [source, , events] of mockEvents()) {
       const gate = source === "indices" ? IDX : STK;
       for (const e of events.filter((x) => x.kind === "NEW")) expect(qualifies(e.row, gate, "2026-10-03")).toBe(true);
       const [m] = formatMessages(events, { source, ...gate, when: "10:40", today: "2026-10-03" });
+      // Stocks fit the phone's ~28; index cards carry ROM as well and the owner
+      // accepted a slight scroll for it (2026-10-07) — still bounded.
+      const max = source === "indices" ? 32 : 28;
       for (const pre of m.match(/<pre>[\s\S]*?<\/pre>/g))
-        for (const l of pre.replace(/<\/?pre>/g, "").split("\n")) expect(l.length).toBeLessThanOrEqual(28);
+        for (const l of pre.replace(/<\/?pre>/g, "").split("\n")) expect(l.length).toBeLessThanOrEqual(max);
     }
   });
 });
@@ -443,17 +446,18 @@ describe("formatting", () => {
     expect(m).toMatch(/190CE +72 1\.09 +– +–/);
   });
 
-  it("index cards lead with cushion instead of ROM, within the 28-character width", () => {
+  it("index cards lead with cushion and carry ROM on the 8% index margin proxy", () => {
     const r = row({ source: "indices", symbol: "NIFTY", strike: 21600, type: "PE", kind: "Monthly",
       conviction: 43, ltp: 48.7, lot: 65, credit: 3166, spot: 23100, pop: 0.96, cushion: 1.82 });
     const [m] = formatMessages([{ kind: "NEW", row: r }, { kind: "MOVED", from: 44, row: { ...r, strike: 55000, type: "CE", ltp: 1234.5, conviction: 48, cushion: null } }],
       { source: "indices", threshold: 40, minCushion: 1.5, when: "10:40", today: "2026-09-26" });
-    expect(m).toMatch(/NEW +CONV CUSH +PREM POP/);
-    expect(m).toMatch(/21600PE +43 +1\.82 +48\.7 +96/);
+    expect(m).toMatch(/NEW +CONV CUSH +PREM ROM POP/);
+    // ROM: 3,166 ÷ (8% × 23,100 × 65 = 120,120) = 2.64%.
+    expect(m).toMatch(/21600PE +43 +1\.82 +48\.7 +2\.6 +96/);
     expect(m).toMatch(/55000CE +44→48 +– +1,235/);
     expect(m).toContain("CUSH = distance to strike in forecast σ");
-    expect(m).not.toContain("ROM %");
-    for (const l of m.match(/<pre>([\s\S]*?)<\/pre>/)[1].split("\n")) expect(l.length).toBeLessThanOrEqual(28);
+    expect(m).toContain("ROM % = credit ÷ capital (8% of spot × lot)");
+    for (const l of m.match(/<pre>([\s\S]*?)<\/pre>/)[1].split("\n")) expect(l.length).toBeLessThanOrEqual(32);
   });
 
   it("carries spot and pProfit from the snapshot files into rows", () => {

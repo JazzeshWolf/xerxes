@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "preact/hooks";
 import type { Snapshot, ExpiryBlock } from "../lib/types";
 import type { Leg } from "../lib/position";
 import { analyzePosition } from "../lib/position";
-import { fmt } from "../lib/format";
+import { fmt, fmtStrike } from "../lib/format";
 import { C, mix } from "../lib/palette";
 import { Card, Stat, Badge } from "./ui";
 
@@ -277,8 +277,8 @@ function PayoffChart({ result, exp }: { result: ReturnType<typeof analyzePositio
       </div>
       {(callWall != null || putWall != null) && (
         <div className="flex justify-center gap-4 text-[8.5px] text-violet-300/70 mt-0.5">
-          <span>put wall {putWall != null ? fmt(putWall) : "—"} ({oiTag(oiMap.get(putWall ?? -1)?.p ?? 0)})</span>
-          <span>call wall {callWall != null ? fmt(callWall) : "—"} ({oiTag(oiMap.get(callWall ?? -1)?.c ?? 0)})</span>
+          <span>put wall {putWall != null ? fmtStrike(putWall) : "—"} ({oiTag(oiMap.get(putWall ?? -1)?.p ?? 0)})</span>
+          <span>call wall {callWall != null ? fmtStrike(callWall) : "—"} ({oiTag(oiMap.get(callWall ?? -1)?.c ?? 0)})</span>
         </div>
       )}
     </Card>

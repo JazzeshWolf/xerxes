@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import type { CandidateRowData, ConvictionBand } from "../lib/types";
-import { fmt, fmtOi, fmtPct, fmtExpiry } from "../lib/format";
+import { fmt, fmtStrike, fmtOi, fmtPct, fmtExpiry } from "../lib/format";
 
 export const BAND_TONE: Record<ConvictionBand, string> = {
   HIGH: "text-emerald-300 border-emerald-400/40 bg-emerald-400/10",
@@ -65,7 +65,7 @@ export function CandidateRow({
           <span className={`shrink-0 tnum ${c.type === "PE" ? "text-emerald-300/90" : "text-rose-300/90"}`}>
             {c.type}
           </span>
-          <span className="w-11 shrink-0 tnum text-white/80">{fmt(c.strike)}</span>
+          <span className="w-11 shrink-0 tnum text-white/80">{fmtStrike(c.strike)}</span>
           <span className="flex-1 min-w-0 tnum text-white/45 text-right truncate">
             {Math.round(pKeep * 100)}%
             {isIndex ? (

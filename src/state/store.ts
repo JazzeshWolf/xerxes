@@ -97,6 +97,32 @@ const getJson = (url: string) =>
 const STOCK_REFRESH_URL = (import.meta.env.VITE_STOCK_REFRESH_URL ?? "").replace(/\/$/, "");
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Re-pull every 5 min, and again whenever the app comes back to the
+ *  foreground. The foreground half is the one that matters on a phone: a
+ *  backgrounded PWA freezes its timers, so a Telegram alert → tap → app showed
+ *  whatever it had loaded hours earlier, contradicting the alert. Throttled so
+ *  quick app switches don't refetch every time. */
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
+const FOREGROUND_MIN_GAP_MS = 60 * 1000;
+function useAutoRefresh(bump: () => void) {
+  useEffect(() => {
+    let last = Date.now();
+    const fire = () => {
+      last = Date.now();
+      bump();
+    };
+    const id = setInterval(fire, AUTO_REFRESH_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - last >= FOREGROUND_MIN_GAP_MS) fire();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+}
+
 export interface StockDash extends Dash {
   hardRefresh: () => void; // trigger a live rebuild (falls back to re-pull)
   refreshing: boolean; // a live rebuild is in flight
@@ -129,6 +155,8 @@ export function useStockScreener() {
       alive = false;
     };
   }, [tick]);
+
+  useAutoRefresh(() => setTick((x) => x + 1));
 
   // Live rebuild of the whole universe (the candidates list). If a proxy is
   // configured, trigger a full stocks run and poll until index.json's asOf
@@ -182,10 +210,13 @@ export function useStock(file: string): StockDash {
   const [tick, setTick] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  // Blank only when switching stocks. A background re-pull of the same stock
+  // keeps the old snapshot on screen, so it doesn't flash "Loading" or reset
+  // the chosen expiry/tab under the user.
+  useEffect(() => setSnap(null), [file]);
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    setSnap(null);
     getJson(rawStockUrl(file))
       .catch(() => getJson(pagesUrl(`stocks/${file}`)))
       .then((j: Snapshot) => {
@@ -199,6 +230,8 @@ export function useStock(file: string): StockDash {
       alive = false;
     };
   }, [file, tick]);
+
+  useAutoRefresh(() => setTick((x) => x + 1));
 
   // Live rebuild: ask the proxy to rebuild this one symbol in GitHub Actions,
   // then poll the (fresh, uncached) proxy read until the snapshot's asOf advances.

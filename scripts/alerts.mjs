@@ -376,17 +376,19 @@ function card(events, { threshold, today }) {
     [`EXPIRED`, events.filter((e) => e.kind === "LEFT" && e.expiring)],
   ].filter(([, evs]) => evs.length);
 
-  // Every row carries the same five columns, so they share one set of widths.
-  // Indices lead with CUSH (σ) — their gate — in place of ROM, which isn't.
+  // Every row in a card carries the same columns, so they share one set of widths.
+  // Indices lead with CUSH (σ) — their gate — and carry ROM too (owner's call,
+  // 2026-10-07), which takes index rows past the 28-char phone width: the owner
+  // chose a slight sideways scroll over dropping POP or CUSH. Stocks stay ≤ 28.
   const prem = (e) => (e.row.ltp == null ? "–" : num(e.row.ltp));
   const cushOf = (r) => (r.cushion == null ? "–" : Number(r.cushion).toFixed(2));
   const isIndex = r0.source === "indices";
-  const HEAD = isIndex ? ["", "CONV", "CUSH", "PREM", "POP"] : ["", "CONV", "PREM", "ROM", "POP"];
+  const HEAD = isIndex ? ["", "CONV", "CUSH", "PREM", "ROM", "POP"] : ["", "CONV", "PREM", "ROM", "POP"];
   const cells = isIndex
-    ? (e) => [key(e.row), convOf(e), cushOf(e.row), prem(e), popOf(e.row)]
+    ? (e) => [key(e.row), convOf(e), cushOf(e.row), prem(e), romOf(e.row), popOf(e.row)]
     : (e) => [key(e.row), convOf(e), prem(e), romOf(e.row), popOf(e.row)];
   const all = events.map(cells);
-  const w = [0, 1, 2, 3, 4].map((i) =>
+  const w = HEAD.map((_, i) =>
     Math.max(i === 0 ? Math.max(...sections.map(([t]) => t.length)) : HEAD[i].length,
       ...all.map((c) => c[i].length)));
   const fmt = (c) => [c[0].padEnd(w[0]), ...c.slice(1).map((v, i) => v.padStart(w[i + 1]))].join(" ").trimEnd();
@@ -439,7 +441,7 @@ export function formatMessages(events, { source, threshold, minRom = 0, minCushi
     header.push(INDEX_BASIS);
   const pct = Math.round(MARGIN_PCT[source] * 100);
   const footer = [
-    `<i>${source === "indices" ? "CUSH = distance to strike in forecast σ\n" : ""}PREM ₹ per share · credit/lot = PREM × lot\n${source === "stocks" ? `ROM % = credit ÷ capital (${pct}% of spot × lot)\n` : ""}POP % = model's chance it expires worthless\nDROPPED = fell below ${threshold - (RULES[source]?.exitBuffer ?? 0)} · REMOVED = off the list</i>`,
+    `<i>${source === "indices" ? "CUSH = distance to strike in forecast σ\n" : ""}PREM ₹ per share · credit/lot = PREM × lot\nROM % = credit ÷ capital (${pct}% of spot × lot)\nPOP % = model's chance it expires worthless\nDROPPED = fell below ${threshold - (RULES[source]?.exitBuffer ?? 0)} · REMOVED = off the list</i>`,
     `<a href="${SCREENER_URL}">Open screener</a>`,
   ].join("\n");
   const out = [];
@@ -509,7 +511,7 @@ export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_
   const footer = [
     "<i>PREM ₹ per share · credit/lot = PREM × lot",
     "CUSH = distance to strike in forecast σ (indices)",
-    "ROM % = credit ÷ capital (15% of spot × lot, stocks)",
+    `ROM % = credit ÷ capital (${Math.round(MARGIN_PCT.stocks * 100)}% of spot × lot stocks, ${Math.round(MARGIN_PCT.indices * 100)}% indices)`,
     "POP % = model's chance it expires worthless</i>",
     `<a href="${SCREENER_URL}">Open screener</a>`,
   ].join("\n");

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { Snapshot, ExpiryBlock, SellCandidate } from "../lib/types";
-import { fmt, fmtOi } from "../lib/format";
+import { fmt, fmtStrike, fmtOi } from "../lib/format";
 import { Card, Badge } from "./ui";
 
 // Column explainers, shown on hover (native title, so they also read out to
@@ -134,7 +134,7 @@ function Row({ c, lot, scored }: { c: SellCandidate; lot: number | null; scored:
         </td>
       )}
       <td className="py-1">
-        <span className="text-white/90 font-semibold">{fmt(c.strike)}</span>
+        <span className="text-white/90 font-semibold">{fmtStrike(c.strike)}</span>
         <span className={`ml-1 text-[9px] ${safe ? "text-emerald-300/70" : "text-amber-300/70"}`}>
           {cushion != null ? `${cushion.toFixed(1)}σ` : `${c.distancePct}%`}
         </span>

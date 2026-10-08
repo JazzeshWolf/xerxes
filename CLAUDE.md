@@ -194,6 +194,15 @@ outside the header band where the toggle was added.
   NSE single-stock chains really are thin. `thin: true` renders the warning.
 - Candidate rows expand into their factor breakdown; `VolPremiumCard` (stock-only)
   carries the IV-vs-forecast-RV case on the stock dashboard.
+- **Stock views re-pull every 5 min and on return to foreground** (`useAutoRefresh`
+  in `store.ts`, ≥60 s apart). Before this they loaded once, so tapping a
+  Telegram alert opened a backgrounded PWA on hours-old data that contradicted
+  the alert. A same-stock re-pull keeps the old snapshot on screen (no
+  "Loading" flash, chosen expiry kept). Separately, raw.githubusercontent
+  **ignores the `?t=` query** in its cache key (measured 2026-10-07: distinct
+  random `?t=` values → MISS, HIT, HIT), so any read can be up to 5 min
+  (`max-age=300`) behind a publish. Accepted, not fixed — data only moves every
+  20 min. Alerts are unaffected by any of this; they fire from the workflow.
 - Refresh buttons: if `VITE_STOCK_REFRESH_URL` is set they trigger a real rebuild
   and poll; otherwise they just re-pull the last published snapshot.
 
@@ -518,10 +527,11 @@ Messages are **cards**, one per underlying + expiry: a bold `SYMBOL · 27 Oct`
 line, then `Monthly · 31 days left · lot 65`, then one `<pre>` block (Telegram
 has no table markup). Inside it, sections NEW / MOVED / DROPPED / REMOVED /
 EXPIRED — the exit reason is the section title, not a column — and **every row
-carries the same five columns**: strike+type, CONV (`64→63` for a change), PREM,
-**ROM%** on stock cards (credit ÷ the scorer's own margin proxy: 15% × spot × lot,
-`MARGIN_PCT`) or **CUSH** on index cards (distance to strike in forecast σ — the
-index gate, so it leads; percent OTM is deliberately never shown) and **POP%** (`pProfit`, the real-world
+in a card carries the same columns**: strike+type, CONV (`64→63` for a change), PREM,
+**ROM%** (credit ÷ the scorer's own margin proxy × spot × lot, `MARGIN_PCT`: 15%
+stocks, 8% indices), **CUSH** on index cards only, placed before PREM (distance to
+strike in forecast σ — the index gate, so it leads; percent OTM is deliberately
+never shown) and **POP%** (`pProfit`, the real-world
 forecast-vol probability of expiring worthless — never `probProfit`, which is
 1−|Δ| and carries no information). Missing inputs print `–`, never a guess.
 **Rows must stay ≤ 28 chars**: Telegram on the owner's upright iPhone scrolls a
@@ -529,7 +539,10 @@ forecast-vol probability of expiring worthless — never `probProfit`, which is
 second at 30). Hence `55000CE` with no space, `ROM`/`POP` headers, premiums
 ≥ ₹100 to one decimal, and 7-letter section titles. That is why credit per lot is not a
 column — it is PREM × lot, and the lot is in the card header. A test pins the
-width. Cards holding a NEW lead, highest conviction first. Manual check: Actions → **Send test alert** (tick
+width. **Index cards are the exception at ≤ 32**: the owner asked for ROM on them
+too (2026-10-07) and, offered the choice, kept all six columns and accepted a slight
+sideways scroll rather than drop POP or CUSH. Index ROM on 1.5σ+ strikes runs
+~2–4%. Cards holding a NEW lead, highest conviction first. Manual check: Actions → **Send test alert** (tick
 *mock* to see a sample alert).
 
 **The return bar (2026-10-01, owner's call to cut volume).** A contract only
