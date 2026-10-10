@@ -55,7 +55,31 @@ const THIN_EXPIRY_CANDIDATES = 8; // fewer than this in a slot → warn the user
 // because the workflow seeds public/data/stocks from the published branch on
 // every run (the same mechanism ivHistory relies on). The single-symbol refresh
 // path always fetches, so the in-app "Fetch latest news" button is immediate.
-const NEWS_PER_RUN = 25;
+//
+// The budget is split. Priority slots go to the names that matter right now —
+// the previous run's sell candidates and stocks moving on their own story —
+// and the rest keep the staleness rotation. Plain rotation took a ~2-3 h lap,
+// so the name you were about to sell could carry 2 h-old news; prioritising it
+// is what made a live "fetch news" button (and the Worker it needed) unneeded.
+//
+// Candidates are refreshed once their news is older than CANDIDATE_NEWS_MAX_AGE
+// — every other run, so all ~25 candidate names stay under ~40 min old for ~13
+// fetches a run. Every-run for all of them would eat the whole budget, and the
+// conviction scores are too bunched (21 names at 60-75 on 9 Oct) to justify
+// refreshing only a top few. Movers are refreshed every run: they are the names
+// where something is happening now.
+const NEWS_PER_RUN = 40;
+const NEWS_CANDIDATES_MAX = 16;
+const NEWS_MOVERS_MAX = 4;
+const CANDIDATE_NEWS_MAX_AGE_MS = 35 * 60 * 1000;
+// Movers skip only a back-to-back run (cron-job.org and the in-repo schedule
+// backups can land minutes apart).
+const MOVER_NEWS_MAX_AGE_MS = 10 * 60 * 1000;
+// A "mover": the part of today's move that neither NIFTY (× beta) nor the
+// sector explains is at least this big, or volume is running this far above
+// its usual pace. Same split as the Outlook tab (src/lib/outlook.ts).
+const MOVER_OWN_PCT = 2;
+const MOVER_VOLUME_PACE = 2.5;
 // One name's strike ladder is a handful of near-identical trades, and without a
 // cap a single high-VRP stock crowds out the whole cross-universe list.
 const MAX_PER_SYMBOL = 2;
@@ -604,6 +628,101 @@ export function pickNewsQueue(symbols, newsAsOfBySymbol, limit) {
 }
 
 /**
+ * Symbols on the previous run's sell-candidate lists, best conviction first,
+ * each once. Read from the SEEDED candidates.json: this run's list doesn't
+ * exist until scoring, which comes after news. One run (~20 min) old is fine
+ * for deciding whose headlines to refresh.
+ */
+export function candidateSymbols(candidatesJson) {
+  const rows = (candidatesJson?.expiries ?? []).flatMap((e) => e?.candidates ?? []);
+  if (!rows.length) rows.push(...(candidatesJson?.candidates ?? [])); // older shape
+  const best = new Map();
+  for (const c of rows) {
+    if (!c?.symbol) continue;
+    const v = Number(c.conviction) || 0;
+    if (!best.has(c.symbol) || v > best.get(c.symbol)) best.set(c.symbol, v);
+  }
+  return [...best.entries()].sort((a, b) => b[1] - a[1]).map(([s]) => s);
+}
+
+/**
+ * Stocks moving on their own story today, biggest first. `rows` are
+ * `{ symbol, sector, changePct, beta, pace }` from the chain pass; the split is
+ * the Outlook tab's: own = move − beta × NIFTY − (sector median − NIFTY). Volume alone also
+ * qualifies — heavy trading with a flat price is often news not yet in the move.
+ */
+export function findMovers(rows, benchD1, { minOwn = MOVER_OWN_PCT, minPace = MOVER_VOLUME_PACE } = {}) {
+  const bySector = new Map();
+  for (const r of rows) {
+    if (r.sector == null || r.changePct == null) continue;
+    if (!bySector.has(r.sector)) bySector.set(r.sector, []);
+    bySector.get(r.sector).push(r);
+  }
+  const median = (xs) => {
+    const v = [...xs].sort((a, b) => a - b);
+    if (!v.length) return null;
+    const m = v.length >> 1;
+    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+  };
+  const out = [];
+  for (const r of rows) {
+    if (r.changePct == null) continue;
+    // Median of the WHOLE sector, the stock included, and only for 3+ names.
+    // Excluding the stock looks purer but lets one big mover contaminate its
+    // neighbours: in a 3-name sector BHEL +5% made LT and ABB read as −2%
+    // "own" moves. With the stock in, a lone outlier can't move the median.
+    const sectorMoves = (bySector.get(r.sector) ?? []).map((p) => p.changePct);
+    const sectorMed = sectorMoves.length >= 3 ? median(sectorMoves) : null;
+    const market = benchD1 != null ? (r.beta ?? 1) * benchD1 : 0;
+    const sector = sectorMed != null ? sectorMed - (benchD1 ?? 0) : 0;
+    const own = r.changePct - market - sector;
+    const heavy = r.pace != null && r.pace >= minPace;
+    if (Math.abs(own) >= minOwn || heavy) out.push({ symbol: r.symbol, own, pace: r.pace ?? null, score: Math.abs(own) + (heavy ? minOwn : 0) });
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+
+/**
+ * This run's priority news set: movers (refreshed every run, capped) and the
+ * previous list's candidates whose news has gone stale (best conviction first,
+ * capped). Dead tickers never take a slot. Returns the set plus the breakdown
+ * for the run log.
+ */
+export function pickNewsPriority(
+  { candidates = [], movers = [], live, newsAsOfBySymbol = {}, now = Date.now() },
+  {
+    candidatesMax = NEWS_CANDIDATES_MAX,
+    moversMax = NEWS_MOVERS_MAX,
+    candidateMaxAgeMs = CANDIDATE_NEWS_MAX_AGE_MS,
+    moverMaxAgeMs = MOVER_NEWS_MAX_AGE_MS,
+  } = {},
+) {
+  const olderThan = (s, ms) => {
+    if (!live.has(s)) return false;
+    const t = Date.parse(newsAsOfBySymbol[s] ?? "");
+    return !Number.isFinite(t) || now - t >= ms;
+  };
+  const set = new Set();
+  const fromMovers = [];
+  for (const m of movers) {
+    if (fromMovers.length >= moversMax) break;
+    if (!set.has(m.symbol) && olderThan(m.symbol, moverMaxAgeMs)) {
+      set.add(m.symbol);
+      fromMovers.push(m.symbol);
+    }
+  }
+  const fromCandidates = [];
+  for (const s of candidates) {
+    if (fromCandidates.length >= candidatesMax) break;
+    if (!set.has(s) && olderThan(s, candidateMaxAgeMs)) {
+      set.add(s);
+      fromCandidates.push(s);
+    }
+  }
+  return { set, fromCandidates, fromMovers };
+}
+
+/**
  * News, events and exchange filings for one symbol — `fetchCompanyBundle`,
  * which the refresh Worker's live /news endpoint also calls, so the build and
  * the button can never disagree. Each source inside it settles separately; one
@@ -753,13 +872,37 @@ async function main() {
   });
   const live = fetched.filter(Boolean);
 
-  // Pass 2 — news for the stalest few names that actually have a chain, then
-  // score. Only ~NEWS_PER_RUN of these do any network work; the rest is CPU.
-  const newsQueue = pickNewsQueue(
-    live.map((s) => s.symbol),
-    Object.fromEntries(live.map((s) => [s.symbol, prevBySlug[fileSlug(s.symbol)].newsAsOf])),
-    NEWS_PER_RUN,
+  // Pass 2 — news. First the priority set (last run's candidates + today's
+  // own-story movers, refreshed every run), then the stalest of everyone else
+  // with what's left of the budget. Only these do any network work; the rest
+  // is CPU.
+  const newsAsOfBySymbol = Object.fromEntries(live.map((s) => [s.symbol, prevBySlug[fileSlug(s.symbol)].newsAsOf]));
+  const today = todayIso();
+  const moverRows = live.map(({ symbol, raw }) => {
+    const prior = (raw.ohlc ?? []).filter((b) => b.t < today);
+    return {
+      symbol,
+      sector: raw.sector,
+      changePct: raw.prevClose > 0 ? ((raw.spot - raw.prevClose) / raw.prevClose) * 100 : null,
+      beta: bench?.history?.length ? A.betaTo(prior, bench.history.filter((p) => p.t < today)) : null,
+      pace: A.volumePace(raw.volume, prior).pace,
+    };
+  });
+  const prevCandidates = await readFile(resolve(STOCKS_DIR, "candidates.json"), "utf8")
+    .then((t) => JSON.parse(t))
+    .catch(() => null);
+  const priority = pickNewsPriority({
+    candidates: candidateSymbols(prevCandidates),
+    movers: findMovers(moverRows, bench?.perf?.d1 ?? null),
+    live: new Set(live.map((s) => s.symbol)),
+    newsAsOfBySymbol,
+  });
+  const rotation = pickNewsQueue(
+    live.map((s) => s.symbol).filter((s) => !priority.set.has(s)),
+    newsAsOfBySymbol,
+    NEWS_PER_RUN - priority.set.size,
   );
+  const newsQueue = new Set([...priority.set, ...rotation]);
 
   const built = await pool(live, CONCURRENCY, async ({ symbol, name, raw }) => {
     const slug = fileSlug(symbol);
@@ -917,7 +1060,10 @@ async function main() {
     .join(", ");
 
   console.log(
-    `stocks: built ${ok.length}/${STOCKS.length}; news refreshed for ${[...newsQueue].join(",")} ` +
+    `stocks: built ${ok.length}/${STOCKS.length}; ` +
+      `news priority: ${priority.set.size} (candidates ${priority.fromCandidates.length}: ${priority.fromCandidates.join(",") || "-"}; ` +
+      `movers ${priority.fromMovers.length}: ${priority.fromMovers.join(",") || "-"}); ` +
+      `rotation ${rotation.size}: ${[...rotation].join(",")} ` +
       `(${neverFetched} live names still awaiting first fetch); ` +
       `quote gate: kept ${gate.kept ?? 0}${gateLine ? ` (dropped ${gateLine})` : ""}; ` +
       expiryBlocks.map((e) => `${e.slot} ${e.date} ${e.candidates.length} cand${e.thin ? " (thin)" : ""}`).join("; ") +

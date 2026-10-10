@@ -3,11 +3,12 @@ import { timeAgo } from "../lib/format";
 import { Card, Badge } from "./ui";
 
 /**
- * THIS company's headlines. "Fetch latest news" asks the refresh Worker for
- * them live — a few seconds, straight from Google News and NSE — and overlays
- * the answer on the published snapshot (see `mergeLiveNews`). Without the
- * Worker the button can only re-pull the published copy, which the rotation
- * refreshes every ~2 h, so the tab says that and offers a live search link.
+ * THIS company's headlines. The build keeps them fresh on its own: names on
+ * the sell-candidate list and stocks moving on their own story are refreshed
+ * every stock run (~20 min), everyone else on a ~3 h rotation. The button
+ * therefore normally just re-pulls the newest published copy. If the optional
+ * refresh Worker is ever deployed, the same button fetches live in seconds
+ * (see `mergeLiveNews`); the live Google News link covers the rare case either way.
  *
  * Scheduled events, filings and sector peers live on the Outlook tab.
  */
@@ -44,17 +45,17 @@ export function StockNewsTab({
           disabled={fetching}
           className="w-full mb-2 text-[11px] px-3 py-2 rounded-lg border border-white/20 text-white/85 active:bg-white/[0.08] disabled:opacity-50"
         >
-          {fetching ? "Fetching…" : "Fetch latest news"}
+          {fetching ? "Fetching…" : canFetch ? "Fetch latest news" : "Check for newer news"}
         </button>
 
         {fetching && <div className="text-[10px] text-sky-300/80 mb-2">Asking Google News and NSE for {snap.index} — a few seconds.</div>}
         {fetchError && !fetching && <div className="text-[10px] text-amber-300 mb-2">{fetchError}</div>}
         {!canFetch && !fetching && (
           <div className="text-[10px] text-white/50 leading-relaxed mb-2">
-            Live fetching needs the refresh Worker (<span className="tnum">worker/README.md</span>) — until it's
-            deployed this button only re-pulls the published copy, which refreshes on a ~2 h rotation.{" "}
+            News refreshes automatically — every ~20 min for stocks on the candidates list or moving on their
+            own story, every ~3 h for the rest. For anything newer than that,{" "}
             <a href={liveSearch} target="_blank" rel="noopener noreferrer" className="text-sky-300 underline underline-offset-2">
-              Search Google News live ↗
+              search Google News live ↗
             </a>
           </div>
         )}

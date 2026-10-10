@@ -12,10 +12,11 @@ describe("stock outlook helpers", () => {
     expect(median([null])).toBeNull();
   });
 
-  it("sectorMedian excludes the stock itself", () => {
-    const peers = [row("BHEL", 9), row("LT", 1), row("SIEMENS", 2), row("ABB", 3)];
-    expect(sectorMedian(peers, "BHEL", "d1")).toBe(2);
-    expect(sectorMedian(peers, "BHEL", "w1")).toBeNull(); // older index.json: no perf
+  it("sectorMedian includes the stock, so one outlier can't taint its neighbours", () => {
+    const sector = [row("BHEL", 5), row("LT", 0.4), row("ABB", 0.3)];
+    expect(sectorMedian(sector, "d1")).toBe(0.4); // the same answer from LT's page and BHEL's
+    expect(sectorMedian(sector, "w1")).toBeNull(); // older index.json: no perf
+    expect(sectorMedian(sector.slice(0, 2), "d1")).toBeNull(); // 2 names: no robust median
   });
 
   it("splitMove always sums back to the stock's move", () => {

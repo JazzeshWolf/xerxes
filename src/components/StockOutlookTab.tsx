@@ -46,8 +46,8 @@ export function StockOutlookTab({
   const bench = o?.benchmark ?? benchmark;
   const stockPerf: Perf = o?.perf ?? { d1: snap.spot.changePct, w1: null, m1: null, m3: null };
   const sectorBy = useMemo(
-    () => Object.fromEntries(PERIODS.map(({ key }) => [key, sectorMedian(peers, snap.index, key)])) as Record<PerfKey, number | null>,
-    [peers, snap.index],
+    () => Object.fromEntries(PERIODS.map(({ key }) => [key, sectorMedian(peers, key)])) as Record<PerfKey, number | null>,
+    [peers],
   );
 
   return (
@@ -367,7 +367,7 @@ function SectorCard({
         </>
       )}
       <div className="text-[9px] text-white/45 mt-2 leading-relaxed">
-        Sector = median of the F&amp;O peers in the same trading group. A stock running against its whole sector is
+        Sector = median of the F&amp;O names in the same trading group (this one included; needs 3+). A stock running against its whole sector is
         usually reacting to something of its own — worth finding before selling into it.
       </div>
     </Card>

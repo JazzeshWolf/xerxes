@@ -22,9 +22,16 @@ export function median(xs: (number | null | undefined)[]): number | null {
 export const peerPerf = (r: StockRow, key: PerfKey): number | null =>
   key === "d1" ? r.changePct ?? r.perf?.d1 ?? null : r.perf?.[key] ?? null;
 
-/** The sector's median move over `key`, the stock itself excluded. */
-export function sectorMedian(peers: StockRow[], self: string, key: PerfKey): number | null {
-  return median(peers.filter((p) => p.symbol !== self).map((p) => peerPerf(p, key)));
+/**
+ * The sector's median move over `key`, the stock itself INCLUDED, and only
+ * for 3+ names. Excluding the stock lets one big mover contaminate its
+ * neighbours' reading (in a 3-name sector, BHEL +5% made LT look like a −2%
+ * own move); with it included a lone outlier can't shift the median. Same rule
+ * as `findMovers` in build-stocks.mjs, which picks whose news to refresh.
+ */
+export function sectorMedian(sector: StockRow[], key: PerfKey): number | null {
+  const v = sector.map((p) => peerPerf(p, key)).filter((x) => x != null);
+  return v.length >= 3 ? median(v) : null;
 }
 
 export interface MoveSplit {
