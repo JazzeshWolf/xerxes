@@ -11,14 +11,30 @@
 //                                  read via the GitHub Contents API (authenticated,
 //                                  always fresh — sidesteps raw.githubusercontent's
 //                                  ~5-min CDN cache, which query strings don't bust).
+////   GET  /news?symbol=INDIGO     → that company's headlines, NSE calendar,
+//                                  corporate-action ex-dates and exchange filings,
+//                                  fetched LIVE (~2–5s). This is the stock News
+//                                  tab's "Fetch latest news" button. It needs no
+//                                  GitHub token and no Actions run — it calls the
+//                                  same `fetchCompanyBundle` the build uses, so the
+//                                  button and the published file can't disagree.
 //
 // It holds a fine-grained GitHub PAT (this repo only: Actions read/write,
-// Contents read) as the `GH_PAT` secret. Nothing else is exposed. Config lives in
+// Contents read) as the `GH_PAT` secret, used by /refresh and /data only —
+// /news works on a Worker deployed without it. Nothing else is exposed. Config lives in
 // wrangler.toml [vars]; see README.md for one-time setup.
 // ---------------------------------------------------------------------------
 
+import { fetchCompanyBundle, mergeEvents } from "../scripts/stock-news.mjs";
+import { STOCKS } from "../scripts/stocks-universe.mjs";
+
+const NAME_BY_SYMBOL = new Map(STOCKS.map(([symbol, name]) => [symbol, name]));
+// Repeat taps (and several phones on one stock) are served from the edge cache
+// for this long, so the button can't be used to hammer Google News or NSE.
+const NEWS_CACHE_SECONDS = 180;
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const cors = {
       "Access-Control-Allow-Origin": env.ALLOW_ORIGIN || "*",
@@ -71,6 +87,36 @@ export default {
           status: 200,
           headers: { ...cors, "content-type": "application/json", "cache-control": "no-store" },
         });
+      }
+
+      // Live company news + events — no GitHub involved.
+      if (url.pathname === "/news" && request.method === "GET") {
+        const symbol = clean(url.searchParams.get("symbol")).toUpperCase();
+        const name = NAME_BY_SYMBOL.get(symbol);
+        if (!name) return json({ error: "unknown symbol" }, 404);
+
+        const cache = typeof caches !== "undefined" ? caches.default : null;
+        const cacheKey = new Request(`https://xerxes-news.cache/${symbol}`);
+        const hit = cache ? await cache.match(cacheKey) : null;
+        if (hit) return new Response(hit.body, { status: 200, headers: { ...cors, "content-type": "application/json", "x-cache": "hit" } });
+
+        const b = await fetchCompanyBundle(symbol, name);
+        const body = JSON.stringify({
+          symbol,
+          newsAsOf: new Date().toISOString(),
+          news: b.news,
+          events: mergeEvents(b.events, b.nseEvents),
+          filings: b.filings,
+          nseOk: b.nseOk,
+        });
+        if (cache) {
+          const store = new Response(body, { headers: { "content-type": "application/json", "cache-control": `max-age=${NEWS_CACHE_SECONDS}` } });
+          const put = cache.put(cacheKey, store);
+          // Don't hold the response for the cache write when the runtime lets us defer it.
+          if (ctx?.waitUntil) ctx.waitUntil(put);
+          else await put;
+        }
+        return new Response(body, { status: 200, headers: { ...cors, "content-type": "application/json", "cache-control": "no-store" } });
       }
 
       return json({ error: "not found" }, 404);

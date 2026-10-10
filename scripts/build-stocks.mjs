@@ -23,9 +23,8 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as upstox from "./upstox.mjs";
-import * as nse from "./nse.mjs";
 import * as A from "./analytics.mjs";
-import { fetchStockNews, mergeEvents, impliedEvent, pruneEvents, pruneNews } from "./stock-news.mjs";
+import { fetchCompanyBundle, mergeEvents, impliedEvent, pruneEvents, pruneNews, pruneFilings } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -33,6 +32,9 @@ const DATA_DIR = resolve(__dirname, "../public/data");
 const STOCKS_DIR = resolve(DATA_DIR, "stocks");
 
 const VIX_KEY = "NSE_INDEX|India VIX";
+// The benchmark every stock is measured against on its Outlook tab.
+const BENCH_KEY = "NSE_INDEX|Nifty 50";
+const BENCH_NAME = "NIFTY 50";
 const YEAR_MS = 365 * 86400000;
 const MONTHLIES = 2; // nearest N monthly expiries per stock (current + next)
 const CONCURRENCY = 5; // chains in flight at once — respect Upstox limits
@@ -344,6 +346,7 @@ async function fetchStock(token, symbol, instruments, equityKey) {
     orderedExpiries: gotExpiries,
     lotSize: picked.lotSize,
     future: futQ?.lastPrice != null && picked.future ? { price: futQ.lastPrice, expiry: picked.future.expiry, oi: futQ.oi } : null,
+    volume: uq?.volume ?? null,
     prevClose: (closesC.history ?? []).map((p) => p).filter((p) => p.t < today).pop()?.v ?? uq?.prevClose ?? null,
   };
 }
@@ -362,7 +365,25 @@ function appendIvPoint(prev, t, iv) {
     .slice(-IV_HISTORY_DAYS);
 }
 
-function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
+/**
+ * The "what's moving this stock" context: trailing returns, beta to NIFTY and
+ * today's volume pace, plus the benchmark's own numbers so the client can split
+ * the day's move without another fetch. Every field is null-safe — a run where
+ * the benchmark fetch failed still publishes the stock's own returns.
+ */
+function buildOutlook(raw, spot, changePct, bench) {
+  const today = todayIso();
+  const prior = (raw.ohlc ?? []).filter((b) => b.t < today);
+  const perf = { d1: changePct, ...A.trailingReturns(prior, spot) };
+  return {
+    perf,
+    beta: bench?.history?.length ? A.betaTo(prior, bench.history.filter((p) => p.t < today)) : null,
+    volume: A.volumePace(raw.volume, prior),
+    benchmark: bench ? { name: BENCH_NAME, perf: bench.perf } : null,
+  };
+}
+
+function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null, bench = null) {
   const spot = raw.spot;
   const expiries = {};
   const ordered = raw.orderedExpiries.filter((e) => raw.chainsByExpiry[e]);
@@ -457,6 +478,8 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
     };
   });
 
+  const outlook = buildOutlook(raw, spot, changePct, bench);
+
   const publicExpiries = {};
   for (const [e, b] of Object.entries(expiries)) {
     const { _flow, _pcr, _maxPain, _skew, _em, _t, _sigmaForecast, _rawChain, _gate, ...pub } = b;
@@ -493,6 +516,10 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
       // term structure.
       newsBundle?.events ?? pruneEvents(raw.prevEvents?.filter((e) => e.source !== "options") ?? []),
       pruneEvents(newsBundle?.nseEvents ?? []),
+      // NSE is bot-walled and fails more often than not. When this pass got
+      // nothing back from it, keep the NSE dates we already had — a failed
+      // fetch is not evidence that the results date went away.
+      newsBundle && !newsBundle.nseOk ? pruneEvents(raw.prevEvents?.filter((e) => e.source === "nse") ?? []) : [],
       [impliedEvent(term?.slopePts ?? null, defaultExpiry)].filter(Boolean),
     ).slice(0, 10),
     // Cached news is re-filtered every build, so tightening the relevance guard
@@ -500,6 +527,11 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null) {
     // the fetch queue.
     news: newsBundle?.news ?? pruneNews(raw.prevNews ?? [], raw.symbol, name),
     newsAsOf: newsBundle ? new Date().toISOString() : raw.prevNewsAsOf ?? null,
+    // Recent price-sensitive exchange filings (con-call schedules, AGM notices,
+    // order wins). Carried forward like news, and when NSE didn't answer.
+    filings: newsBundle?.nseOk ? newsBundle.filings : pruneFilings(raw.prevFilings ?? []),
+    // How the name has traded against NIFTY — the stock Outlook tab.
+    outlook,
     verdict,
     structure,
   };
@@ -537,9 +569,10 @@ async function readPrevStock(slug) {
       news: Array.isArray(j?.news) ? j.news : [],
       events: Array.isArray(j?.events) ? j.events : [],
       newsAsOf: typeof j?.newsAsOf === "string" ? j.newsAsOf : null,
+      filings: Array.isArray(j?.filings) ? j.filings : [],
     };
   } catch {
-    return { ivHistory: [], news: [], events: [], newsAsOf: null };
+    return { ivHistory: [], news: [], events: [], newsAsOf: null, filings: [] };
   }
 }
 
@@ -571,16 +604,40 @@ export function pickNewsQueue(symbols, newsAsOfBySymbol, limit) {
 }
 
 /**
- * News + corporate events for one symbol. Google News and the NSE calendar are
- * independent and both flaky, so they're settled separately — one failing must
- * not cost us the other.
+ * News, events and exchange filings for one symbol — `fetchCompanyBundle`,
+ * which the refresh Worker's live /news endpoint also calls, so the build and
+ * the button can never disagree. Each source inside it settles separately; one
+ * failing never costs the others.
  */
 async function fetchNewsBundle(symbol, name) {
-  const [feed, nseEvents] = await Promise.all([
-    fetchStockNews(symbol, name).catch(() => ({ news: [], events: [] })),
-    nse.fetchEventCalendar(symbol).catch(() => []),
+  return fetchCompanyBundle(symbol, name).catch(() => ({ news: [], events: [], nseEvents: [], filings: [], nseOk: false }));
+}
+
+/**
+ * NIFTY 50 once per run: live quote + daily closes. Gives every stock its
+ * benchmark returns and the history beta is measured on. Fails soft to null —
+ * the Outlook then shows the stock's own numbers without the comparison.
+ */
+async function fetchBenchmark(token) {
+  const today = todayIso();
+  const from = new Date(Date.now() - CANDLE_LOOKBACK_DAYS * 86400000).toISOString().slice(0, 10);
+  const [q, c] = await Promise.all([
+    upstox.quotes(token, [BENCH_KEY]),
+    upstox.dailyCandles(token, BENCH_KEY, from, today),
   ]);
-  return { news: feed.news, events: feed.events, nseEvents };
+  const history = (c.history ?? []).filter((p) => p.v > 0);
+  const quote = q[BENCH_KEY] ?? Object.values(q)[0] ?? null;
+  const last = quote?.lastPrice ?? null;
+  const prior = history.filter((p) => p.t < today);
+  const prev = prior.at(-1)?.v ?? quote?.prevClose ?? null;
+  if (!(last > 0) || !prior.length) {
+    console.warn("benchmark: NIFTY unavailable — Outlook will publish without the comparison.");
+    return null;
+  }
+  return {
+    history,
+    perf: { d1: prev > 0 ? A.round((last / prev - 1) * 100, 2) : null, ...A.trailingReturns(prior, last) },
+  };
 }
 
 /** Shared India VIX (market-wide) — one quote + one history call. */
@@ -603,7 +660,7 @@ async function fetchVix(token) {
  * carries its own timestamp for the detail view. candidates.json is left to the
  * next full cron.
  */
-async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys, vix, sectorBySym = {}) {
+async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys, vix, sectorBySym = {}, bench = null) {
   const name = nameBySym[symbol] ?? symbol;
   const raw = await fetchStock(token, symbol, instruments, equityKeys[symbol]);
   if (raw) raw.sector = sectorBySym[symbol] ?? null;
@@ -618,7 +675,8 @@ async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys,
   raw.prevNews = prev.news;
   raw.prevEvents = prev.events;
   raw.prevNewsAsOf = prev.newsAsOf;
-  const { snap } = buildStock(name, raw, vix, prev.ivHistory, newsBundle);
+  raw.prevFilings = prev.filings;
+  const { snap } = buildStock(name, raw, vix, prev.ivHistory, newsBundle, bench);
   await writeFile(resolve(STOCKS_DIR, `${slug}.json`), JSON.stringify(snap));
 
   const idxPath = resolve(STOCKS_DIR, "index.json");
@@ -644,6 +702,8 @@ async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys,
     conviction: top?.conviction ?? null,
     vrp: snap.expiries[snap.defaultExpiry].metrics.vrp ?? null,
     ivRank: snap.expiries[snap.defaultExpiry].metrics.ivRank ?? null,
+    perf: snap.outlook?.perf ?? null,
+    beta: snap.outlook?.beta ?? null,
   };
   idx.stocks = [...idx.stocks.filter((r) => r.symbol !== symbol), row].sort((a, b) => b.liquidity.score - a.liquidity.score);
   idx.count = idx.stocks.length;
@@ -669,11 +729,11 @@ async function main() {
   const nameBySym = Object.fromEntries(STOCKS.map(([s, n]) => [s, n]));
   const sectorBySym = Object.fromEntries(STOCKS.map(([s, , sec]) => [s, sec ?? null]));
   const equityKeys = upstox.pickEquityKeys(instruments, symbols);
-  const vix = await fetchVix(token);
+  const [vix, bench] = await Promise.all([fetchVix(token), fetchBenchmark(token)]);
 
   // On-demand single-stock refresh path.
   if (ONLY_SYMBOL) {
-    await buildOneSymbol(token, ONLY_SYMBOL, instruments, nameBySym, equityKeys, vix, sectorBySym);
+    await buildOneSymbol(token, ONLY_SYMBOL, instruments, nameBySym, equityKeys, vix, sectorBySym, bench);
     return;
   }
 
@@ -708,8 +768,9 @@ async function main() {
     raw.prevNews = prev.news;
     raw.prevEvents = prev.events;
     raw.prevNewsAsOf = prev.newsAsOf;
+    raw.prevFilings = prev.filings;
     const newsBundle = newsQueue.has(symbol) ? await fetchNewsBundle(symbol, name) : null;
-    const { snap, liquidityRaw, liquidityByExpiry, dfltMetrics, gate } = buildStock(name, raw, vix, prev.ivHistory, newsBundle);
+    const { snap, liquidityRaw, liquidityByExpiry, dfltMetrics, gate } = buildStock(name, raw, vix, prev.ivHistory, newsBundle, bench);
     await writeFile(resolve(STOCKS_DIR, `${slug}.json`), JSON.stringify(snap));
     return { symbol, name, ok: true, snap, liquidityRaw, liquidityByExpiry, dfltMetrics, gate };
   });
@@ -740,6 +801,10 @@ async function main() {
         conviction: top?.conviction ?? null,
         vrp: dfltBlock.metrics.vrp ?? null,
         ivRank: dfltBlock.metrics.ivRank ?? null,
+        // Multi-period returns + beta, so a stock's Outlook can rank its whole
+        // sector over 1W/1M/3M from index.json without fetching every peer.
+        perf: b.snap.outlook?.perf ?? null,
+        beta: b.snap.outlook?.beta ?? null,
       };
     })
     .sort((a, b) => b.liquidity.score - a.liquidity.score);
@@ -817,7 +882,16 @@ async function main() {
   }
 
   const asOf = new Date().toISOString();
-  await writeFile(resolve(STOCKS_DIR, "index.json"), JSON.stringify({ asOf, count: rows.length, vix: vix.value, stocks: rows }));
+  await writeFile(
+    resolve(STOCKS_DIR, "index.json"),
+    JSON.stringify({
+      asOf,
+      count: rows.length,
+      vix: vix.value,
+      benchmark: bench ? { name: BENCH_NAME, perf: bench.perf } : null,
+      stocks: rows,
+    }),
+  );
   await writeFile(
     resolve(STOCKS_DIR, "candidates.json"),
     // `candidates` stays at the top level as the current-expiry list so a
@@ -847,7 +921,7 @@ async function main() {
       `(${neverFetched} live names still awaiting first fetch); ` +
       `quote gate: kept ${gate.kept ?? 0}${gateLine ? ` (dropped ${gateLine})` : ""}; ` +
       expiryBlocks.map((e) => `${e.slot} ${e.date} ${e.candidates.length} cand${e.thin ? " (thin)" : ""}`).join("; ") +
-      `; vix=${vix.value}`,
+      `; vix=${vix.value}; nifty=${bench ? `${bench.perf.d1}%` : "n/a"}`,
   );
 }
 

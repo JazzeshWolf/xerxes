@@ -195,7 +195,7 @@ export async function optionChain(token, underlyingKey, expiryIso) {
   }
 }
 
-/** Live quotes keyed by instrument key -> { lastPrice, prevClose, oi }. */
+/** Live quotes keyed by instrument key -> { lastPrice, prevClose, netChange, oi, volume }. */
 export async function quotes(token, instrumentKeys) {
   const keys = Array.isArray(instrumentKeys) ? instrumentKeys : [instrumentKeys];
   const url = `${BASE}/market-quote/quotes?instrument_key=${encodeURIComponent(keys.join(","))}`;
@@ -210,6 +210,9 @@ export async function quotes(token, instrumentKeys) {
         prevClose: Number(v?.ohlc?.close) || null,
         netChange: Number.isFinite(Number(v.net_change)) ? Number(v.net_change) : null,
         oi: Number(v.oi) || null,
+        // Session-cumulative traded quantity (shares for equities). Feeds the
+        // stock Outlook's "volume vs usual" pace; nothing else reads it.
+        volume: Number(v.volume) || null,
       };
     }
     return out;

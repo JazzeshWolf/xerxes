@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords, pruneEvents, pruneNews } from "./stock-news.mjs";
+import {
+  parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords, pruneEvents, pruneNews,
+  nseTime, parseCorporateActions, parseAnnouncements, classifyFiling, pruneFilings,
+} from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 // Fixed reference so "28 Aug" resolves deterministically.
@@ -172,5 +175,98 @@ describe("pruneNews", () => {
   it("tolerates junk", () => {
     expect(pruneNews(null, "SBIN", "State Bank of India")).toEqual([]);
     expect(pruneNews([{}], "SBIN", "State Bank of India")).toEqual([]);
+  });
+});
+
+describe("NSE corporate actions + filings", () => {
+  const NOW = Date.parse("2026-10-10T05:00:00Z"); // 10:30 IST
+
+  it("nseTime reads NSE's three date shapes as IST", () => {
+    expect(new Date(nseTime("25-Oct-2026")).toISOString()).toBe("2026-10-24T18:30:00.000Z");
+    expect(new Date(nseTime("09-Oct-2026 18:30:12")).toISOString()).toBe("2026-10-09T13:00:12.000Z");
+    expect(new Date(nseTime("2026-10-09 18:30:12")).toISOString()).toBe("2026-10-09T13:00:12.000Z");
+    expect(nseTime("-")).toBeNull();
+    expect(nseTime(null)).toBeNull();
+  });
+
+  it("dates a corporate action on its ex-date and drops the history", () => {
+    const ev = parseCorporateActions(
+      [
+        { subject: "Interim Dividend - Rs 21 Per Share", exDate: "24-Oct-2026", recDate: "24-Oct-2026" },
+        { subject: "Bonus 1:1", exDate: "-", recDate: "30-Oct-2026" },
+        { subject: "Dividend - Rs 2 Per Share", exDate: "01-Aug-2019" },
+      ],
+      NOW,
+    );
+    expect(ev.map((e) => [e.kind, e.date])).toEqual([
+      ["Dividend", "2026-10-24"],
+      ["Bonus issue", "2026-10-30"],
+    ]);
+    expect(ev.every((e) => e.source === "nse" && !e.approx)).toBe(true);
+  });
+
+  it("an earnings call is its own kind, not Results", () => {
+    expect(classifyEvent("Infosys Q2 earnings call on 16 October")).toBe("Earnings call");
+    expect(classifyFiling("Analysts/Institutional Investor Meet/Con. Call Updates")).toBe("Earnings call");
+  });
+
+  it("screens out housekeeping before classifying — a trading window is not Results", () => {
+    expect(classifyFiling("Trading Window closure for the purpose of financial results")).toBeNull();
+    expect(classifyFiling("Copy of Newspaper Publication of financial results")).toBeNull();
+    expect(classifyFiling("Outcome of Board Meeting - financial results")).toBe("Results");
+    expect(classifyFiling("Receipt of order worth Rs 480 crore")).toBe("Order win");
+    expect(classifyFiling("General updates")).toBeNull();
+  });
+
+  it("puts a con-call date on the calendar and ignores the reporting period", () => {
+    const { filings, events } = parseAnnouncements(
+      [
+        {
+          desc: "Analysts/Institutional Investor Meet/Con. Call Updates",
+          attchmntText: "Schedule of earnings call on October 16, 2026 for the quarter ended September 30, 2026",
+          sort_date: "2026-10-08 18:30:12",
+          attchmntFile: "https://nsearchives.nseindia.com/corporate/x.pdf",
+        },
+        {
+          // No year on the period: without stripping it, "September 30" would
+          // roll forward to NEXT September and be read as the meeting date.
+          desc: "Board Meeting Intimation",
+          attchmntText: "to consider the financial results for the quarter ended September 30 at its meeting on 14 October",
+          an_dt: "01-Oct-2026 10:00:00",
+        },
+        { desc: "Shareholders meeting", attchmntText: "52nd Annual General Meeting to be held on Thursday, 5th November, 2026", sort_date: "2026-10-09 10:00:00" },
+        { desc: "Trading Window-XBRL", attchmntText: "closure of trading window", sort_date: "2026-10-09 10:00:00" },
+        { desc: "Press Release", attchmntText: "old news", sort_date: "2026-08-01 10:00:00" },
+      ],
+      NOW,
+    );
+    expect(events.map((e) => [e.kind, e.date])).toEqual([
+      ["Earnings call", "2026-10-16"],
+      ["Results", "2026-10-14"],
+      ["AGM", "2026-11-05"],
+    ]);
+    // Newest first; housekeeping and anything past the window are gone.
+    expect(filings.map((f) => f.kind)).toEqual(["AGM", "Earnings call", "Results"]);
+    expect(filings[1].url).toMatch(/^https:/);
+  });
+
+  it("never dates an event from a filing that only names a past period", () => {
+    const { events, filings } = parseAnnouncements(
+      [{ desc: "Outcome of Board Meeting", attchmntText: "results for the quarter ended June 30, 2026", sort_date: "2026-10-09 10:00:00" }],
+      NOW,
+    );
+    expect(filings).toHaveLength(1);
+    expect(events).toEqual([]);
+  });
+
+  it("pruneFilings drops what has aged out", () => {
+    const kept = pruneFilings(
+      [
+        { kind: "Order win", title: "a", publishedAt: "2026-10-09T00:00:00Z" },
+        { kind: "Order win", title: "b", publishedAt: "2026-08-01T00:00:00Z" },
+      ],
+      NOW,
+    );
+    expect(kept.map((f) => f.title)).toEqual(["a"]);
   });
 });

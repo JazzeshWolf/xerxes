@@ -1,58 +1,33 @@
-import { useMemo } from "preact/hooks";
-import type { Snapshot, StockNewsItem, StockEvent, StockRow } from "../lib/types";
-import { fmtPct, fmtExpiry, timeAgo } from "../lib/format";
+import type { Snapshot, StockNewsItem } from "../lib/types";
+import { timeAgo } from "../lib/format";
 import { Card, Badge } from "./ui";
 
 /**
- * What could move THIS stock: its own headlines, the scheduled events between
- * now and expiry, and how the rest of its sector is trading.
+ * THIS company's headlines. "Fetch latest news" asks the refresh Worker for
+ * them live — a few seconds, straight from Google News and NSE — and overlays
+ * the answer on the published snapshot (see `mergeLiveNews`). Without the
+ * Worker the button can only re-pull the published copy, which the rotation
+ * refreshes every ~2 h, so the tab says that and offers a live search link.
  *
- * Only the news list needs fetching. Events always include the options-implied
- * window (derived from the IV term structure at build time), and the peer panel
- * is pure arithmetic over the screener index — so this tab still says something
- * useful on a run where every scrape failed.
+ * Scheduled events, filings and sector peers live on the Outlook tab.
  */
 const impactTone = (i: string) => (i === "up" ? "up" : i === "down" ? "down" : "neutral");
-const EVENT_SOURCE_NOTE: Record<StockEvent["source"], string> = {
-  nse: "NSE calendar",
-  news: "from news",
-  options: "implied by option prices",
-};
 
 export function StockNewsTab({
   snap,
-  peers,
   onFetch,
   fetching,
   fetchError,
   canFetch,
-  onOpenPeer,
 }: {
   snap: Snapshot;
-  peers: StockRow[];
   onFetch: () => void;
   fetching: boolean;
   fetchError: string | null;
   canFetch: boolean;
-  onOpenPeer: (file: string, name: string) => void;
 }) {
   const news = snap.news ?? [];
-  const events = snap.events ?? [];
-  const sector = snap.sector ?? null;
-
-  // Peer stats: the sector's median day-move, and where this stock sits in it.
-  const peerStats = useMemo(() => {
-    const others = peers.filter((p) => p.symbol !== snap.index && p.changePct != null);
-    if (!others.length) return null;
-    const moves = others.map((p) => p.changePct as number).sort((a, b) => a - b);
-    const median = moves[Math.floor(moves.length / 2)];
-    const mine = snap.spot.changePct;
-    return {
-      median,
-      relative: mine != null ? mine - median : null,
-      ranked: [...others].sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0)),
-    };
-  }, [peers, snap.index, snap.spot.changePct]);
+  const liveSearch = `https://news.google.com/search?q=${encodeURIComponent(`"${snap.name}" OR "${snap.index}"`)}&hl=en-IN&gl=IN&ceid=IN:en`;
 
   return (
     <div className="space-y-3">
@@ -72,17 +47,15 @@ export function StockNewsTab({
           {fetching ? "Fetching…" : "Fetch latest news"}
         </button>
 
-        {fetching && (
-          <div className="text-[10px] text-sky-300/80 mb-2">
-            Rebuilding {snap.index} with fresh news — ~30–60s.
-          </div>
-        )}
-        {fetchError && !fetching && <div className="text-[10px] text-amber-300/80 mb-2">{fetchError}</div>}
+        {fetching && <div className="text-[10px] text-sky-300/80 mb-2">Asking Google News and NSE for {snap.index} — a few seconds.</div>}
+        {fetchError && !fetching && <div className="text-[10px] text-amber-300 mb-2">{fetchError}</div>}
         {!canFetch && !fetching && (
           <div className="text-[10px] text-white/50 leading-relaxed mb-2">
-            Live fetching needs the refresh worker (<span className="tnum">worker/README.md</span>). Until
-            it's deployed this button just re-pulls the last published copy, and news fills in on a
-            rotation — a few names per build, oldest first.
+            Live fetching needs the refresh Worker (<span className="tnum">worker/README.md</span>) — until it's
+            deployed this button only re-pulls the published copy, which refreshes on a ~2 h rotation.{" "}
+            <a href={liveSearch} target="_blank" rel="noopener noreferrer" className="text-sky-300 underline underline-offset-2">
+              Search Google News live ↗
+            </a>
           </div>
         )}
 
@@ -93,84 +66,17 @@ export function StockNewsTab({
             ))}
           </div>
         ) : (
-          <div className="text-[11px] text-white/50 py-3 text-center">
-            No news cached for {snap.index} yet.
-          </div>
-        )}
-      </Card>
-
-      <Card title="What's coming" right={<span className="text-[9px] text-white/45">before / around expiry</span>}>
-        {events.length ? (
-          <div className="space-y-1.5">
-            {events.map((e, i) => (
-              <EventRow key={`${e.kind}-${e.date ?? i}`} e={e} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-[11px] text-white/50 py-3 text-center">
-            Nothing scheduled that we can see, and the option chain isn't pricing an event either.
-          </div>
+          <div className="text-[11px] text-white/50 py-3 text-center">No news cached for {snap.index} yet.</div>
         )}
         <div className="text-[9px] text-white/45 mt-2 leading-relaxed">
-          A dated entry comes from NSE's calendar or a headline. "Event priced in" is inferred from the
-          IV term structure — it means the market expects <em>something</em> before that expiry, without
-          naming it.
+          Upcoming results, earnings calls, AGMs, exchange filings and the sector are on the Outlook tab.
         </div>
-      </Card>
-
-      <Card
-        title={sector ? `${sector} today` : "Sector"}
-        right={<span className="text-[9px] text-white/45">{peerStats ? `${peerStats.ranked.length} peers` : ""}</span>}
-      >
-        {!sector || !peerStats ? (
-          <div className="text-[11px] text-white/50 py-3 text-center">No sector peers available.</div>
-        ) : (
-          <>
-            <div className="flex items-baseline justify-between mb-2">
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-white/45">Sector median</div>
-                <div className={`text-sm font-semibold tnum ${peerStats.median < 0 ? "text-rose-400" : "text-emerald-400"}`}>
-                  {fmtPct(peerStats.median, 2)}
-                </div>
-              </div>
-              {peerStats.relative != null && (
-                <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wide text-white/45">
-                    {snap.index} vs sector
-                  </div>
-                  <div className={`text-sm font-semibold tnum ${peerStats.relative < 0 ? "text-rose-400" : "text-emerald-400"}`}>
-                    {fmtPct(peerStats.relative, 2)}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="space-y-0.5">
-              {peerStats.ranked.map((p) => (
-                <button
-                  key={p.symbol}
-                  onClick={() => onOpenPeer(p.file, p.name)}
-                  className="w-full flex items-center gap-2 py-1 px-1 rounded-lg active:bg-white/[0.05] text-left text-[11px]"
-                >
-                  <span className="w-[86px] shrink-0 font-semibold text-white/85 truncate">{p.symbol}</span>
-                  <span className="flex-1 min-w-0 text-[10px] text-white/45 truncate">{p.name}</span>
-                  <span className={`shrink-0 tnum ${(p.changePct ?? 0) < 0 ? "text-rose-400" : "text-emerald-400"}`}>
-                    {fmtPct(p.changePct, 2)}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="text-[9px] text-white/45 mt-2 leading-relaxed">
-              A stock moving against its whole sector is usually reacting to something of its own —
-              worth finding before selling into it.
-            </div>
-          </>
-        )}
       </Card>
     </div>
   );
 }
 
-function NewsRow({ n }: { n: StockNewsItem }) {
+export function NewsRow({ n }: { n: StockNewsItem }) {
   return (
     <a
       href={n.url}
@@ -187,25 +93,5 @@ function NewsRow({ n }: { n: StockNewsItem }) {
         {n.trusted ? " ✓" : ""} · {timeAgo(n.publishedAt)}
       </div>
     </a>
-  );
-}
-
-function EventRow({ e }: { e: StockEvent }) {
-  const days = e.date ? Math.round((Date.parse(`${e.date}T00:00:00Z`) - Date.now()) / 86400000) : null;
-  return (
-    <div className="flex items-start gap-2 text-[11px]">
-      <span className="w-[92px] shrink-0 tnum text-white/80">
-        {e.date ? fmtExpiry(e.date) : "date unknown"}
-        {days != null && days >= 0 && <span className="text-white/45"> · {days}d</span>}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-white/85">{e.kind}</span>
-          {e.approx && <span className="text-[9px] text-amber-300/80">approx</span>}
-        </div>
-        <div className="text-[10px] text-white/50 leading-snug">{e.title}</div>
-        <div className="text-[9px] text-white/40">{EVENT_SOURCE_NOTE[e.source]}</div>
-      </div>
-    </div>
   );
 }

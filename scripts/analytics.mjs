@@ -1440,3 +1440,89 @@ export function sellConviction(inp) {
     quote: quote ?? null,
   };
 }
+
+// ===========================================================================
+// What's moving a stock — feeds the stock Outlook tab
+// ===========================================================================
+// Descriptive, not predictive: these say how the name has traded against the
+// market, never what it will do. The split of today's move into market /
+// sector / own is done client-side (src/lib/outlook.ts), because the sector
+// half needs every peer's move and the browser already has index.json.
+
+/**
+ * Trailing % returns from a dated close series up to `last`. `closes` are
+ * oldest-first and must END AT THE PREVIOUS SESSION — the live price is passed
+ * separately as `last`, so an intraday run and a post-close run measure the
+ * same windows. A window of n sessions compares against the close n sessions
+ * back (n=1 would be the day move). Missing history → null, never a guess.
+ */
+export function trailingReturns(closes, last, windows = { w1: 5, m1: 21, m3: 63 }) {
+  const c = (Array.isArray(closes) ? closes : []).map((p) => Number(p?.c ?? p?.v)).filter((x) => x > 0);
+  const out = {};
+  for (const [k, n] of Object.entries(windows)) {
+    const base = c.length >= n ? c[c.length - n] : null;
+    out[k] = base > 0 && last > 0 ? round((last / base - 1) * 100, 2) : null;
+  }
+  return out;
+}
+
+/**
+ * Beta of a stock to an index from daily log returns, the two series aligned on
+ * DATE (a stock halt or an index-only holiday must not shift one series against
+ * the other). Uses the last `n` common returns; null below `minPoints`.
+ */
+export function betaTo(stock, index, n = 120, minPoints = 40) {
+  const idx = new Map();
+  for (const p of Array.isArray(index) ? index : []) {
+    const v = Number(p?.c ?? p?.v);
+    if (p?.t && v > 0) idx.set(p.t, v);
+  }
+  const joint = [];
+  for (const p of Array.isArray(stock) ? stock : []) {
+    const v = Number(p?.c ?? p?.v);
+    if (p?.t && v > 0 && idx.has(p.t)) joint.push([v, idx.get(p.t)]);
+  }
+  const rs = [];
+  const rm = [];
+  for (let i = 1; i < joint.length; i++) {
+    rs.push(Math.log(joint[i][0] / joint[i - 1][0]));
+    rm.push(Math.log(joint[i][1] / joint[i - 1][1]));
+  }
+  const s = rs.slice(-n);
+  const m = rm.slice(-n);
+  if (s.length < minPoints) return null;
+  const ms = s.reduce((a, x) => a + x, 0) / s.length;
+  const mm = m.reduce((a, x) => a + x, 0) / m.length;
+  let cov = 0;
+  let varM = 0;
+  for (let i = 0; i < s.length; i++) {
+    cov += (s[i] - ms) * (m[i] - mm);
+    varM += (m[i] - mm) ** 2;
+  }
+  return varM > 0 ? round(cov / varM, 2) : null;
+}
+
+/**
+ * Today's traded volume against the trailing average, adjusted for how much of
+ * the session has elapsed (09:15–15:30 IST). The adjustment is linear and
+ * therefore rough — real volume is front-loaded, so an early-morning pace reads
+ * high — which the UI says. Before the open, or with no average, `pace` is null.
+ */
+export function volumePace(todayVolume, bars, nowMs = Date.now(), lookback = 20) {
+  const vols = (Array.isArray(bars) ? bars : []).map((b) => Number(b?.v)).filter((v) => v > 0).slice(-lookback);
+  const avg = vols.length >= 5 ? vols.reduce((a, v) => a + v, 0) / vols.length : null;
+  const ist = new Date(nowMs + 330 * 60000);
+  const weekday = ist.getUTCDay() >= 1 && ist.getUTCDay() <= 5;
+  const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  const OPEN = 9 * 60 + 15;
+  const SESSION = 375;
+  // Off-session days and post-close: the day's volume is complete.
+  const frac = !weekday || mins >= OPEN + SESSION ? 1 : mins < OPEN ? 0 : Math.max(0.05, (mins - OPEN) / SESSION);
+  const vol = Number(todayVolume) > 0 ? Number(todayVolume) : null;
+  return {
+    today: vol,
+    avg: avg != null ? Math.round(avg) : null,
+    pace: vol != null && avg && frac > 0 ? round(vol / (avg * frac), 2) : null,
+    sessionFrac: round(frac, 2),
+  };
+}

@@ -111,9 +111,20 @@ outside the header band where the toggle was added.
 - **Indices**: tabs Verdict / Chain / Holistic / Outlook / News / Position.
 - **Stocks**: `StockScreenerView` (search + liquidity/structure list + top
   premium-selling candidates) → `StockDashboard` (reuses the index tab components;
-  tabs Verdict / Chain / Holistic / **News** / Position — no macro Outlook).
-  The stock News tab is per-COMPANY, not the macro one: its own headlines, its
-  corporate events, and its sector peers.
+  tabs Verdict / Chain / Holistic / **Outlook** / **News** / Position — the same
+  set as indices). Both Outlook and News are per-COMPANY, not macro:
+  - **Outlook** (`StockOutlookTab`, added 2026-10-10): *what's moving it* (the
+    day's move split into market β×NIFTY / sector / own — `src/lib/outlook.ts`,
+    an approximation that always sums back — plus beta, futures buildup and
+    volume pace), *what's coming* (results, earnings calls, AGMs, ex-dates,
+    options-implied window, macro dates up to expiry+7d, each badged before/after
+    the selected expiry), *sector & market* (1D/1W/1M/3M vs sector median vs
+    NIFTY, peers ranked with the stock itself highlighted), *exchange filings*
+    and *headlines that could move it*. Peers cost zero requests — they come from
+    `index.json`, whose rows now carry `perf` + `beta`.
+  - **News**: headlines only, plus **Fetch latest news**, which calls the
+    Worker's live `/news` (see below) and overlays the answer via
+    `mergeLiveNews`. Without the Worker it re-pulls and offers a Google News link.
 - The index dashboard (`src/app.tsx`) was long **deliberately untouched** by stock
   work, and stock UI duplicates the shell rather than parameterising it. That rule
   has now been relaxed **twice**, both times deliberately:
@@ -432,6 +443,30 @@ what `VolPremiumCard`'s `kind="index"` copy says when VRP drops near or below 1.
 
 ### Per-stock news + events (`scripts/stock-news.mjs`)
 
+**Since 2026-10-10 there are two more NSE feeds and a live path:**
+- `nse.fetchCorporateActions` → events dated on the **ex-date** (the day the
+  price adjusts); `nse.fetchAnnouncements` → `filings` (last 21 days, kinds in
+  `FILING_KINDS`, housekeeping screened out FIRST by `FILING_SKIP` — a
+  trading-window notice says "financial results" and would otherwise file as
+  Results) and dated events parsed from filing text (con calls, AGM/EGM, board
+  meetings). `PERIOD_ENDED` strips "quarter ended September 30" before the date
+  is read; without it a yearless period rolls forward a year. **Both endpoints'
+  shapes are from public scrapers, not verified from here (sandbox can't reach
+  NSE)** — if filings stay empty on names that clearly filed, check the run log
+  for `nse announcements` warnings and the field names in `parseAnnouncements`.
+- All NSE calls share one primed cookie for 2 min (`primeCookies` caches the
+  in-flight promise), so three calls per name don't triple the bot-wall hits.
+- `fetchCompanyBundle` is the single entry point, used by the build's rotation
+  AND by the Worker's `/news`. It returns `nseOk`; when false the build
+  **carries the previous NSE events/filings forward** — before this, any news
+  pass on which NSE failed silently erased a stock's known results date.
+- The RSS primitives moved to `scripts/rss.mjs` (re-exported from market.mjs)
+  because market.mjs imports upstox.mjs → `node:zlib`, which a Worker can't
+  bundle. Keep `stock-news.mjs`'s import graph Node-free (`worker/index.test.mjs`
+  exercises it; bundle check: `esbuild worker/index.js --bundle --platform=neutral`).
+- `snap.outlook` = `{ perf, beta, volume, benchmark }` from `buildOutlook`;
+  NIFTY is fetched once per run (`fetchBenchmark`). Quotes now carry `volume`.
+
 `market.mjs` answers "what is happening to the market"; this answers "what is
 happening to THIS company". Its RSS primitives (`getText`, `stripTags`,
 `decodeEntities`, `tagImpact`, `isTrusted`) are **exported from market.mjs and
@@ -698,8 +733,9 @@ don't delete it without a separate decision to do so.
     `book.yml` here reading the archive with a **read-only deploy key**, publishing
     to an orphan `book-data` branch. That makes the daily-list history public —
     needs a yes first.
-- Optional: deploy the Cloudflare Worker (`worker/`) to enable true on-demand
-  in-app refresh (steps in `worker/README.md`).
+- **Deploy the Cloudflare Worker (`worker/`)** — required for "Fetch latest news"
+  to fetch live (news-only needs no PAT), and for true on-demand rebuilds.
+  Steps in `worker/README.md`; then set the `STOCK_REFRESH_URL` repo variable.
 
 ---
 

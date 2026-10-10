@@ -1,7 +1,8 @@
-import { useEffect, useState } from "preact/hooks";
-import type { IndexKey, Snapshot, MarketData, StockScreener, StockCandidates } from "../lib/types";
+import { useEffect, useMemo, useState } from "preact/hooks";
+import type { IndexKey, Snapshot, MarketData, StockScreener, StockCandidates, LiveNews } from "../lib/types";
 import { INDEX_META } from "../lib/types";
 import { rawUrl, pagesUrl, rawStockUrl } from "../lib/dataSource";
+import { mergeLiveNews } from "../lib/outlook";
 
 export interface Dash {
   snap: Snapshot | null;
@@ -127,7 +128,14 @@ export interface StockDash extends Dash {
   hardRefresh: () => void; // trigger a live rebuild (falls back to re-pull)
   refreshing: boolean; // a live rebuild is in flight
   refreshError: string | null;
+  /** Live headlines/events/filings via the Worker's /news (falls back to re-pull). */
+  fetchNews: () => void;
+  newsFetching: boolean;
+  newsError: string | null;
 }
+
+/** Whether the Worker is configured — live news and live rebuilds both need it. */
+export const HAS_REFRESH_PROXY = Boolean(STOCK_REFRESH_URL);
 
 /** Stock screener list + top premium-selling candidates. */
 export function useStockScreener() {
@@ -214,6 +222,14 @@ export function useStock(file: string): StockDash {
   // keeps the old snapshot on screen, so it doesn't flash "Loading" or reset
   // the chosen expiry/tab under the user.
   useEffect(() => setSnap(null), [file]);
+  // Live news is per stock; never let one name's answer sit on another.
+  const [live, setLive] = useState<LiveNews | null>(null);
+  const [newsFetching, setNewsFetching] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
+  useEffect(() => {
+    setLive(null);
+    setNewsError(null);
+  }, [file]);
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -269,5 +285,43 @@ export function useStock(file: string): StockDash {
     }
   };
 
-  return { snap, loading, error, refresh: () => setTick((x) => x + 1), hardRefresh, refreshing, refreshError };
+  // "Fetch latest news": ask the Worker for this company's headlines, NSE
+  // calendar and filings LIVE (a few seconds, no Actions run, no Upstox), and
+  // overlay them on the published snapshot. The overlay survives the 5-minute
+  // auto re-pull for as long as it is newer than what was published.
+  const fetchNews = async () => {
+    const symbol = snap?.index;
+    if (!STOCK_REFRESH_URL || !symbol) {
+      setTick((x) => x + 1); // no Worker → the best we can do is re-pull
+      return;
+    }
+    setNewsFetching(true);
+    setNewsError(null);
+    try {
+      const r = await fetch(`${STOCK_REFRESH_URL}/news?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`news service answered ${r.status}`);
+      const j: LiveNews = await r.json();
+      setLive(j);
+      if (!j.news?.length) setNewsError("Google News returned nothing just now — showing the last published headlines.");
+    } catch (e) {
+      setNewsError(`Couldn't fetch live news (${String((e as Error).message ?? e)}). Showing the last published copy.`);
+    } finally {
+      setNewsFetching(false);
+    }
+  };
+
+  const merged = useMemo(() => (snap ? mergeLiveNews(snap, live) : null), [snap, live]);
+
+  return {
+    snap: merged,
+    loading,
+    error,
+    refresh: () => setTick((x) => x + 1),
+    hardRefresh,
+    refreshing,
+    refreshError,
+    fetchNews,
+    newsFetching,
+    newsError,
+  };
 }

@@ -954,3 +954,48 @@ describe("sellConviction quote factor", () => {
     expect(poor.notes.join(" ")).toMatch(/marginal quote/);
   });
 });
+
+describe("what's moving a stock", () => {
+  const series = (vals, start = "2026-01-01") =>
+    vals.map((c, i) => ({ t: new Date(Date.parse(start) + i * 86400000).toISOString().slice(0, 10), c }));
+
+  it("trailingReturns compares the live price with the close n sessions back", () => {
+    const closes = series([100, 101, 102, 103, 104, 105, 106]);
+    // 5 sessions back from the last close (106) is 102.
+    expect(A.trailingReturns(closes, 107.1, { w1: 5 }).w1).toBeCloseTo(5, 6);
+    // Not enough history → null, never a partial-window guess.
+    expect(A.trailingReturns(closes, 107, { m1: 21 }).m1).toBeNull();
+    expect(A.trailingReturns([], 100).w1).toBeNull();
+  });
+
+  it("betaTo recovers a known beta and aligns on dates, not positions", () => {
+    let s = 100, m = 100;
+    const idx = [], stk = [];
+    for (let i = 0; i < 90; i++) {
+      const r = Math.sin(i * 1.7) * 0.01;
+      m *= Math.exp(r);
+      s *= Math.exp(1.5 * r);
+      const t = new Date(Date.UTC(2026, 0, 1) + i * 86400000).toISOString().slice(0, 10);
+      idx.push({ t, v: m });
+      stk.push({ t, c: s });
+    }
+    expect(A.betaTo(stk, idx)).toBeCloseTo(1.5, 2);
+    // A day missing from the stock (halt) must not misalign the rest.
+    const halted = stk.filter((_, i) => i !== 40);
+    expect(A.betaTo(halted, idx)).toBeCloseTo(1.5, 1);
+    expect(A.betaTo(stk.slice(0, 20), idx)).toBeNull();
+  });
+
+  it("volumePace scales by the elapsed session and is complete after the close", () => {
+    const bars = Array.from({ length: 20 }, () => ({ v: 1000 }));
+    // 12:22:30 IST ≈ half the 375-min session → 500 traded is a normal pace.
+    const midday = Date.parse("2026-10-09T06:52:30Z");
+    expect(A.volumePace(500, bars, midday).pace).toBeCloseTo(1, 1);
+    // After 15:30 IST the full day counts.
+    const close = Date.parse("2026-10-09T11:00:00Z");
+    expect(A.volumePace(2000, bars, close).pace).toBe(2);
+    // Before the open there is no "today" pace yet.
+    expect(A.volumePace(500, bars, Date.parse("2026-10-09T03:00:00Z")).pace).toBeNull();
+    expect(A.volumePace(500, [], close).pace).toBeNull();
+  });
+});
