@@ -13,14 +13,22 @@
 //   3. the news feed itself — dates parsed out of headlines; approximate.
 //   4. Moneycontrol / ET / Mint — reached through Google News `source:`
 //      operators rather than a separate scraper.
+// Plus two more NSE feeds riding the same session: corporate actions (ex-dates
+// for dividends, bonus, splits) and the exchange filings themselves — con-call
+// schedules, shareholder-meeting notices, order wins. Filings are kept as their
+// own list too, since they are the primary source the headlines come from.
+//
+// Imports only Node-free modules (rss.mjs, nse.mjs, the universe) so the
+// refresh Worker can bundle this file and serve the same thing live.
 // They are merged and deduped, so a run where three of them fail still shows
 // something useful.
 //
 // Everything fails soft to empty — a stock with no news is normal, not an error.
 // ---------------------------------------------------------------------------
 
-import { getText, stripTags, decodeEntities, tagImpact, isTrusted } from "./market.mjs";
+import { getText, stripTags, decodeEntities, tagImpact, isTrusted } from "./rss.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
+import * as nse from "./nse.mjs";
 
 const RSS_HEADERS = {
   "User-Agent": "Mozilla/5.0",
@@ -35,10 +43,13 @@ const SOURCES = ["Moneycontrol", "Economic Times", "Mint", "Business Standard", 
 
 /** Event keywords → a short kind label. Order matters; first match wins. */
 const EVENT_KINDS = [
-  [/\b(q[1-4]|quarterly|half[- ]year|annual)\s+(results|earnings)|results? (date|on|announce)|earnings call/i, "Results"],
+  // Ahead of Results: "Q2 earnings call on 16 Oct" is the call, not the filing.
+  [/earnings (conference )?call|con(ference)?\.?[- ]?call|analysts?(\/institutional)? (investor )?meet|investors? meet/i, "Earnings call"],
+  [/\b(q[1-4]|quarterly|half[- ]year|annual)\s+(results|earnings)|results? (date|on|announce)/i, "Results"],
   [/board meeting/i, "Board meeting"],
   [/\bdividend\b/i, "Dividend"],
   [/buy[- ]?back/i, "Buyback"],
+  [/\begm\b|extra[- ]?ordinary general meeting/i, "EGM"],
   [/\bagm\b|annual general meeting/i, "AGM"],
   [/stock split|\bsplit\b/i, "Stock split"],
   [/\bbonus (issue|share)/i, "Bonus issue"],
@@ -333,4 +344,174 @@ export async function fetchStockNews(symbol, name, { now = Date.now() } = {}) {
   }
 
   return { news, events };
+}
+
+// --- NSE corporate actions + filings -----------------------------------------
+
+const MON3 = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+
+/**
+ * NSE's dates, in the shapes its APIs actually use: "25-Oct-2024",
+ * "09-Oct-2026 18:30:12" and "2026-10-09 18:30:12". Times are IST. Returns
+ * epoch ms, or null for "-" and anything else unparseable. Explicit rather
+ * than `new Date(str)`, whose handling of these strings is engine-dependent.
+ */
+export function nseTime(s) {
+  const t = String(s ?? "").trim();
+  let m = t.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (m) {
+    const mon = MON3[m[2].toLowerCase()];
+    if (mon == null) return null;
+    return Date.UTC(+m[3], mon, +m[1], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0)) - IST_OFFSET_MS;
+  }
+  m = t.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0)) - IST_OFFSET_MS;
+  return null;
+}
+const IST_OFFSET_MS = 330 * 60000;
+/** The IST calendar day of an epoch, as ISO yyyy-mm-dd. */
+const istDay = (ms) => new Date(ms + IST_OFFSET_MS).toISOString().slice(0, 10);
+
+/**
+ * Corporate actions → events dated on the EX-date, which is the day the price
+ * actually adjusts (a dividend comes off the stock that morning). Record date is
+ * the fallback. Past actions older than a week are dropped, for the same reason
+ * as the event calendar: NSE hands back the whole history.
+ */
+export function parseCorporateActions(rows, now = Date.now()) {
+  const from = now - 7 * 86400000;
+  const out = [];
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const subject = String(r?.subject ?? r?.purpose ?? "").replace(/\s+/g, " ").trim();
+    if (!subject) continue;
+    const ms = nseTime(r?.exDate) ?? nseTime(r?.recDate);
+    if (ms == null || ms < from) continue;
+    // NSE subjects are terse ("Bonus 1:1"), so the filing vocabulary fits them
+    // better than the headline one.
+    const kind = classifyFiling(subject) ?? classifyEvent(subject) ?? "Corporate action";
+    out.push({ kind, title: `Ex-date: ${subject}`, date: istDay(ms), approx: false, source: "nse" });
+  }
+  return out.sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 6);
+}
+
+/**
+ * Exchange filings worth a seller's attention, in order of precedence. Anything
+ * matching none of these is routine paperwork and is dropped. Housekeeping is
+ * screened out FIRST: a trading-window notice says "…for the purpose of
+ * financial results" and would otherwise file itself under Results.
+ */
+const FILING_SKIP =
+  /trading window|newspaper|news ?paper publication|loss of share|duplicate share|certificate under|regulation 74|reg\.? ?74|\besop\b|\besos\b|\besps\b|compliance certificate|statement of investor complaints|copy of/i;
+const FILING_KINDS = [
+  [/earnings (conference )?call|con(ference)?\.?[- ]?call|analysts?|institutional investor|investors? meet/i, "Earnings call"],
+  [/extra[- ]?ordinary general meeting|\begm\b/i, "EGM"],
+  [/annual general meeting|\bagm\b|shareholders?'? meeting/i, "AGM"],
+  [/postal ballot/i, "Postal ballot"],
+  [/outcome of board meeting|financial results?|results? for the (quarter|period|half|year)/i, "Results"],
+  [/board meeting/i, "Board meeting"],
+  [/dividend/i, "Dividend"],
+  [/\bbonus\b/i, "Bonus issue"],
+  [/\bsplit\b|sub-?division/i, "Stock split"],
+  [/buy[- ]?back/i, "Buyback"],
+  [/rights issue/i, "Rights issue"],
+  [/\bqip\b|preferential (issue|allotment)|fund ?rais/i, "Fund raise"],
+  [/acquisition|amalgamation|merger|demerger|scheme of arrangement|joint venture/i, "M&A"],
+  [/award(ing)? of (order|contract)|bagging|receipt of (order|contract)|orders? (win|received)|letter of (award|intent)/i, "Order win"],
+  [/credit rating/i, "Credit rating"],
+  [/resignation|cessation|appointment of (md|ceo|cfo|managing|chief|whole)|change in (directors?|management|kmp|key managerial)/i, "Management change"],
+  [/litigation|dispute|penalt|show cause|tax demand|search and seizure|\bsebi order\b|regulatory action/i, "Legal / regulatory"],
+  [/press release|media release/i, "Press release"],
+  [/investor presentation/i, "Investor presentation"],
+];
+/** "quarter ended September 30, 2026" / "half year ending 30th Sept" — a past
+ *  reporting period, never the date of the meeting. Optional year. */
+const PERIOD_ENDED = new RegExp(
+  String.raw`(quarter|period|half[- ]year|year|month)s?\s+end(ed|ing)\s+(on\s+)?` +
+    String.raw`(\d{1,2}(st|nd|rd|th)?\s+[a-z]+\.?|[a-z]+\.?\s+\d{1,2}(st|nd|rd|th)?)(\s*,?\s*\d{4})?`,
+  "gi",
+);
+/** Kinds whose filing normally names a FUTURE date worth putting on the calendar. */
+const SCHEDULED = new Set(["Earnings call", "EGM", "AGM", "Postal ballot", "Board meeting", "Results"]);
+
+export function classifyFiling(text) {
+  const t = String(text ?? "");
+  if (FILING_SKIP.test(t)) return null;
+  for (const [re, kind] of FILING_KINDS) if (re.test(t)) return kind;
+  return null;
+}
+
+/**
+ * Exchange filings → `{ filings, events }`. Filings are the recent price-
+ * sensitive ones, newest first. Events are the dates they announce ahead of us
+ * ("earnings call on October 16, 2026").
+ *
+ * The "quarter ended September 30" phrase is cut before the date is read: it
+ * is the first date in almost every results-related filing, it is always in the
+ * past, and without a year `parseEventDate` would roll it forward a year.
+ */
+export function parseAnnouncements(rows, now = Date.now(), maxAgeDays = 21) {
+  const cutoff = now - maxAgeDays * 86400000;
+  const filings = [];
+  const events = [];
+  const seen = new Set();
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const desc = String(r?.desc ?? r?.subject ?? "").replace(/\s+/g, " ").trim();
+    const body = String(r?.attchmntText ?? r?.text ?? "").replace(/\s+/g, " ").trim();
+    const text = `${desc} ${body}`;
+    const kind = classifyFiling(text);
+    if (!kind) continue;
+    const at = nseTime(r?.sort_date) ?? nseTime(r?.an_dt) ?? nseTime(r?.dt);
+    if (at == null || at < cutoff || at > now + 86400000) continue;
+    const title = (body || desc).slice(0, 220);
+    const key = `${kind}|${title.toLowerCase().slice(0, 80)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const url = /^https?:\/\//.test(String(r?.attchmntFile ?? "")) ? String(r.attchmntFile) : null;
+    filings.push({ kind, title, desc, publishedAt: new Date(at).toISOString(), url, impact: tagImpact(text) });
+
+    if (SCHEDULED.has(kind)) {
+      const cleaned = text.replace(PERIOD_ENDED, " ");
+      const date = parseEventDate(cleaned, now);
+      const ms = date ? Date.parse(`${date}T00:00:00Z`) : null;
+      // Today or later, and not absurdly far out (a misread year).
+      if (ms != null && ms >= Date.parse(`${istDay(now)}T00:00:00Z`) && ms <= now + 120 * 86400000) {
+        events.push({ kind, title: title.slice(0, 160), date, approx: false, source: "nse", ...(url ? { url } : {}) });
+      }
+    }
+  }
+  filings.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
+  return { filings: filings.slice(0, 10), events };
+}
+
+/** Drop cached filings that have aged out — same carry-forward logic as news. */
+export function pruneFilings(filings, now = Date.now(), maxAgeDays = 21) {
+  const cutoff = now - maxAgeDays * 86400000;
+  return (Array.isArray(filings) ? filings : []).filter((f) => f?.kind && Date.parse(f.publishedAt) >= cutoff);
+}
+
+/**
+ * Everything the stock's News and Outlook tabs need from the outside world, in
+ * one call: headlines, news-derived events, the NSE calendar, corporate-action
+ * ex-dates and exchange filings. Used by the build's news rotation AND by the
+ * refresh Worker's live /news endpoint, so the two can never disagree.
+ *
+ * `nseOk` says whether NSE answered at all. Its three feeds fail together
+ * (same bot wall), and a failed pass must not be mistaken for "no events" —
+ * the caller carries the previous NSE events forward when it is false.
+ */
+export async function fetchCompanyBundle(symbol, name, { now = Date.now() } = {}) {
+  const [feed, calendar, actions, announcements] = await Promise.all([
+    fetchStockNews(symbol, name, { now }).catch(() => ({ news: [], events: [] })),
+    nse.fetchEventCalendar(symbol).catch(() => []),
+    nse.fetchCorporateActions(symbol).catch(() => []),
+    nse.fetchAnnouncements(symbol, 21, now).catch(() => []),
+  ]);
+  const filed = parseAnnouncements(announcements, now);
+  return {
+    news: feed.news,
+    events: feed.events,
+    nseEvents: [...calendar, ...parseCorporateActions(actions, now), ...filed.events],
+    filings: filed.filings,
+    nseOk: calendar.length > 0 || actions.length > 0 || announcements.length > 0,
+  };
 }

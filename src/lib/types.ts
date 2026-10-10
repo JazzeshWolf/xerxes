@@ -268,6 +268,48 @@ export interface Snapshot {
   events?: StockEvent[];
   /** When this stock's news was last fetched — null if never. */
   newsAsOf?: string | null;
+  /** Recent price-sensitive exchange filings (NSE). */
+  filings?: StockFiling[];
+  /** How the name has traded against NIFTY — the stock Outlook tab. */
+  outlook?: StockOutlook | null;
+}
+
+/** Trailing % returns: day, 1 week (5 sessions), 1 month (21), 3 months (63). */
+export interface Perf {
+  d1: number | null;
+  w1: number | null;
+  m1: number | null;
+  m3: number | null;
+}
+
+export interface StockOutlook {
+  perf: Perf;
+  /** Beta to NIFTY 50 on up to 120 daily returns; null on short history. */
+  beta: number | null;
+  /** Today's volume vs the 20-session average, time-adjusted (rough intraday). */
+  volume: { today: number | null; avg: number | null; pace: number | null; sessionFrac: number | null } | null;
+  benchmark: { name: string; perf: Perf } | null;
+}
+
+/** An exchange filing — the primary source headlines are written from. */
+export interface StockFiling {
+  kind: string;
+  title: string;
+  desc?: string;
+  publishedAt: string;
+  url: string | null;
+  impact?: "up" | "down" | "twoway";
+}
+
+/** The refresh Worker's live /news answer for one stock. */
+export interface LiveNews {
+  symbol: string;
+  newsAsOf: string;
+  news: StockNewsItem[];
+  events: StockEvent[];
+  filings: StockFiling[];
+  /** False when NSE didn't answer — its events/filings are then absent, not empty. */
+  nseOk: boolean;
 }
 
 export interface MarketEvent {
@@ -367,12 +409,15 @@ export interface StockRow {
   conviction?: number | null;
   vrp?: number | null;
   ivRank?: number | null;
+  perf?: Perf | null;
+  beta?: number | null;
 }
 
 export interface StockScreener {
   asOf: string;
   count: number;
   vix: number | null;
+  benchmark?: { name: string; perf: Perf } | null;
   stocks: StockRow[];
 }
 

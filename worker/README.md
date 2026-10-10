@@ -13,6 +13,16 @@ one small piece of glue:
 
 The app works **without** this Worker — the stock Refresh simply re-pulls the last
 published snapshot. Deploy it only when you want true on-demand refresh.
+- `GET /news?symbol=INDIGO` — that company's headlines, NSE results calendar,
+  corporate-action ex-dates and exchange filings, fetched **live** in a few
+  seconds. This is what the stock News tab's **Fetch latest news** button calls.
+  It needs **no GitHub token** and runs no Actions job: it bundles
+  `scripts/stock-news.mjs` (the same `fetchCompanyBundle` the build uses), so the
+  button and the published file can't disagree. Answers are edge-cached 3 min
+  per symbol so repeated taps can't hammer Google News or NSE.
+
+Without the Worker, "Fetch latest news" can only re-pull the published copy
+(refreshed on a ~2 h rotation) and offers a live Google News search link instead.
 
 ## One-time setup (~5 min, all free)
 
@@ -23,13 +33,17 @@ published snapshot. Deploy it only when you want true on-demand refresh.
      *Contents* → **Read-only** (to read the `stocks-data` files).
    - Copy the token (starts with `github_pat_…`).
 
+   *Only `/refresh` and `/data` need it.* If all you want is a working
+   "Fetch latest news", you can skip the PAT (and `wrangler secret put`) — `/news`
+   works on a Worker deployed without it.
+
 2. **Deploy the Worker:**
    ```bash
    cd worker
    npm i -g wrangler          # if you don't have it
    wrangler login             # opens a browser once
-   wrangler secret put GH_PAT # paste the PAT from step 1
-   wrangler deploy
+   wrangler secret put GH_PAT # paste the PAT from step 1 (skip for news-only)
+   wrangler deploy            # bundles ../scripts/stock-news.mjs too — deploy from a full checkout
    ```
    Deploy prints your Worker URL, e.g.
    `https://xerxes-stock-refresh.<your-subdomain>.workers.dev`.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { useStock, useStockScreener } from "../state/store";
+import { useStock, useStockScreener, useMarket, HAS_REFRESH_PROXY } from "../state/store";
 import { SpotStrip } from "./SpotStrip";
 import { VerdictCard } from "./VerdictCard";
 import { HorizonBiasCard } from "./HorizonBiasCard";
@@ -13,17 +13,16 @@ import { FactorsCard } from "./FactorsCard";
 import { HolisticTab } from "./HolisticTab";
 import { PositionTab } from "./PositionTab";
 import { StockNewsTab } from "./StockNewsTab";
+import { StockOutlookTab } from "./StockOutlookTab";
 import { TabBar, type Tab } from "./TabBar";
 import { ThemeToggle } from "./ThemeToggle";
 import { timeAgo } from "../lib/format";
 
-// Whether a live per-stock rebuild can actually be triggered (needs the worker).
-const HAS_REFRESH_PROXY = Boolean(import.meta.env.VITE_STOCK_REFRESH_URL);
-
-// Stocks get the option-centric subset of the index tabs, plus a News tab that
-// is per-COMPANY (headlines, its own corporate events, its sector) rather than
-// the macro one the indices show.
-const TABS: Tab[] = ["verdict", "chain", "holistic", "news", "position"];
+// Same tab set as the index dashboard. Outlook and News are per-COMPANY rather
+// than macro: Outlook answers "what is moving this stock, how is its sector
+// doing, what is scheduled before expiry"; News is its own headlines, fetched
+// live through the refresh Worker when one is deployed.
+const TABS: Tab[] = ["verdict", "chain", "holistic", "outlook", "news", "position"];
 
 /** Per-stock dashboard — same layout/components as the index Dashboard, fed by
  *  a stock snapshot. The index Dashboard is left untouched. */
@@ -45,6 +44,8 @@ export function StockDashboard({
   // The screener index is already loaded/cached by the store and carries every
   // stock's sector + day move — all the peer panel needs, with no extra fetch.
   const { screener } = useStockScreener();
+  // Macro calendar (RBI, Fed, CPI) — the same market.json the index Outlook reads.
+  const market = useMarket();
   const snap = dash.snap;
   const [selectedExpiry, setSelectedExpiry] = useState<string>("");
   const [tab, setTab] = useState<Tab>("verdict");
@@ -135,15 +136,24 @@ export function StockDashboard({
             )}
 
             {tab === "holistic" && <HolisticTab snap={snap} exp={exp} />}
+            {tab === "outlook" && (
+              <StockOutlookTab
+                snap={snap}
+                expiry={exp.date}
+                peers={(screener?.stocks ?? []).filter((r) => snap.sector && r.sector === snap.sector)}
+                benchmark={screener?.benchmark ?? null}
+                market={market.data}
+                onOpenPeer={(f, n) => onOpen?.(f, n)}
+                onShowNews={() => setTab("news")}
+              />
+            )}
             {tab === "news" && (
               <StockNewsTab
                 snap={snap}
-                peers={(screener?.stocks ?? []).filter((r) => snap.sector && r.sector === snap.sector)}
-                onFetch={dash.hardRefresh}
-                fetching={dash.refreshing}
-                fetchError={dash.refreshError}
+                onFetch={dash.fetchNews}
+                fetching={dash.newsFetching}
+                fetchError={dash.newsError}
                 canFetch={HAS_REFRESH_PROXY}
-                onOpenPeer={(f, n) => onOpen?.(f, n)}
               />
             )}
             {tab === "position" && <PositionTab snap={snap} exp={exp} />}

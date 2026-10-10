@@ -111,9 +111,20 @@ outside the header band where the toggle was added.
 - **Indices**: tabs Verdict / Chain / Holistic / Outlook / News / Position.
 - **Stocks**: `StockScreenerView` (search + liquidity/structure list + top
   premium-selling candidates) → `StockDashboard` (reuses the index tab components;
-  tabs Verdict / Chain / Holistic / **News** / Position — no macro Outlook).
-  The stock News tab is per-COMPANY, not the macro one: its own headlines, its
-  corporate events, and its sector peers.
+  tabs Verdict / Chain / Holistic / **Outlook** / **News** / Position — the same
+  set as indices). Both Outlook and News are per-COMPANY, not macro:
+  - **Outlook** (`StockOutlookTab`, added 2026-10-10): *what's moving it* (the
+    day's move split into market β×NIFTY / sector / own — `src/lib/outlook.ts`,
+    an approximation that always sums back — plus beta, futures buildup and
+    volume pace), *what's coming* (results, earnings calls, AGMs, ex-dates,
+    options-implied window, macro dates up to expiry+7d, each badged before/after
+    the selected expiry), *sector & market* (1D/1W/1M/3M vs sector median vs
+    NIFTY, peers ranked with the stock itself highlighted), *exchange filings*
+    and *headlines that could move it*. Peers cost zero requests — they come from
+    `index.json`, whose rows now carry `perf` + `beta`.
+  - **News**: headlines only, plus **Fetch latest news**, which calls the
+    Worker's live `/news` (see below) and overlays the answer via
+    `mergeLiveNews`. Without the Worker it re-pulls and offers a Google News link.
 - The index dashboard (`src/app.tsx`) was long **deliberately untouched** by stock
   work, and stock UI duplicates the shell rather than parameterising it. That rule
   has now been relaxed **twice**, both times deliberately:
@@ -432,6 +443,30 @@ what `VolPremiumCard`'s `kind="index"` copy says when VRP drops near or below 1.
 
 ### Per-stock news + events (`scripts/stock-news.mjs`)
 
+**Since 2026-10-10 there are two more NSE feeds and a live path:**
+- `nse.fetchCorporateActions` → events dated on the **ex-date** (the day the
+  price adjusts); `nse.fetchAnnouncements` → `filings` (last 21 days, kinds in
+  `FILING_KINDS`, housekeeping screened out FIRST by `FILING_SKIP` — a
+  trading-window notice says "financial results" and would otherwise file as
+  Results) and dated events parsed from filing text (con calls, AGM/EGM, board
+  meetings). `PERIOD_ENDED` strips "quarter ended September 30" before the date
+  is read; without it a yearless period rolls forward a year. **Both endpoints'
+  shapes are from public scrapers, not verified from here (sandbox can't reach
+  NSE)** — if filings stay empty on names that clearly filed, check the run log
+  for `nse announcements` warnings and the field names in `parseAnnouncements`.
+- All NSE calls share one primed cookie for 2 min (`primeCookies` caches the
+  in-flight promise), so three calls per name don't triple the bot-wall hits.
+- `fetchCompanyBundle` is the single entry point, used by the build's rotation
+  AND by the Worker's `/news`. It returns `nseOk`; when false the build
+  **carries the previous NSE events/filings forward** — before this, any news
+  pass on which NSE failed silently erased a stock's known results date.
+- The RSS primitives moved to `scripts/rss.mjs` (re-exported from market.mjs)
+  because market.mjs imports upstox.mjs → `node:zlib`, which a Worker can't
+  bundle. Keep `stock-news.mjs`'s import graph Node-free (`worker/index.test.mjs`
+  exercises it; bundle check: `esbuild worker/index.js --bundle --platform=neutral`).
+- `snap.outlook` = `{ perf, beta, volume, benchmark }` from `buildOutlook`;
+  NIFTY is fetched once per run (`fetchBenchmark`). Quotes now carry `volume`.
+
 `market.mjs` answers "what is happening to the market"; this answers "what is
 happening to THIS company". Its RSS primitives (`getText`, `stripTags`,
 `decodeEntities`, `tagImpact`, `isTrusted`) are **exported from market.mjs and
@@ -450,14 +485,35 @@ reused** — don't fork them.
 news over options. The options-implied entry is **recomputed every run**, so the
 list is never bare even when both scrapes fail.
 
-**How news gets fetched.** One query per symbol × ~157 names × 3 runs/hr would be
-rate-limited, so a full run fetches only the **`NEWS_PER_RUN` stalest names by
-`newsAsOf`** — self-balancing, no cursor to persist, and a never-fetched stock
-sorts first. Cached news survives via the same seed step `ivHistory` relies on.
-The **single-symbol path always fetches**, which is what the in-app "Fetch latest
-news" button drives — but that button only truly refreshes once the Cloudflare
-Worker is deployed (`STOCK_REFRESH_URL` unset ⇒ it just re-pulls, and the tab
-says so).
+**How news gets fetched (priority + rotation, since 2026-10-12).** Fetching every
+name every run would be rate-limited, so each full run spends a budget of
+`NEWS_PER_RUN` (40) names in two parts:
+1. **Priority** (`pickNewsPriority`): up to 4 **movers** (`findMovers` — today's
+   move minus β×NIFTY minus the sector's excess ≥ 2%, or volume pace ≥ 2.5×),
+   refreshed every run; then up to 16 **candidates** from the *previous* run's
+   `candidates.json` (this run's list doesn't exist until scoring, which comes
+   after news) whose news is ≥ 35 min old — i.e. every other run. Every-run for
+   all ~25 candidate names would eat the budget, and scores are too bunched
+   (21 names at 60-75 on 9 Oct) to justify a top-N cut.
+2. **Rotation** (`pickNewsQueue`): the stalest of everyone else with what's left
+   — self-balancing, no cursor, never-fetched first.
+
+Replayed on the 9 Oct published state: 30-36 fetches/run; candidate news peaks
+at ~40 min old, the worst stock anywhere ~2.5 h (rotation alone was ~2.8 h). This
+is why the live "Fetch latest news" Worker was judged not worth deploying: the
+names you'd trade are never more than a run or two behind. The run log prints
+`news priority: N (candidates …; movers …); rotation …` — if candidates stays 0
+on runs after the first of the day, the seeded `candidates.json` isn't being read.
+
+`findMovers` (and the Outlook tab's `sectorMedian`) take the sector median
+**including** the stock itself, and only for 3+ names. Excluding it looks purer
+but lets one big mover taint its neighbours: in a 3-name sector BHEL +5% made LT
+and ABB read as −2% "own" moves.
+
+Cached news survives via the same seed step `ivHistory` relies on. The
+**single-symbol path always fetches**. Without the Worker the stock News button
+re-pulls the published copy (labelled "Check for newer news") and links a live
+Google News search.
 
 **⚠️ The rotation must only ever see names that RESOLVED to a chain.** The queue
 lives in `pickNewsQueue` and is fed from the *fetch pass*, not from `STOCKS` —
@@ -698,8 +754,9 @@ don't delete it without a separate decision to do so.
     `book.yml` here reading the archive with a **read-only deploy key**, publishing
     to an orphan `book-data` branch. That makes the daily-list history public —
     needs a yes first.
-- Optional: deploy the Cloudflare Worker (`worker/`) to enable true on-demand
-  in-app refresh (steps in `worker/README.md`).
+- Optional, judged not worth it for now (2026-10-12): deploy the Cloudflare
+  Worker (`worker/`) for live news fetches and on-demand rebuilds. The news
+  priority rotation covers the need; the code is in place if that changes.
 
 ---
 

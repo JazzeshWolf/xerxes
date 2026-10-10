@@ -17,7 +17,17 @@ const HEADERS = {
   Referer: "https://www.nseindia.com/option-chain",
 };
 
-async function primeCookies() {
+// A primed session is reused for a couple of minutes. A news pass now makes
+// three NSE calls per name (event calendar, corporate actions, announcements)
+// across ~25 names; priming before every one of them would double the request
+// count against a bot-protected host for nothing. Only a successful prime is
+// cached, so one bad answer doesn't poison the next two minutes.
+// The in-flight promise is what's cached, so the three calls a name fires in
+// parallel share one prime instead of racing three.
+const COOKIE_TTL_MS = 2 * 60 * 1000;
+let cookieCache = null; // { promise, at }
+
+async function primeOnce() {
   try {
     const r = await fetch("https://www.nseindia.com/option-chain", {
       headers: { ...HEADERS, Accept: "text/html,*/*" },
@@ -27,6 +37,25 @@ async function primeCookies() {
   } catch {
     return null;
   }
+}
+
+async function primeCookies() {
+  if (cookieCache && Date.now() - cookieCache.at < COOKIE_TTL_MS) return cookieCache.promise;
+  const entry = { promise: primeOnce(), at: Date.now() };
+  cookieCache = entry;
+  const value = await entry.promise;
+  if (!value && cookieCache === entry) cookieCache = null;
+  return value;
+}
+
+/** GET an NSE /api path as JSON with a primed session. Throws on failure. */
+async function nseJson(path) {
+  const cookie = await primeCookies();
+  const res = await fetch(`https://www.nseindia.com/api/${path}`, {
+    headers: cookie ? { ...HEADERS, Cookie: cookie } : HEADERS,
+  });
+  if (!res.ok) throw new Error(String(res.status));
+  return res.json();
 }
 
 /**
@@ -155,12 +184,8 @@ export async function yahooHistory(symbol, range = "1y") {
  * of several event sources rather than the truth.
  */
 export async function fetchEventCalendar(symbol) {
-  const cookie = await primeCookies();
-  const url = `https://www.nseindia.com/api/event-calendar?symbol=${encodeURIComponent(symbol)}`;
   try {
-    const res = await fetch(url, { headers: cookie ? { ...HEADERS, Cookie: cookie } : HEADERS });
-    if (!res.ok) throw new Error(String(res.status));
-    const rows = await res.json();
+    const rows = await nseJson(`event-calendar?symbol=${encodeURIComponent(symbol)}`);
     if (!Array.isArray(rows)) return [];
     // NSE returns the company's ENTIRE event history — SBIN's list runs back to
     // 2005, ~90 entries. Only what's ahead of us (plus the last week, since a
@@ -188,6 +213,47 @@ export async function fetchEventCalendar(symbol) {
     return out.slice(0, 6);
   } catch (e) {
     console.warn(`nse event calendar ${symbol}: ${e.message}`);
+    return [];
+  }
+}
+
+/** dd-mm-yyyy, the format NSE's announcement filters take. */
+const ddmmyyyy = (ms) => {
+  const d = new Date(ms);
+  return `${String(d.getUTCDate()).padStart(2, "0")}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${d.getUTCFullYear()}`;
+};
+
+/**
+ * Raw corporate actions (dividends, bonus, splits, buybacks, rights) with their
+ * ex/record dates. Returned unparsed — `parseCorporateActions` in
+ * stock-news.mjs turns them into events, and is what the tests pin. Fails soft
+ * to [] like every other NSE helper.
+ */
+export async function fetchCorporateActions(symbol) {
+  try {
+    const rows = await nseJson(`corporates-corporateActions?index=equities&symbol=${encodeURIComponent(symbol)}`);
+    return Array.isArray(rows) ? rows : Array.isArray(rows?.data) ? rows.data : [];
+  } catch (e) {
+    console.warn(`nse corporate actions ${symbol}: ${e.message}`);
+    return [];
+  }
+}
+
+/**
+ * Raw exchange filings for the last `days` days — con-call schedules,
+ * shareholder-meeting notices, board outcomes, order wins. This is the primary
+ * source the headlines are written from, and often lands first. Parsed by
+ * `parseAnnouncements` in stock-news.mjs.
+ */
+export async function fetchAnnouncements(symbol, days = 21, now = Date.now()) {
+  const q =
+    `corporate-announcements?index=equities&symbol=${encodeURIComponent(symbol)}` +
+    `&from_date=${ddmmyyyy(now - days * 86400000)}&to_date=${ddmmyyyy(now)}`;
+  try {
+    const rows = await nseJson(q);
+    return Array.isArray(rows) ? rows : Array.isArray(rows?.data) ? rows.data : [];
+  } catch (e) {
+    console.warn(`nse announcements ${symbol}: ${e.message}`);
     return [];
   }
 }
