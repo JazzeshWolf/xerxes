@@ -288,6 +288,8 @@ export interface StockOutlook {
   beta: number | null;
   /** Today's volume vs the 20-session average, time-adjusted (rough intraday). */
   volume: { today: number | null; avg: number | null; pace: number | null; sessionFrac: number | null } | null;
+  /** Average daily traded value, ₹ crore, last 20 sessions. */
+  adv?: number | null;
   benchmark: { name: string; perf: Perf } | null;
 }
 
@@ -411,6 +413,8 @@ export interface StockRow {
   ivRank?: number | null;
   perf?: Perf | null;
   beta?: number | null;
+  /** Average daily traded value, ₹ crore, last 20 sessions — sizes heat-map tiles. */
+  adv?: number | null;
 }
 
 export interface StockScreener {

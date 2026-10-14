@@ -127,3 +127,28 @@ export function mergeLiveNews(snap: Snapshot, live: LiveNews | null): Snapshot {
     filings: live.nseOk ? live.filings : snap.filings ?? [],
   };
 }
+
+/** Move (in %) at which a heat-map tile reaches full colour, per period —
+ *  a 3% day is as notable as a 20% quarter. */
+export const HEAT_SATURATION: Record<PerfKey, number> = { d1: 3, w1: 6, m1: 10, m3: 20 };
+
+/**
+ * Heat-map colour step for a move: −4…4, 0 for flat or unknown. Four equal
+ * steps up to the period's saturation point; anything beyond it is full colour.
+ */
+export function heatStep(pct: number | null | undefined, key: PerfKey): number {
+  if (pct == null || !Number.isFinite(pct) || pct === 0) return 0;
+  const steps = Math.min(4, Math.ceil((Math.abs(pct) / HEAT_SATURATION[key]) * 4));
+  return Math.sign(pct) * Math.max(1, steps);
+}
+
+/**
+ * The period the sector card opens on: 1D, unless every name's day move is zero
+ * or missing — what a rebuild on a weekend or holiday publishes (the price and
+ * the previous close are the same session) — in which case 1W, so the card
+ * opens on real numbers instead of a wall of 0.00%.
+ */
+export function defaultPeriod(rows: StockRow[], selfD1: number | null): PerfKey {
+  const d1 = [selfD1, ...rows.map((r) => peerPerf(r, "d1"))];
+  return d1.some((x) => x != null && x !== 0) ? "d1" : "w1";
+}

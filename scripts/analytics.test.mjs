@@ -998,4 +998,12 @@ describe("what's moving a stock", () => {
     expect(A.volumePace(500, bars, Date.parse("2026-10-09T03:00:00Z")).pace).toBeNull();
     expect(A.volumePace(500, [], close).pace).toBeNull();
   });
+
+  it("avgTradedValue averages close × volume over the last n sessions, in ₹ crore", () => {
+    const bars = Array.from({ length: 30 }, (_, i) => ({ c: 100, v: i < 10 ? 1 : 2e5 }));
+    // Last 20 bars: 100 × 2e5 = ₹2 crore each.
+    expect(A.avgTradedValue(bars)).toBe(2);
+    expect(A.avgTradedValue(bars.slice(0, 4))).toBeNull(); // too little history
+    expect(A.avgTradedValue([{ c: 0, v: 5 }, { c: null, v: 1 }])).toBeNull();
+  });
 });
