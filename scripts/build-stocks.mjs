@@ -403,6 +403,8 @@ function buildOutlook(raw, spot, changePct, bench) {
     perf,
     beta: bench?.history?.length ? A.betaTo(prior, bench.history.filter((p) => p.t < today)) : null,
     volume: A.volumePace(raw.volume, prior),
+    // ₹ crore/day over 20 sessions — sizes the sector heat map's tiles.
+    adv: A.avgTradedValue(prior),
     benchmark: bench ? { name: BENCH_NAME, perf: bench.perf } : null,
   };
 }
@@ -823,6 +825,7 @@ async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys,
     ivRank: snap.expiries[snap.defaultExpiry].metrics.ivRank ?? null,
     perf: snap.outlook?.perf ?? null,
     beta: snap.outlook?.beta ?? null,
+    adv: snap.outlook?.adv ?? null,
   };
   idx.stocks = [...idx.stocks.filter((r) => r.symbol !== symbol), row].sort((a, b) => b.liquidity.score - a.liquidity.score);
   idx.count = idx.stocks.length;
@@ -948,6 +951,7 @@ async function main() {
         // sector over 1W/1M/3M from index.json without fetching every peer.
         perf: b.snap.outlook?.perf ?? null,
         beta: b.snap.outlook?.beta ?? null,
+        adv: b.snap.outlook?.adv ?? null,
       };
     })
     .sort((a, b) => b.liquidity.score - a.liquidity.score);

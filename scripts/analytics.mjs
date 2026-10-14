@@ -1526,3 +1526,19 @@ export function volumePace(todayVolume, bars, nowMs = Date.now(), lookback = 20)
     sessionFrac: round(frac, 2),
   };
 }
+
+/**
+ * Average daily traded value (₹ crore) over the last `n` sessions: mean of
+ * close × volume. Sizes the tiles of the stock Outlook's sector heat map — a
+ * stand-in for market cap, which nothing in this pipeline supplies. `bars` must
+ * already exclude today (a partial session would understate it). Null below 5
+ * usable bars. Display only: nothing in the scorer reads it.
+ */
+export function avgTradedValue(bars, n = 20) {
+  const vals = (Array.isArray(bars) ? bars : [])
+    .map((b) => Number(b?.c) * Number(b?.v))
+    .filter((x) => Number.isFinite(x) && x > 0)
+    .slice(-n);
+  if (vals.length < 5) return null;
+  return round(vals.reduce((a, x) => a + x, 0) / vals.length / 1e7, 2);
+}

@@ -1,7 +1,8 @@
 import { useMemo, useState } from "preact/hooks";
 import type { Snapshot, StockRow, StockEvent, StockFiling, MarketData, Perf } from "../lib/types";
 import { fmt, fmtPct, fmtExpiry, timeAgo } from "../lib/format";
-import { sectorMedian, splitMove, moveReading, vsExpiry, priceMovingNews, peerPerf, type PerfKey } from "../lib/outlook";
+import { sectorMedian, splitMove, moveReading, vsExpiry, priceMovingNews, peerPerf, heatStep, defaultPeriod, type PerfKey } from "../lib/outlook";
+import { squarify, tileValues } from "../lib/treemap";
 import { Card, Badge } from "./ui";
 import { NewsRow } from "./StockNewsTab";
 
@@ -49,6 +50,9 @@ export function StockOutlookTab({
     () => Object.fromEntries(PERIODS.map(({ key }) => [key, sectorMedian(peers, key)])) as Record<PerfKey, number | null>,
     [peers],
   );
+  // One period drives both the peer ranking and the heat map. Opens on 1W when
+  // every day move is zero (a weekend/holiday rebuild), not on a wall of 0.00%.
+  const [period, setPeriod] = useState<PerfKey>(() => defaultPeriod(peers, stockPerf.d1));
 
   return (
     <div className="space-y-3">
@@ -60,8 +64,11 @@ export function StockOutlookTab({
         stockPerf={stockPerf}
         sectorBy={sectorBy}
         bench={bench}
+        period={period}
+        onPeriod={setPeriod}
         onOpenPeer={onOpenPeer}
       />
+      <SectorHeatMap snap={snap} peers={peers} stockPerf={stockPerf} period={period} onPeriod={setPeriod} onOpenPeer={onOpenPeer} />
       <FilingsCard filings={snap.filings ?? []} />
       <HeadlinesCard snap={snap} onShowNews={onShowNews} />
     </div>
@@ -285,6 +292,8 @@ function SectorCard({
   stockPerf,
   sectorBy,
   bench,
+  period,
+  onPeriod: setPeriod,
   onOpenPeer,
 }: {
   snap: Snapshot;
@@ -292,9 +301,10 @@ function SectorCard({
   stockPerf: Perf;
   sectorBy: Record<PerfKey, number | null>;
   bench: { name: string; perf: Perf } | null;
+  period: PerfKey;
+  onPeriod: (k: PerfKey) => void;
   onOpenPeer: (file: string, name: string) => void;
 }) {
-  const [period, setPeriod] = useState<PerfKey>("d1");
   const sector = snap.sector ?? null;
   const others = peers.filter((p) => p.symbol !== snap.index);
   // The stock itself sits in the ranking, highlighted, so its place is obvious.
@@ -335,17 +345,7 @@ function SectorCard({
               )}
             </div>
             {hasPeriods && (
-              <div className="flex gap-1">
-                {PERIODS.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => setPeriod(key)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded border ${period === key ? "border-white/40 text-white/90 bg-white/[0.07]" : "border-white/10 text-white/50"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <PeriodChips period={period} onPeriod={setPeriod} />
             )}
           </div>
           <div className="space-y-0.5">
@@ -369,6 +369,125 @@ function SectorCard({
       <div className="text-[9px] text-white/45 mt-2 leading-relaxed">
         Sector = median of the F&amp;O names in the same trading group (this one included; needs 3+). A stock running against its whole sector is
         usually reacting to something of its own — worth finding before selling into it.
+      </div>
+    </Card>
+  );
+}
+
+function PeriodChips({ period, onPeriod }: { period: PerfKey; onPeriod: (k: PerfKey) => void }) {
+  return (
+    <div className="flex gap-1">
+      {PERIODS.map(({ key, label }) => (
+        <button
+          key={key}
+          onClick={() => onPeriod(key)}
+          className={`text-[10px] px-1.5 py-0.5 rounded border ${period === key ? "border-white/40 text-white/90 bg-white/[0.07]" : "border-white/10 text-white/50"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// --- Sector heat map --------------------------------------------------------------
+
+/** Tile fill per `heatStep` (−4…4). Literal class names so Tailwind generates
+ *  them; the -500 shades aren't remapped by light mode, so both themes read. */
+const HEAT_BG: Record<number, string> = {
+  [-4]: "bg-rose-500/90",
+  [-3]: "bg-rose-500/70",
+  [-2]: "bg-rose-500/50",
+  [-1]: "bg-rose-500/30",
+  0: "bg-white/[0.08]",
+  1: "bg-emerald-500/30",
+  2: "bg-emerald-500/50",
+  3: "bg-emerald-500/70",
+  4: "bg-emerald-500/90",
+};
+/** The box the treemap is laid out in; the card renders it at this aspect ratio. */
+const HEAT_W = 100;
+const HEAT_H = 78;
+
+function SectorHeatMap({
+  snap,
+  peers,
+  stockPerf,
+  period,
+  onPeriod,
+  onOpenPeer,
+}: {
+  snap: Snapshot;
+  peers: StockRow[];
+  stockPerf: Perf;
+  period: PerfKey;
+  onPeriod: (k: PerfKey) => void;
+  onOpenPeer: (file: string, name: string) => void;
+}) {
+  const tiles = useMemo(() => {
+    // The open stock's own numbers come from its file (fresher than index.json).
+    const rows = [
+      ...peers.filter((p) => p.symbol !== snap.index).map((p) => ({ key: p.symbol, name: p.name, file: p.file, adv: p.adv ?? null, value: peerPerf(p, period), self: false })),
+      { key: snap.index, name: snap.name, file: "", adv: snap.outlook?.adv ?? peers.find((p) => p.symbol === snap.index)?.adv ?? null, value: stockPerf[period], self: true },
+    ];
+    const { items, sized } = tileValues(rows);
+    const byKey = new Map(rows.map((r) => [r.key, r]));
+    return { sized, rects: squarify(items, HEAT_W, HEAT_H).map((r) => ({ ...r, row: byKey.get(r.key)! })) };
+  }, [peers, period, snap.index, snap.name, snap.outlook?.adv, stockPerf]);
+
+  if (tiles.rects.length < 3) return null; // a heat map of one or two names says nothing
+  const label = PERIODS.find((p) => p.key === period)?.label ?? "";
+
+  return (
+    <Card title={`${snap.sector ?? "Sector"} heat map`} right={<PeriodChips period={period} onPeriod={onPeriod} />}>
+      <div
+        className="relative w-full rounded-lg overflow-hidden"
+        // inline-size container: tile labels size themselves in cqw (below).
+        style={{ aspectRatio: `${HEAT_W} / ${HEAT_H}`, containerType: "inline-size" }}
+      >
+        {tiles.rects.map(({ key, x, y, w, h, row }) => {
+          // Label only what fits: symbol + move on roomy tiles, symbol alone on
+          // medium ones, nothing on slivers (the title still carries both).
+          const roomy = w >= 16 && h >= 13;
+          const fits = w >= 10 && h >= 7;
+          const text = `${row.key} ${fmtPct(row.value, 2)}`;
+          // Shrink a long symbol to its tile instead of truncating it: the tile
+          // is (w / HEAT_W × 100) cqw wide and a bold capital is ~0.72em (measured on the rendered map).
+          const fitCqw = ((w / HEAT_W) * 100 * 0.9) / (row.key.length * 0.72);
+          const symSize = `min(${roomy ? 11 : 9}px, ${fitCqw.toFixed(2)}cqw)`;
+          return (
+            <button
+              key={key}
+              title={`${row.name} · ${text}`}
+              disabled={row.self}
+              onClick={() => !row.self && onOpenPeer(row.file, row.name)}
+              className={`absolute flex flex-col items-center justify-center overflow-hidden text-center border border-[var(--x-page)] ${HEAT_BG[heatStep(row.value, period)]} ${
+                row.self ? "ring-2 ring-inset ring-white/90 z-10" : "active:opacity-80"
+              }`}
+              style={{ left: `${(x / HEAT_W) * 100}%`, top: `${(y / HEAT_H) * 100}%`, width: `${(w / HEAT_W) * 100}%`, height: `${(h / HEAT_H) * 100}%` }}
+            >
+              {fits && (
+                <span className="font-semibold text-white/95 leading-tight truncate max-w-full px-0.5" style={{ fontSize: symSize }}>
+                  {row.key}
+                </span>
+              )}
+              {roomy && <span className="text-[10px] text-white/85 tnum leading-tight">{fmtPct(row.value, 2)}</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between mt-2 gap-2">
+        <div className="text-[9px] text-white/45 leading-relaxed">
+          {tiles.sized ? "Size = avg daily traded value (20 sessions)" : "Equal sizes until the next build adds traded value"} · colour = {label} move ·{" "}
+          {snap.index} outlined · tap a tile to open it
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5 text-[8px] text-white/45 tnum">
+          <span>−</span>
+          {[-4, -2, 0, 2, 4].map((k) => (
+            <span key={k} className={`w-3 h-2 rounded-sm ${HEAT_BG[k]}`} />
+          ))}
+          <span>+</span>
+        </div>
       </div>
     </Card>
   );

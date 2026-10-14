@@ -121,7 +121,18 @@ outside the header band where the toggle was added.
     the selected expiry), *sector & market* (1D/1W/1M/3M vs sector median vs
     NIFTY, peers ranked with the stock itself highlighted), *exchange filings*
     and *headlines that could move it*. Peers cost zero requests — they come from
-    `index.json`, whose rows now carry `perf` + `beta`.
+    `index.json`, whose rows now carry `perf` + `beta` + `adv`.
+  - **Sector heat map** (`SectorHeatMap`, added 2026-10-14), under the sector
+    card: the stock's sector only, as a squarified treemap (`src/lib/treemap.ts`,
+    rendered in % of a fixed-aspect box, no DOM measuring). Tile size = `adv`,
+    the 20-session average daily traded value in ₹ crore (`avgTradedValue`, a
+    market-cap stand-in — nothing here supplies market cap); a name without
+    one gets the sector median, and all-missing means equal tiles. Colour =
+    `heatStep` on the -500 shades, saturating at ±3/6/10/20% for 1D/1W/1M/3M.
+    Labels shrink to their tile in `cqw` rather than truncating. The heat map and
+    the peer list share one period toggle, which opens on **1W when every day
+    move is zero** (`defaultPeriod`) — what a weekend/holiday rebuild publishes,
+    since the price and the previous close are then the same session.
   - **News**: headlines only, plus **Fetch latest news**, which calls the
     Worker's live `/news` (see below) and overlays the answer via
     `mergeLiveNews`. Without the Worker it re-pulls and offers a Google News link.
@@ -440,6 +451,12 @@ what `VolPremiumCard`'s `kind="index"` copy says when VRP drops near or below 1.
 - `pkill -f "vite preview"` matches its own shell → exit 144; harmless but noisy.
 - Browser caching hides deploys — verify with a private tab / check the build id
   in the header before concluding a change didn't ship.
+- **Don't dispatch `stocks.yml` by hand on a weekend or holiday.** The day move
+  compares the price with the last close *before today*, and with no session
+  today those are the same close, so every stock publishes 0.00% and the
+  futures-structure labels and conviction inputs shift with it (seen
+  2026-10-10: 194 of 207 structure labels changed, convictions −8…+2). It
+  self-corrects at the next weekday run; alerts are unaffected (outside window).
 
 ### Per-stock news + events (`scripts/stock-news.mjs`)
 
