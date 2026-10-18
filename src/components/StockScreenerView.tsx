@@ -4,6 +4,7 @@ import type { StockRow, LiquidityBucket, CandidateExpiry } from "../lib/types";
 import { fmt, fmtPct, fmtExpiry, timeAgo } from "../lib/format";
 import { Card, Badge } from "./ui";
 import { CandidateRow, BAND_TONE } from "./CandidateRow";
+import { istToday } from "../lib/events";
 import { ThemeToggle } from "./ThemeToggle";
 
 const LIQ_TONE: Record<LiquidityBucket, string> = {
@@ -44,6 +45,9 @@ const sortVal = (r: StockRow, f: SortField): number =>
  *  cross-universe top premium-selling candidates. Tapping a row opens the stock. */
 export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, name: string, expiry?: string) => void; onBack: () => void }) {
   const { screener, candidates, loading, error, hardRefresh, refreshing, refreshError } = useStockScreener();
+  // Each name's upcoming results/calls/corporate actions, for the event column.
+  const eventsBySymbol = useMemo(() => new Map((screener?.stocks ?? []).map((r) => [r.symbol, r.events ?? []])), [screener]);
+  const today = istToday();
   const [q, setQ] = useState("");
   const [field, setField] = useState<SortField>("conviction");
   const [dir, setDir] = useState<"desc" | "asc">("desc");
@@ -172,11 +176,19 @@ export function StockScreenerView({ onOpen, onBack }: { onOpen: (file: string, n
             )}
 
             <div className="text-[9px] text-white/45 mb-1.5">
-              score · name · side · strike · P(keep) · edge · credit/lot — tap a row for the breakdown
+              score · name · side · strike · event · P(keep) · edge · credit/lot — tap a row for the breakdown.
+              Event = days until results/earnings call (amber) or a corporate action (grey) before that trade's expiry.
             </div>
             <div className="space-y-1">
               {active.candidates.slice(0, 12).map((c) => (
-                <CandidateRow key={`${c.symbol}-${c.type}-${c.strike}`} c={c} creditPerLot={c.creditPerLot} onOpen={onOpen} />
+                <CandidateRow
+                  key={`${c.symbol}-${c.type}-${c.strike}`}
+                  c={c}
+                  creditPerLot={c.creditPerLot}
+                  events={eventsBySymbol.get(c.symbol)}
+                  today={today}
+                  onOpen={onOpen}
+                />
               ))}
               {!active.candidates.length && (
                 <div className="text-[11px] text-white/40 py-3 text-center">
