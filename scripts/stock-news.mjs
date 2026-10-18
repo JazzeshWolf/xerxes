@@ -515,3 +515,32 @@ export async function fetchCompanyBundle(symbol, name, { now = Date.now() } = {}
     nseOk: calendar.length > 0 || actions.length > 0 || announcements.length > 0,
   };
 }
+
+// --- Screener event marker ------------------------------------------------------
+
+/**
+ * Event kinds that can move a stock's price and so belong on the screener's
+ * candidate rows: results and earnings calls (the gap risk), plus corporate
+ * actions. "Event priced in" (an options-implied window, never a date) and
+ * NSE's free-text calendar purposes are deliberately absent — the owner chose
+ * dated, named events only.
+ */
+export const PRICE_EVENT_KINDS = new Set([
+  "Results", "Earnings call", "Board meeting",
+  "Dividend", "Bonus issue", "Stock split", "Buyback", "Rights issue", "Fund raise",
+  "AGM", "EGM", "Corporate action",
+]);
+
+/**
+ * The upcoming price-moving events for one stock, slimmed for index.json so the
+ * screener can mark each candidate without loading every per-stock file. Dated
+ * only, today or later, earliest first, at most `max`. Display only — nothing
+ * in the scorer reads it.
+ */
+export function priceEvents(events, today, max = 4) {
+  return (Array.isArray(events) ? events : [])
+    .filter((e) => e?.date && e.date >= today && PRICE_EVENT_KINDS.has(e.kind))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .slice(0, max)
+    .map(({ kind, date, source }) => ({ kind, date, source }));
+}

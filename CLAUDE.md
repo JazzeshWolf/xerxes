@@ -216,6 +216,20 @@ outside the header band where the toggle was added.
   NSE single-stock chains really are thin. `thin: true` renders the warning.
 - Candidate rows expand into their factor breakdown; `VolPremiumCard` (stock-only)
   carries the IV-vs-forecast-RV case on the stock dashboard.
+- **Event column on the screener's candidate rows** (added 2026-10-18, owner drew
+  where it goes: the gap between strike and P(keep)). A row is marked only when a
+  price-moving event lands **between today and that row's own expiry**
+  (`eventsForTrade`, `src/lib/events.ts`) — a 27 Oct put on a stock reporting 4 Nov
+  stays clean. Counted: results / earnings call / board meeting (amber) and
+  corporate actions — dividend ex-date, bonus, split, buyback, rights, fund raise,
+  AGM/EGM (grey). Not counted, by the owner's choice: the options-implied window and
+  undated news mentions. Data: `index.json → stocks[].events`, built by
+  `priceEvents` (`scripts/stock-news.mjs`) from each `snap.events`, so it inherits
+  the NSE carry-forward. Same-day results + call show as RES (`leadEvent`).
+  Display only; the scorer never reads it. Layout: a size-container cell shows
+  "RES 5d" where there's room, "5d" on phones; space is reserved only on rows that
+  carry a marker, so at 360-375px an event row trims its edge figure (still in the
+  expanded row) while every other row keeps full text.
 - **Stock views re-pull every 5 min and on return to foreground** (`useAutoRefresh`
   in `store.ts`, ≥60 s apart). Before this they loaded once, so tapping a
   Telegram alert opened a backgrounded PWA on hours-old data that contradicted

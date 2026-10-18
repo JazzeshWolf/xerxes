@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
-import type { CandidateRowData, ConvictionBand } from "../lib/types";
+import type { CandidateRowData, ConvictionBand, RowEvent } from "../lib/types";
 import { fmt, fmtStrike, fmtOi, fmtPct, fmtExpiry } from "../lib/format";
+import { EVENT_ABBR, daysUntil, eventsForTrade, isEarnings, leadEvent } from "../lib/events";
 
 export const BAND_TONE: Record<ConvictionBand, string> = {
   HIGH: "text-emerald-300 border-emerald-400/40 bg-emerald-400/10",
@@ -22,11 +23,17 @@ export function CandidateRow({
   c,
   creditPerLot,
   kind = "stock",
+  events,
+  today,
   onOpen,
 }: {
   c: CandidateRowData;
   creditPerLot: number | null;
   kind?: "stock" | "index";
+  /** The stock's upcoming price-moving events (index.json → events). Stock rows only. */
+  events?: RowEvent[];
+  /** IST date the event window starts from. */
+  today?: string;
   /** Opens the instrument ON THIS CANDIDATE'S EXPIRY — see `openInstrument`. */
   onOpen?: (file: string, name: string, expiry?: string) => void;
 }) {
@@ -47,13 +54,19 @@ export function CandidateRow({
   // than the row that was tapped.
   const openInstrument = onOpen && file && name ? () => onOpen(file, name, c.expiry) : null;
   const credit = <>₹{fmt(creditPerLot)}</>;
+  // Event marker: only what lands inside THIS trade's life (today → its expiry).
+  const upcoming = !isIndex && today ? (events ?? []).filter((e) => e.date >= today) : [];
+  const inTrade = today ? eventsForTrade(upcoming, c.expiry, today) : [];
+  const lead = leadEvent(inTrade);
 
   return (
     <div className={open ? "rounded-lg bg-white/[0.03] border border-white/[0.07]" : ""}>
       <div className="flex items-center gap-1.5 py-1 px-1 text-[11px]">
         <button
           onClick={() => setOpen((v) => !v)}
-          className="flex-1 flex items-center gap-1.5 text-left min-w-0 active:opacity-70"
+          // Stock rows run 2px tighter: on a 360-390px phone that is what makes
+          // room for the event column without squeezing anything else.
+          className={`flex-1 flex items-center ${isIndex ? "gap-1.5" : "gap-1"} text-left min-w-0 active:opacity-70`}
           aria-label={`Why ${symbol ?? ""} ${c.type} ${c.strike}`}
         >
           {band && (
@@ -66,7 +79,22 @@ export function CandidateRow({
             {c.type}
           </span>
           <span className="w-11 shrink-0 tnum text-white/80">{fmtStrike(c.strike)}</span>
-          <span className="flex-1 min-w-0 tnum text-white/45 text-right truncate">
+          {/* The event column sits in the gap between strike and P(keep) — where
+              the owner marked it. Always rendered on stock rows (empty when
+              nothing is due) so the badges line up down the list. */}
+          {!isIndex && (
+            // A size container: the badge reads "RES 4d" where the gap allows and
+            // shrinks to "4d" on narrow phones (~25-40px of gap at 360-390px).
+            // Space is reserved only on rows that carry a marker; an empty cell
+            // also cancels its own flex gap (-ml-1), so a row with no event keeps
+            // its full P(keep)·edge even at 360px, where the row is ~2px short.
+            <span className={`@container flex-1 ${lead ? "min-w-[22px]" : "min-w-0 -ml-1"} flex justify-center overflow-hidden`}>
+              {lead && <EventBadge e={lead} today={today!} more={inTrade.length - 1} />}
+            </span>
+          )}
+          {/* Stock rows: sized to content, shrinking (edge figure first) only when
+              a very narrow screen leaves the event column under its minimum. */}
+          <span className={`${isIndex ? "flex-1" : ""} min-w-0 tnum text-white/45 text-right truncate`}>
             {Math.round(pKeep * 100)}%
             {isIndex ? (
               <>
@@ -127,6 +155,22 @@ export function CandidateRow({
               </>
             )}
           </div>
+
+          {upcoming.length > 0 && (
+            <div className="text-[9px] leading-relaxed">
+              {upcoming.map((e) => {
+                const inside = c.expiry != null && e.date <= c.expiry;
+                const d = daysUntil(e.date, today!);
+                return (
+                  <div key={e.kind + e.date} className={inside ? (isEarnings(e.kind) ? "text-amber-300" : "text-white/70") : "text-white/40"}>
+                    {inside ? "◆" : "◇"} {e.kind} · {fmtExpiry(e.date)} ({d === 0 ? "today" : `in ${d}d`}) ·{" "}
+                    {inside ? "before this expiry" : "after this expiry"}
+                    <span className="text-white/40"> · {e.source === "nse" ? "NSE" : "from news"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* This strike's OWN market. The row's `liquidity` badge is a
               name-level bucket for the expiry cohort, so before this there was
@@ -219,5 +263,23 @@ export function CandidateRow({
         </div>
       )}
     </div>
+  );
+}
+
+/** Compact marker for the row: kind + days (days only when the gap is narrow),
+ *  amber for results-type events, neutral for corporate actions. */
+function EventBadge({ e, today, more }: { e: RowEvent; today: string; more: number }) {
+  const d = daysUntil(e.date, today);
+  const tone = isEarnings(e.kind)
+    ? "text-amber-300 border-amber-400/40 bg-amber-400/10"
+    : "text-white/70 border-white/25 bg-white/[0.04]";
+  return (
+    <span
+      title={`${e.kind} on ${fmtExpiry(e.date)}${more > 0 ? ` (+${more} more before expiry)` : ""}`}
+      className={`shrink-0 whitespace-nowrap text-[9px] font-semibold tnum border rounded px-0.5 @min-[52px]:px-1 py-px ${tone}`}
+    >
+      <span className="hidden @min-[52px]:inline">{EVENT_ABBR[e.kind] ?? e.kind} </span>
+      {d === 0 ? "today" : `${d}d`}
+    </span>
   );
 }

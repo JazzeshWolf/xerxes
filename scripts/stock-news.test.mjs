@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords, pruneEvents, pruneNews,
-  nseTime, parseCorporateActions, parseAnnouncements, classifyFiling, pruneFilings,
+  nseTime, parseCorporateActions, parseAnnouncements, classifyFiling, pruneFilings, priceEvents,
 } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
@@ -268,5 +268,33 @@ describe("NSE corporate actions + filings", () => {
       NOW,
     );
     expect(kept.map((f) => f.title)).toEqual(["a"]);
+  });
+});
+
+describe("priceEvents (screener event marker)", () => {
+  const ev = (kind, date, source = "nse") => ({ kind, title: "t", date, approx: false, source });
+  it("keeps dated, upcoming, price-moving events only — earliest first, slimmed", () => {
+    const out = priceEvents(
+      [
+        ev("Dividend", "2026-11-03"),
+        ev("Results", "2026-10-23"),
+        ev("Event priced in", "2026-10-27", "options"), // a window, not an event
+        ev("Results", "2026-10-16"), // already happened
+        { kind: "Earnings call", title: "t", date: null, approx: true, source: "news" }, // undated
+        ev("Other business matters", "2026-10-25"), // NSE free text
+        ev("Earnings call", "2026-10-23", "news"),
+      ],
+      "2026-10-19",
+    );
+    expect(out).toEqual([
+      { kind: "Results", date: "2026-10-23", source: "nse" },
+      { kind: "Earnings call", date: "2026-10-23", source: "news" },
+      { kind: "Dividend", date: "2026-11-03", source: "nse" },
+    ]);
+  });
+  it("caps the list and copes with nothing", () => {
+    const many = ["2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24"].map((d) => ev("AGM", d));
+    expect(priceEvents(many, "2026-10-19")).toHaveLength(4);
+    expect(priceEvents(undefined, "2026-10-19")).toEqual([]);
   });
 });

@@ -24,7 +24,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as upstox from "./upstox.mjs";
 import * as A from "./analytics.mjs";
-import { fetchCompanyBundle, mergeEvents, impliedEvent, pruneEvents, pruneNews, pruneFilings } from "./stock-news.mjs";
+import { fetchCompanyBundle, mergeEvents, impliedEvent, pruneEvents, pruneNews, pruneFilings, priceEvents } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -826,6 +826,8 @@ async function buildOneSymbol(token, symbol, instruments, nameBySym, equityKeys,
     perf: snap.outlook?.perf ?? null,
     beta: snap.outlook?.beta ?? null,
     adv: snap.outlook?.adv ?? null,
+    // Upcoming results/calls/corporate actions — the screener's event marker.
+    events: priceEvents(snap.events, todayIso()),
   };
   idx.stocks = [...idx.stocks.filter((r) => r.symbol !== symbol), row].sort((a, b) => b.liquidity.score - a.liquidity.score);
   idx.count = idx.stocks.length;
@@ -952,6 +954,8 @@ async function main() {
         perf: b.snap.outlook?.perf ?? null,
         beta: b.snap.outlook?.beta ?? null,
         adv: b.snap.outlook?.adv ?? null,
+        // Upcoming results/calls/corporate actions — the screener's event marker.
+        events: priceEvents(b.snap.events, todayIso()),
       };
     })
     .sort((a, b) => b.liquidity.score - a.liquidity.score);

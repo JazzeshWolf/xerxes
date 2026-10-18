@@ -415,6 +415,15 @@ export interface StockRow {
   beta?: number | null;
   /** Average daily traded value, ₹ crore, last 20 sessions — sizes heat-map tiles. */
   adv?: number | null;
+  /** Upcoming price-moving events (results, calls, corporate actions), earliest first. */
+  events?: RowEvent[];
+}
+
+/** A slimmed upcoming event on an index.json row — the screener's event marker. */
+export interface RowEvent {
+  kind: string;
+  date: string;
+  source: "nse" | "news" | "options";
 }
 
 export interface StockScreener {
