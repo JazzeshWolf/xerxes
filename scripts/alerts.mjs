@@ -121,6 +121,30 @@ export function isMonthly(date, listed = [date]) {
 
 const key = (sym, expiry, strike, type) => `${sym}|${expiry}|${strike}|${type}`;
 
+// --- results warnings (stocks) ------------------------------------------------
+// A stock card says when results land before its expiry. Added 2026-10-27 after
+// a LAURUSLABS 2360 CE alert went out with results two days away (NSE calendar,
+// 29 Oct) and nothing on the card said so. Warning only, by the owner's choice:
+// which trades alert is unchanged. Results-type events only — corporate actions
+// stay on the screener, where the grey marker covers them.
+
+/** Same-day order: the results themselves, then the board meeting, then the call. */
+const EARNINGS_RANK = { Results: 0, "Board meeting": 1, "Earnings call": 2 };
+
+/** Dated results-type events from a stock file's `events`, slimmed for state. */
+export function earningsDates(events) {
+  return (Array.isArray(events) ? events : [])
+    .filter((e) => e?.date && e.kind in EARNINGS_RANK)
+    .map(({ kind, date }) => ({ kind, date }))
+    .sort((a, b) => (a.date === b.date ? EARNINGS_RANK[a.kind] - EARNINGS_RANK[b.kind] : a.date < b.date ? -1 : 1))
+    .slice(0, 4);
+}
+
+/** The first results-type event inside a trade's life (today → expiry day), or null. */
+export function earningsBefore(earnings, expiry, today) {
+  return (earnings ?? []).find((e) => e.date >= today && e.date <= expiry) ?? null;
+}
+
 // --- collecting the current snapshot --------------------------------------
 
 /**
@@ -133,10 +157,12 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
   const rows = new Map();
   const fresh = new Set();
   const spotOf = {};
+  const earnOf = {};
   for (const [slug, f] of Object.entries(stockFiles)) {
     if (!f || f.stale) continue;
     const sym = f.index ?? slug;
     spotOf[sym] = f.spot?.price ?? null;
+    earnOf[sym] = earningsDates(f.events);
     if (!sinceAsOf || (f.asOf && f.asOf > sinceAsOf)) fresh.add(sym);
     for (const e of Object.values(f.expiries ?? {})) {
       for (const c of e.candidates ?? []) {
@@ -146,6 +172,7 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
           strike: c.strike, type: c.type, conviction: c.conviction, ltp: c.ltp,
           lot: f.lotSize, credit: Math.round(c.ltp * f.lotSize), kind: "Monthly", displayed: false,
           spot: spotOf[sym], pop: c.pProfit ?? null, cushion: cushionOf(c),
+          earnings: earnOf[sym],
         });
       }
     }
@@ -161,6 +188,7 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
         lot, credit: c.creditPerLot ?? Math.round(c.ltp * (lot ?? 0)), kind: "Monthly",
         spot: spotOf[c.symbol] ?? rows.get(k)?.spot ?? null, pop: c.pProfit ?? rows.get(k)?.pop ?? null,
         cushion: cushionOf(c) ?? rows.get(k)?.cushion ?? null,
+        earnings: earnOf[c.symbol] ?? rows.get(k)?.earnings ?? [],
         displayed: true, slot: block.slot,
       });
       fresh.add(c.symbol);
@@ -206,6 +234,8 @@ const snapshotOf = (r) => ({
   conviction: r.conviction, ltp: r.ltp, lot: r.lot, kind: r.kind,
   // Kept so an OFF LIST row can still show its last ROM / POP.
   credit: r.credit, spot: r.spot ?? null, pop: r.pop ?? null, cushion: r.cushion ?? null, dte: r.dte ?? null,
+  // Results dates ride along so end-of-day and snapshot cards can warn too.
+  ...(r.earnings?.length ? { earnings: r.earnings } : {}),
 });
 
 /** Cushion in FORECAST sigmas. `cushionSigma` (IV-based) is a different measure and
@@ -354,7 +384,16 @@ function card(events, { threshold, today }) {
   const dte = daysLeft(r0.expiry, today);
   const kind = r0.source === "indices" ? `${r0.kind} · ` : "";
   const left = dte <= 0 ? "expires today" : dte === 1 ? "1 day left" : `${dte} days left`;
-  const head = `<b>${esc(r0.symbol)} · ${dm(r0.expiry)}</b>\n${kind}${left} · lot ${lakh(r0.lot)}`;
+  // Results before this expiry: one line under the header, outside the <pre>, so
+  // the 28-char row width is untouched. Any row in the card may carry the dates.
+  const earn = r0.source === "stocks"
+    ? earningsBefore(events.map((e) => e.row.earnings).find((x) => x?.length), r0.expiry, today)
+    : null;
+  const inDays = earn ? daysLeft(earn.date, today) : null;
+  const warn = earn
+    ? `\n⚠️ <b>${esc(earn.kind)} ${dm(earn.date)}</b> (${inDays === 0 ? "today" : inDays === 1 ? "tomorrow" : `in ${inDays} days`}) — before expiry`
+    : "";
+  const head = `<b>${esc(r0.symbol)} · ${dm(r0.expiry)}</b>\n${kind}${left} · lot ${lakh(r0.lot)}${warn}`;
 
   const romOf = (r) => {
     const v = romPct(r);

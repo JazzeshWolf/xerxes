@@ -621,6 +621,16 @@ strike in forecast σ — the index gate, so it leads; percent OTM is deliberate
 never shown) and **POP%** (`pProfit`, the real-world
 forecast-vol probability of expiring worthless — never `probProfit`, which is
 1−|Δ| and carries no information). Missing inputs print `–`, never a guess.
+**Results warning on stock cards (2026-10-27).** A stock card whose expiry has
+results, a board meeting or an earnings call in front of it gets a line under the
+header — `⚠️ Results 29 Oct (in 2 days) — before expiry` — outside the `<pre>`, so
+row width is untouched. Added after a LAURUSLABS 2360 CE alert went out with
+results two days away and nothing said so. **Warning only, by the owner's
+choice**: which trades alert is unchanged. Results-type only; corporate actions
+stay on the screener's grey marker. Rows get `earnings` from the stock file's
+`events` (`earningsDates` in `collectStocks`), `snapshotOf` keeps it in state so
+EOD/snapshot cards warn too, `earningsBefore` applies the today→expiry window.
+Index cards never warn.
 **Rows must stay ≤ 28 chars**: Telegram on the owner's upright iPhone scrolls a
 `<pre>` sideways at ~30 (two screenshots, 2026-09-28 — the first at 36, the
 second at 30). Hence `55000CE` with no space, `ROM`/`POP` headers, premiums
