@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   isMonthly, DEFAULT_THRESHOLDS, DEFAULT_GATES, RULES, qualifies, cushionOf, mockEvents, loadAnnounced, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
+  earningsDates, earningsBefore,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -496,5 +497,74 @@ describe("formatting", () => {
     const s = bumpDay({ tracked: {} }, [], TODAY, "2026-09-16T10:10:00Z");
     expect(formatHeartbeat(s, s, TODAY)).toMatch(/^✓/);
     expect(formatHeartbeat(s, null, TODAY)).toContain("zero times");
+  });
+});
+
+describe("results warning on stock cards", () => {
+  // LAURUSLABS on 27 Oct: the 2360 CE (23 Nov) alert went out with results on
+  // 29 Oct and nothing on the card said so.
+  const TODAY27 = "2026-10-27";
+  const fileEvents = [
+    { kind: "Event priced in", date: "2026-10-27", approx: true, source: "options" },
+    { kind: "Dividend", date: "2026-10-30", approx: false, source: "nse" },
+    { kind: "Earnings call", date: "2026-10-29", approx: false, source: "news" },
+    { kind: "Results", date: "2026-10-29", approx: false, source: "nse" },
+  ];
+  const laurus = (over = {}) => row({
+    symbol: "LAURUSLABS", name: "Laurus Labs", expiry: "2026-11-23", dte: 27, strike: 2360, type: "CE",
+    conviction: 73, ltp: 20.1, lot: 850, spot: 2141, pop: 0.93, earnings: earningsDates(fileEvents), ...over,
+  });
+
+  it("keeps results-type dates only, results first on a shared day", () => {
+    expect(earningsDates(fileEvents)).toEqual([
+      { kind: "Results", date: "2026-10-29" },
+      { kind: "Earnings call", date: "2026-10-29" },
+    ]);
+    expect(earningsDates(undefined)).toEqual([]);
+  });
+
+  it("warns under the header when results land before the card's expiry", () => {
+    const [m] = formatMessages([{ kind: "MOVED", from: 74, row: laurus() }], { source: "stocks", threshold: 70, when: "14:00", today: TODAY27 });
+    expect(m).toContain("<b>LAURUSLABS · 23 Nov</b>\n27 days left · lot 850\n⚠️ <b>Results 29 Oct</b> (in 2 days) — before expiry");
+    // Outside the <pre>: the rows keep their phone width.
+    const pre = m.match(/<pre>([\s\S]*?)<\/pre>/)[1].split("\n");
+    for (const l of pre) expect(l.length).toBeLessThanOrEqual(28);
+  });
+
+  it("says nothing when the results come after expiry or have already happened", () => {
+    expect(earningsBefore([{ kind: "Results", date: "2026-11-04" }], "2026-10-27", "2026-10-20")).toBeNull();
+    expect(earningsBefore([{ kind: "Results", date: "2026-10-16" }], "2026-11-23", TODAY27)).toBeNull();
+    const [m] = formatMessages([{ kind: "NEW", row: laurus({ earnings: [{ kind: "Results", date: "2026-11-30" }] }) }],
+      { source: "stocks", threshold: 70, when: "14:00", today: TODAY27 });
+    expect(m).not.toContain("⚠️ <b>Results");
+  });
+
+  it("reads 'today' and 'tomorrow' plainly", () => {
+    const at = (today) => formatMessages([{ kind: "NEW", row: laurus() }], { source: "stocks", threshold: 70, when: "10:00", today })[0];
+    expect(at("2026-10-29")).toContain("(today) — before expiry");
+    expect(at("2026-10-28")).toContain("(tomorrow) — before expiry");
+  });
+
+  it("flows from the stock file through tracking into the end-of-day report", () => {
+    const f = {
+      asOf: "2026-10-27T08:00:00Z", index: "LAURUSLABS", name: "Laurus Labs", lotSize: 850, events: fileEvents,
+      expiries: { "2026-11-23": { date: "2026-11-23", dte: 27, candidates: [{ strike: 2360, type: "CE", conviction: 74, ltp: 20.85, pProfit: 0.93 }] } },
+    };
+    const cands = { expiries: [{ slot: "next", candidates: [
+      { symbol: "LAURUSLABS", name: "Laurus Labs", expiry: "2026-11-23", dte: 27, strike: 2360, type: "CE", conviction: 74, ltp: 20.85, creditPerLot: 17723 },
+    ] }] };
+    const { rows } = collectStocks(cands, { LAURUSLABS: f });
+    expect(rows.get("LAURUSLABS|2026-11-23|2360|CE").earnings).toEqual([
+      { kind: "Results", date: "2026-10-29" }, { kind: "Earnings call", date: "2026-10-29" },
+    ]);
+    const { tracked } = diff({}, rows, { threshold: 70, today: TODAY27, isFresh: () => true });
+    const [eod] = formatEod({ tracked }, { tracked: {} }, TODAY27);
+    expect(eod).toContain("⚠️ <b>Results 29 Oct</b> (in 2 days) — before expiry");
+  });
+
+  it("never warns on index cards", () => {
+    const [m] = formatMessages([{ kind: "NEW", row: row({ source: "indices", symbol: "NIFTY", cushion: 1.8, earnings: [{ kind: "Results", date: "2026-09-20" }] }) }],
+      { source: "indices", threshold: 60, minCushion: 1.5, when: "10:40", today: TODAY });
+    expect(m).not.toContain("⚠️ <b>Results");
   });
 });
