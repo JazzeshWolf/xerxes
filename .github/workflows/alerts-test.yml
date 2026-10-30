@@ -18,6 +18,10 @@ on:
         description: "Send what passes the alert rules right now (from the last run), real data"
         type: boolean
         default: false
+      premium:
+        description: "Send a TEST premium notification (image card, effect, buttons, pinned)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,3 +60,8 @@ jobs:
             node scripts/alerts.mjs --test
           fi
           if [ "${{ inputs.mock }}" = "true" ]; then node scripts/alerts.mjs --mock; fi
+          # Premium cards are rendered SVG → PNG with resvg (no browser needed).
+          if [ "${{ inputs.premium }}" = "true" ]; then
+            npm i --no-save --no-package-lock --silent @resvg/resvg-js@2
+            node scripts/premium.mjs --test
+          fi
