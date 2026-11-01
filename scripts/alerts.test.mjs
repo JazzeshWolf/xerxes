@@ -643,3 +643,48 @@ describe("premium feed (stocks-sharp, 2026-11-01)", () => {
     expect(m).toContain("ROM % = credit ÷ capital (15% of spot × lot)");
   });
 });
+
+describe("premium feed in the end-of-day report", () => {
+  const D = "2026-09-28";
+  const day = (runs, extra = {}) => ({ day: { date: D, runs, NEW: 0, MOVED: 0, DROPPED: 0, LEFT: 0 }, ...extra });
+  const prem = row({ strike: 195, conviction: 74, spot: 167, credit: 4500, cushion: 1.4, pop: 0.94 });
+  const st = day(30, { lastRunAt: "2026-09-28T10:05:00Z", tracked: { a: row({ strike: 1040, type: "PE", conviction: 72, spot: 1252.6 }) } });
+  const ix = day(70, { tracked: {} });
+  const sharp = day(30, { lastRunAt: "2026-09-28T09:45:00Z", tracked: { p: prem } });
+
+  it("leads with the premium list, then stocks, then indices", () => {
+    const [m] = formatEod(st, ix, D, DEFAULT_GATES, { sharpState: sharp });
+    const iP = m.indexOf("💎 <b>Premium · conviction 70+ · cushion 1.25σ+ · ROM 5%+ · 5+ days · no results before expiry · at the close (1)</b>");
+    const iS = m.indexOf("📈 <b>Stocks · conviction 70+");
+    const iI = m.indexOf("🏛 <b>Indices ·");
+    expect(iP).toBeGreaterThan(0);
+    expect(iP).toBeLessThan(iS);
+    expect(iS).toBeLessThan(iI);
+    expect(m).toMatch(/195CE +74/);
+  });
+
+  it("adds a Premium row to the run counts and its last run time", () => {
+    const [m] = formatEod(st, ix, D, DEFAULT_GATES, { sharpState: sharp });
+    expect(m).toMatch(/Premium +30/);
+    expect(m).toContain("Last run: stocks 15:35 · indices — · premium 15:15 IST");
+  });
+
+  it("warns when the premium step ran zero times while stocks ran", () => {
+    expect(formatHeartbeat(st, ix, D, day(0))).toContain("premium feed ran zero times");
+    expect(formatHeartbeat(st, ix, D, null)).toContain("premium feed ran zero times");
+    expect(formatHeartbeat(st, ix, D, sharp)).toMatch(/^✓/);
+    expect(formatHeartbeat(st, ix, D)).not.toContain("Premium"); // not passed: two-feed report as before
+  });
+
+  it("says None when nothing premium is held, and the snapshot re-applies the results rule", () => {
+    const [none] = formatEod(st, ix, D, DEFAULT_GATES, { sharpState: day(30, { tracked: {} }) });
+    expect(none).toMatch(/Premium · .* at the close \(0\)<\/b>\nNone\./);
+    // Tracked before a Results date was known; the snapshot (which re-applies the
+    // whole entry gate) leaves it out once results fall inside its life.
+    const late = day(30, { tracked: { p: { ...prem, earnings: [{ kind: "Results", date: "2026-10-05" }] } } });
+    const [snap] = formatEod(st, ix, D, DEFAULT_GATES, { snapshotAt: "13:15", sharpState: late });
+    expect(snap).toContain("Premium · conviction 70+ · cushion 1.25σ+ · ROM 5%+ · 5+ days · no results before expiry · now (0)");
+    const [eod] = formatEod(st, ix, D, DEFAULT_GATES, { sharpState: late });
+    expect(eod).toMatch(/195CE +74/); // the close lists everything still tracked at 70+
+  });
+});

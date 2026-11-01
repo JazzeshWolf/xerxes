@@ -530,7 +530,9 @@ export function formatMessages(events, { source, threshold, minRom = 0, minCushi
   return out;
 }
 
-export function formatHeartbeat(stocksState, indicesState, today) {
+/** `sharpState` is the premium feed's state; pass it (even null) to add its row.
+ *  Left undefined, the report is the two-feed one it always was. */
+export function formatHeartbeat(stocksState, indicesState, today, sharpState = undefined) {
   const row = (label, s) => {
     const d = s?.day?.date === today ? s.day : { runs: 0, NEW: 0, MOVED: 0, DROPPED: 0, LEFT: 0 };
     return { cells: [label, d.runs, d.NEW, d.MOVED, d.DROPPED + d.LEFT, Object.keys(s?.tracked ?? {}).length] };
@@ -538,14 +540,20 @@ export function formatHeartbeat(stocksState, indicesState, today) {
   const last = (s) => (s?.day?.date === today && s.lastRunAt ? istTime(new Date(s.lastRunAt)) : "—");
   const s = stocksState?.day?.date === today ? stocksState.day.runs : 0;
   const i = indicesState?.day?.date === today ? indicesState.day.runs : 0;
-  const ok = s > 0 && i > 0;
-  const t = table(["", "Runs", "New", "Moves", "Exits", "Now"], [row("Stocks", stocksState), row("Indices", indicesState)],
-    ["l", "r", "r", "r", "r", "r"]);
+  const withSharp = sharpState !== undefined;
+  // The premium step runs right after the stock step in the same job, so it can
+  // only be at zero while stocks ran if that step itself is failing.
+  const p = withSharp && sharpState?.day?.date === today ? sharpState.day.runs : 0;
+  const sharpDown = withSharp && s > 0 && p === 0;
+  const ok = s > 0 && i > 0 && !sharpDown;
+  const rows = [row("Stocks", stocksState), row("Indices", indicesState), ...(withSharp ? [row("Premium", sharpState)] : [])];
+  const t = table(["", "Runs", "New", "Moves", "Exits", "Now"], rows, ["l", "r", "r", "r", "r", "r"]);
   return [
     `${ok ? "✓" : "⚠️"} <b>Xerxes alerts · end of day ${dm(today)}</b>`,
     `<pre>${esc(t)}</pre>`,
-    `Last run: stocks ${last(stocksState)} · indices ${last(indicesState)} IST`,
-    ok ? "" : "\nOne feed ran zero times today — check cron-job.org and the Actions tab.",
+    `Last run: stocks ${last(stocksState)} · indices ${last(indicesState)}${withSharp ? ` · premium ${last(sharpState)}` : ""} IST`,
+    s > 0 && i > 0 ? "" : "\nOne feed ran zero times today — check cron-job.org and the Actions tab.",
+    sharpDown ? "\nThe premium feed ran zero times while stocks ran — check the Premium alerts step in Actions." : "",
   ].join("\n").trimEnd();
 }
 
@@ -555,17 +563,25 @@ export function formatHeartbeat(stocksState, indicesState, today) {
  * tracked sets, which are only updated during market hours — so this is the
  * closing picture, not whatever a late evening rebuild computed.
  */
-export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_GATES, { snapshotAt = null } = {}) {
+export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_GATES, { snapshotAt = null, sharpState = undefined } = {}) {
   // snapshotAt ("13:15"): the same list mid-session, labelled as a snapshot, not a close.
   const when = snapshotAt ? "now" : "at the close";
   const blocks = [];
-  for (const [source, st, icon, label] of [
-    ["stocks", stocksState, "📈", "Stocks"],
-    ["indices", indicesState, "🏛", "Indices"],
-  ]) {
+  // Premium leads (owner's call, 2026-11-01). Its contracts usually appear under
+  // Stocks too: the two feeds track independently. The report is sent from the
+  // stock step, which runs before the premium step, so the premium list is as
+  // of the premium feed's previous run (its time is on the "Last run" line).
+  const feeds = [
+    ...(sharpState !== undefined ? [[SHARP, sharpState]] : []),
+    ["stocks", stocksState],
+    ["indices", indicesState],
+  ];
+  for (const [source, st] of feeds) {
+    const { icon, title: label } = FEEDS[source];
     const t = thresholds[source];
     const rom = thresholds.rom?.[source];
-    const gate = { threshold: t, minRom: rom ?? 0, minCushion: thresholds.cushion?.[source] ?? 0, minDte: thresholds.dte?.[source] ?? 0 };
+    const gate = { threshold: t, minRom: rom ?? 0, minCushion: thresholds.cushion?.[source] ?? 0, minDte: thresholds.dte?.[source] ?? 0,
+      skipResults: thresholds.results?.[source] ?? false };
     // Contracts in the drop buffer (e.g. index 37–39) stay tracked but are not "at 40+".
     // A snapshot re-applies the whole entry gate (a tracked contract can slip under
     // ROM or cushion); the end-of-day report lists everything still tracked at t+.
@@ -578,7 +594,7 @@ export function formatEod(stocksState, indicesState, date, thresholds = DEFAULT_
   }
   const header = snapshotAt
     ? `📸 <b>Xerxes · snapshot ${dm(date)}</b>\n<i>Contracts passing the alert rules as of the last run, ${snapshotAt} IST</i>`
-    : formatHeartbeat(stocksState, indicesState, date)
+    : formatHeartbeat(stocksState, indicesState, date, sharpState)
     .replace("✓ <b>Xerxes alerts · end of day", "📋 <b>Xerxes · end of day")
     .replace("⚠️ <b>Xerxes alerts · end of day", "⚠️ <b>Xerxes · end of day");
   const footer = [
@@ -736,8 +752,9 @@ async function main() {
     const dir = arg("state-dir", "_alerts");
     const st = readJson(resolve(dir, "stocks.json"));
     const ix = readJson(resolve(dir, "indices.json"));
+    const sharp = readJson(resolve(dir, `${SHARP}.json`));
     const date = st?.day?.date ?? ix?.day?.date ?? istDate();
-    for (const m of formatEod(st, ix, date, thresholdsFromEnv())) await sendTelegram(m);
+    for (const m of formatEod(st, ix, date, thresholdsFromEnv(), { sharpState: sharp })) await sendTelegram(m);
     console.log(`End-of-day report for ${date} sent.`);
     return;
   }
@@ -746,9 +763,10 @@ async function main() {
     const dir = arg("state-dir", "_alerts");
     const st = readJson(resolve(dir, "stocks.json"));
     const ix = readJson(resolve(dir, "indices.json"));
-    const last = [st?.lastRunAt, ix?.lastRunAt].filter(Boolean).sort().pop();
+    const sharp = readJson(resolve(dir, `${SHARP}.json`));
+    const last = [st?.lastRunAt, ix?.lastRunAt, sharp?.lastRunAt].filter(Boolean).sort().pop();
     const at = last ? istTime(new Date(last)) : istTime();
-    for (const m of formatEod(st, ix, istDate(), thresholdsFromEnv(), { snapshotAt: at })) await sendTelegram(m);
+    for (const m of formatEod(st, ix, istDate(), thresholdsFromEnv(), { snapshotAt: at, sharpState: sharp })) await sendTelegram(m);
     console.log(`Snapshot as of ${at} IST sent.`);
     return;
   }
@@ -774,7 +792,8 @@ async function main() {
     // The end-of-day summary still goes out if a stock run lands after the window.
     if (source === "stocks" && prev && istMinutes(now) >= CLOSE_IST_MINUTES && prev.heartbeatDate !== today
         && ![0, 6].includes(new Date(now.getTime() + IST_OFFSET_MS).getUTCDay())) {
-      for (const m of formatEod(prev, readJson(resolve(stateDir, "indices.json")), today, thresholdsFromEnv())) await sendTelegram(m);
+      for (const m of formatEod(prev, readJson(resolve(stateDir, "indices.json")), today, thresholdsFromEnv(),
+        { sharpState: readJson(resolve(stateDir, `${SHARP}.json`)) })) await sendTelegram(m);
       writeFileSync(statePath, JSON.stringify({ ...prev, heartbeatDate: today }, null, 1) + "\n");
       console.log("Heartbeat sent.");
     }
@@ -868,7 +887,8 @@ async function main() {
   // stock job stops, the heartbeat stops too — which is the signal.
   if (source === "stocks" && istMinutes(now) >= CLOSE_IST_MINUTES && state.heartbeatDate !== today) {
     const indicesState = readJson(resolve(stateDir, "indices.json"));
-    for (const m of formatEod(state, indicesState, today, thresholdsFromEnv())) await sendTelegram(m);
+    for (const m of formatEod(state, indicesState, today, thresholdsFromEnv(),
+      { sharpState: readJson(resolve(stateDir, `${SHARP}.json`)) })) await sendTelegram(m);
     state.heartbeatDate = today;
     console.log("Heartbeat sent.");
   }

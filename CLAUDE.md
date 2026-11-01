@@ -791,7 +791,15 @@ code. `FEEDS` maps the feed key to its data (`stocks`), title and icon; rows kee
 - resvg is installed per run into `$RUNNER_TEMP/resvg` and found through
   `RESVG_DIR`; the repo's own dependencies are never installed on the data runner.
   Fonts are bundled in `scripts/fonts` (Inter, OFL).
-- Not in the end-of-day report or `--snapshot`; those still read stocks/indices only.
+- **End-of-day report and `--snapshot` lead with it** (owner's call, 2026-11-01):
+  a `💎 Premium` block above Stocks and Indices, a Premium row in the run counts,
+  `premium HH:MM` on the "Last run" line, and a ⚠️ if the premium step ran zero
+  times while stocks ran. `formatEod`/`formatHeartbeat` take the premium state as
+  `sharpState`; left undefined they render the old two-feed report. The report is
+  sent from the stock step, which runs **before** the premium step, so the premium
+  list is as of the premium feed's previous run (~20 min earlier) — its time is on
+  the "Last run" line. Premium contracts usually show under Stocks too; the feeds
+  track independently.
 - `ALERT_MIN_CUSHION_STOCK` now also exists — it sets a cushion floor on the
   **existing** stock feed (default 0 = off, unchanged). `pick()` ignores values
   ≤ 0 and falls back to the default, so a variable set to 0 does NOT switch a
