@@ -8,14 +8,19 @@
 //   3. inline URL BUTTONS under the message
 //   4. the message is PINNED, so it stays on top of the chat
 //
-// Which contracts qualify as premium is NOT decided yet; for now only the test
-// path (`node scripts/premium.mjs --test`, Actions → Send test alert → premium)
-// uses this. The card is SVG rendered with @resvg/resvg-js and the bundled
-// Inter fonts (scripts/fonts, OFL), so the runner needs no browser and no
-// system fonts.
+// Used by the "stocks-sharp" feed in alerts.mjs (owner's gate, 2026-11-01:
+// conviction 70+ · ROM 5%+ · cushion 1.25σ+ · 5+ days · no results before
+// expiry): every NEW there is sent through sendPremium(). The test path is
+// `node scripts/premium.mjs --test` (Actions → Send test alert → premium).
+// The card is SVG rendered with @resvg/resvg-js and the bundled Inter fonts
+// (scripts/fonts, OFL), so the runner needs no browser and no system fonts.
+// The workflows install resvg into a temp dir and point RESVG_DIR at it, so the
+// repo's own dependencies are never installed on the data runners. If the image
+// can't be rendered the same caption and buttons still go out as text: a
+// premium alert is never lost to a rendering problem.
 // ---------------------------------------------------------------------------
 
-import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MARGIN_PCT } from "./alerts.mjs";
@@ -129,14 +134,17 @@ export function premiumCardSvg(p, { label = "", when = "" } = {}) {
 
 /** SVG → PNG bytes. resvg is loaded lazily so importing this file costs nothing. */
 export async function renderPng(svg) {
-  const { Resvg } = await import("@resvg/resvg-js");
+  const { Resvg } = process.env.RESVG_DIR
+    ? createRequire(resolve(process.env.RESVG_DIR, "noop.js"))("@resvg/resvg-js")
+    : await import("@resvg/resvg-js");
   return new Resvg(svg, { font: { fontFiles: FONT_FILES, loadSystemFonts: false, defaultFontFamily: "Inter" } }).render().asPng();
 }
 
 /** Caption under the card (Telegram caps captions at 1024 chars). Pure. */
-export function premiumCaption(p, { test = false } = {}) {
+export function premiumCaption(p, { test = false, gate = "" } = {}) {
   const lines = [
     `<b>XERXES PREMIUM</b>${test ? "  ·  <i>test of the new format, sample trade</i>" : ""}`,
+    gate ? `<i>Premium gate: ${esc(gate)}</i>` : "",
     "",
     `<blockquote><b>Sell ${esc(p.symbol)} ${strikeTxt(p.strike)} ${p.type} · ${dm(p.expiry)}</b>\n` +
       `₹${p.ltp} × ${p.lot ? inr(p.lot) : "–"} = <b>₹${p.credit != null ? inr(p.credit) : "–"}</b> credit per lot</blockquote>`,
@@ -171,28 +179,44 @@ async function tg(method, body) {
   return j.result;
 }
 
-/** Card + caption + buttons + effect, then pin. Pin failure is a warning only. */
-export async function sendPremium(p, { test = false, when = "" } = {}) {
+/** Card + caption + buttons + effect, then pin. Pin failure is a warning only;
+ *  a render failure falls back to the same caption as a text message. */
+export async function sendPremium(p, { test = false, when = "", gate = "" } = {}) {
+  const caption = premiumCaption(p, { test, gate });
+  if (process.env.ALERTS_DRY_RUN === "1") {
+    console.log(`--- premium card ${p.symbol} ${p.strike} ${p.type} ${p.expiry} ---\n${caption}\n`);
+    return { message_id: 0 };
+  }
   const chat = process.env.TELEGRAM_CHAT_ID;
   if (!process.env.TELEGRAM_BOT_TOKEN || !chat) throw new Error("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set");
-  const png = await renderPng(premiumCardSvg(p, { label: test ? "TEST" : "", when }));
+  let png = null;
+  try {
+    png = await renderPng(premiumCardSvg(p, { label: test ? "TEST" : "NEW", when }));
+  } catch (e) {
+    console.log(`::warning::premium card not rendered (${e.message}); sending it as text`);
+  }
+  const textBody = (effect) => ({
+    chat_id: chat, text: caption, parse_mode: "HTML", disable_web_page_preview: true,
+    reply_markup: premiumButtons(p), ...(effect ? { message_effect_id: effect } : {}),
+  });
   const form = (effect) => {
     const f = new FormData();
     f.set("chat_id", chat);
     f.set("photo", new Blob([png], { type: "image/png" }), "xerxes-premium.png");
-    f.set("caption", premiumCaption(p, { test }));
+    f.set("caption", caption);
     f.set("parse_mode", "HTML");
     f.set("reply_markup", JSON.stringify(premiumButtons(p)));
     if (effect) f.set("message_effect_id", effect);
     return f;
   };
+  const send = (effect) => (png ? tg("sendPhoto", form(effect)) : tg("sendMessage", textBody(effect)));
   let msg;
   try {
-    msg = await tg("sendPhoto", form(FIRE_EFFECT));
+    msg = await send(FIRE_EFFECT);
   } catch (e) {
     if (!/effect/i.test(e.message)) throw e;
     console.log(`message effect rejected (${e.message}); sending without it`);
-    msg = await tg("sendPhoto", form(null));
+    msg = await send(null);
   }
   try {
     await tg("pinChatMessage", { chat_id: chat, message_id: msg.message_id, disable_notification: true });

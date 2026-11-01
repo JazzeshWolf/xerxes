@@ -30,6 +30,12 @@ describe("premium notification", () => {
     expect(cap).toContain("<b>₹3,927</b> credit per lot");
   });
 
+  it("caption states the premium gate when given", () => {
+    const cap = premiumCaption(p, { gate: "conviction 70+ · no results before expiry" });
+    expect(cap).toContain("<i>Premium gate: conviction 70+ · no results before expiry</i>");
+    expect(cap).not.toContain("test of the new format");
+  });
+
   it("buttons open the screener and the stock's NSE chain", () => {
     const [[a, b]] = premiumButtons(p).inline_keyboard;
     expect(a.url).toBe("https://jazzeshwolf.github.io/xerxes/");

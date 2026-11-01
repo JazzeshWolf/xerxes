@@ -143,7 +143,40 @@ jobs:
           ALERT_MIN_CONV_INDEX: ${{ vars.ALERT_MIN_CONV_INDEX }}
           ALERT_MIN_ROM_INDEX: ${{ vars.ALERT_MIN_ROM_INDEX }}
           ALERT_MIN_CUSHION_INDEX: ${{ vars.ALERT_MIN_CUSHION_INDEX }}
+          ALERT_MIN_CUSHION_STOCK: ${{ vars.ALERT_MIN_CUSHION_STOCK }}
+          ALERT_MIN_CONV_SHARP: ${{ vars.ALERT_MIN_CONV_SHARP }}
+          ALERT_MIN_ROM_SHARP: ${{ vars.ALERT_MIN_ROM_SHARP }}
+          ALERT_MIN_CUSHION_SHARP: ${{ vars.ALERT_MIN_CUSHION_SHARP }}
+          ALERT_MIN_DTE_SHARP: ${{ vars.ALERT_MIN_DTE_SHARP }}
         run: |
           scripts/alerts-state.sh pull
           node scripts/alerts.mjs --source stocks --state-dir _alerts --data public/data/stocks
           scripts/alerts-state.sh push stocks
+
+      # Premium alerts (owner's gate, 2026-11-01): a SECOND stock feed, in addition
+      # to the one above, never instead. Same data and machinery (alerts.mjs with
+      # --source stocks-sharp), its own state file (stocks-sharp.json on
+      # alerts-state — never force-pushed, both feeds write there), a stricter
+      # entry gate (conviction 70+ · ROM 5%+ · cushion 1.25σ+ · 5+ days · no
+      # results before expiry), and each NEW sent as a premium image card.
+      # A separate step so it can't disturb the existing feed, which has already
+      # sent and saved by now. resvg goes into a temp dir (RESVG_DIR) rather than
+      # installing the repo's dependencies; if that fails the cards go out as
+      # text instead of being lost.
+      - name: Premium alerts
+        if: steps.check.outputs.ok == 'true' && !github.event.inputs.symbol
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ALERT_MIN_CONV_SHARP: ${{ vars.ALERT_MIN_CONV_SHARP }}
+          ALERT_MIN_ROM_SHARP: ${{ vars.ALERT_MIN_ROM_SHARP }}
+          ALERT_MIN_CUSHION_SHARP: ${{ vars.ALERT_MIN_CUSHION_SHARP }}
+          ALERT_MIN_DTE_SHARP: ${{ vars.ALERT_MIN_DTE_SHARP }}
+        run: |
+          npm i --silent --no-audit --no-fund --prefix "$RUNNER_TEMP/resvg" @resvg/resvg-js@2 \
+            || echo "::warning::resvg install failed — premium cards will go out as text"
+          export RESVG_DIR="$RUNNER_TEMP/resvg"
+          scripts/alerts-state.sh pull
+          node scripts/alerts.mjs --source stocks-sharp --state-dir _alerts --data public/data/stocks
+          scripts/alerts-state.sh push stocks-sharp

@@ -31,13 +31,25 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 60 };
+// A third feed, "stocks-sharp" (owner's call, 2026-11-01): the PREMIUM stream. It
+// runs in addition to the two above, never instead — same stock data, its own
+// state file (stocks-sharp.json), a stricter entry gate, and NEW entries sent as
+// premium image cards (premium.mjs). Rows stay source "stocks" (that key picks the
+// margin proxy); the FEED key is what picks gates, rules, state and header.
+export const SHARP = "stocks-sharp";
+export const FEEDS = {
+  stocks: { data: "stocks", title: "Stocks", icon: "📈" },
+  indices: { data: "indices", title: "Indices", icon: "🏛" },
+  [SHARP]: { data: "stocks", title: "Premium", icon: "💎" },
+};
+
+export const DEFAULT_THRESHOLDS = { stocks: 70, indices: 60, [SHARP]: 70 };
 // Minimum return on capital (ROM %, see romPct) for a contract to START being
 // tracked. Owner's call (2026-10-01) to cut alert volume: a 70+ stock must
 // also return 5%+. (Indices had a 3% bar until 2026-10-03; cushion replaced
 // it — see below.) Entry only — ROM shrinks as the
 // option decays in the seller's favour, so using it to exit would spam drops.
-export const DEFAULT_MIN_ROM = { stocks: 5, indices: 0 };
+export const DEFAULT_MIN_ROM = { stocks: 5, indices: 0, [SHARP]: 5 };
 // Index gate (2026-10-03, owner's rule, measured on the EOD archive): an index
 // contract qualifies on CUSHION IN FORECAST SIGMAS, not days or percent — sigma
 // already contains the horizon. Archive outcomes to 2 Oct, settled index trades at
@@ -47,11 +59,17 @@ export const DEFAULT_MIN_ROM = { stocks: 5, indices: 0 };
 // any moment intraday (replayed 28 Sep–1 Oct) — the archive counts one snapshot
 // a day, the bot sees every 10-minute run. Measured on indices ONLY — stocks stay
 // on conviction / ROM / days to expiry.
-export const DEFAULT_MIN_CUSHION = { stocks: 0, indices: 1.5 };
+// Premium: 1.25σ on stocks is the owner's floor (2026-11-01). Unlike the index
+// 1.5σ it is NOT calibrated on the archive — nobody has run the cushion cut on
+// the stock book yet.
+export const DEFAULT_MIN_CUSHION = { stocks: 0, indices: 1.5, [SHARP]: 1.25 };
 // Stocks need at least this many days to expiry (owner's existing rule).
-export const DEFAULT_MIN_DTE = { stocks: 5, indices: 0 };
+export const DEFAULT_MIN_DTE = { stocks: 5, indices: 0, [SHARP]: 5 };
+// Premium skips any contract with a Results date already known on the entry day
+// that falls inside its life (entry day → expiry). Entry only, like every gate.
+export const DEFAULT_SKIP_RESULTS = { stocks: false, indices: false, [SHARP]: true };
 /** Every default gate in the shape thresholdsFromEnv() returns. */
-export const DEFAULT_GATES = { ...DEFAULT_THRESHOLDS, rom: DEFAULT_MIN_ROM, cushion: DEFAULT_MIN_CUSHION, dte: DEFAULT_MIN_DTE };
+export const DEFAULT_GATES = { ...DEFAULT_THRESHOLDS, rom: DEFAULT_MIN_ROM, cushion: DEFAULT_MIN_CUSHION, dte: DEFAULT_MIN_DTE, results: DEFAULT_SKIP_RESULTS };
 // Anti-noise rules, indices only (owner's call, 2026-10-01). Index scores sit
 // around the 60 bar and move a point most 10-minute runs, which produced
 // ~40-60 messages a day. Stocks keep every move (their volume is low).
@@ -67,6 +85,7 @@ export const DEFAULT_GATES = { ...DEFAULT_THRESHOLDS, rom: DEFAULT_MIN_ROM, cush
 // `announced`); a re-cross after DROPPED is tracked again silently.
 export const RULES = {
   stocks: { moveMin: 1, exitBuffer: 0, leftAfter: 1, bestPerCard: false, noExpiryDay: false },
+  [SHARP]: { moveMin: 1, exitBuffer: 0, leftAfter: 1, bestPerCard: false, noExpiryDay: false },
   indices: { moveMin: 3, exitBuffer: 3, leftAfter: 2, bestPerCard: true, noExpiryDay: true },
 };
 // The scorer's own margin proxies (analytics.mjs / INDEX_SELL_OPTS): capital
@@ -189,6 +208,11 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
         spot: spotOf[c.symbol] ?? rows.get(k)?.spot ?? null, pop: c.pProfit ?? rows.get(k)?.pop ?? null,
         cushion: cushionOf(c) ?? rows.get(k)?.cushion ?? null,
         earnings: earnOf[c.symbol] ?? rows.get(k)?.earnings ?? [],
+        // Stamped by build-stocks.mjs; undefined on a candidates.json older than
+        // the stamp, which resultsInLife() then covers from `earnings`.
+        nextResults: c.nextResults,
+        // The full scored candidate, for the premium card. Not kept in state.
+        cand: c,
         displayed: true, slot: block.slot,
       });
       fresh.add(c.symbol);
@@ -249,10 +273,19 @@ export function romPct(r) {
   return cap ? (r.credit / cap) * 100 : null;
 }
 
+/** The first Results date inside a row's life (today → expiry), or null. Uses
+ *  the build's `nextResults` stamp; a row without one (older candidates.json)
+ *  falls back to the stock file's results-type events, Results kind only. */
+export function resultsInLife(r, today) {
+  if (r.nextResults !== undefined) return r.nextResults && r.nextResults >= today ? r.nextResults : null;
+  return (r.earnings ?? []).find((e) => e.kind === "Results" && e.date >= today && e.date <= r.expiry)?.date ?? null;
+}
+
 /** The entry gate: may this contract START being tracked? A missing input that a
  *  gate needs means no — the bot never fires on something it can't verify. */
-export function qualifies(r, { threshold, minRom = 0, minCushion = 0, minDte = 0 }, today) {
+export function qualifies(r, { threshold, minRom = 0, minCushion = 0, minDte = 0, skipResults = false }, today) {
   if (!(r.conviction >= threshold)) return false;
+  if (skipResults && resultsInLife(r, today)) return false;
   if (minRom > 0 && !(romPct(r) >= minRom)) return false;
   if (minCushion > 0 && !(r.cushion >= minCushion)) return false;
   if (minDte > 0) {
@@ -267,7 +300,7 @@ export function qualifies(r, { threshold, minRom = 0, minCushion = 0, minDte = 0
  * the next tracked map, never mutates its inputs.
  */
 export function diff(tracked, current, {
-  threshold, today, isFresh, minRom = 0, minCushion = 0, minDte = 0,
+  threshold, today, isFresh, minRom = 0, minCushion = 0, minDte = 0, skipResults = false,
   moveMin = 1, exitBuffer = 0, leftAfter = 1, announced = null, bestPerCard = false, noExpiryDay = false,
 }) {
   const next = {};
@@ -302,14 +335,14 @@ export function diff(tracked, current, {
   // announce winners as drops.
   let entries = [...current].filter(([k, r]) => !(k in tracked) && r.displayed && r.expiry >= today
     && !(noExpiryDay && r.expiry === today)
-    && qualifies(r, { threshold, minRom, minCushion, minDte }, today));
+    && qualifies(r, { threshold, minRom, minCushion, minDte, skipResults }, today));
   if (bestPerCard) {
     // One strike per underlying + expiry: the highest conviction, then the most
     // cushion. Neighbouring strikes on one ladder are the same trade.
     const best = new Map();
     const better = (a, b) => a.conviction - b.conviction || (a.cushion ?? 0) - (b.cushion ?? 0) || a.strike - b.strike;
     for (const [k, r] of current) {
-      if (!r.displayed || !qualifies(r, { threshold, minRom, minCushion, minDte }, today)) continue;
+      if (!r.displayed || !qualifies(r, { threshold, minRom, minCushion, minDte, skipResults }, today)) continue;
       const g = `${r.symbol}|${r.expiry}`;
       if (!best.has(g) || better(r, best.get(g)[1]) > 0) best.set(g, [k, r]);
     }
@@ -459,26 +492,27 @@ function cards(events, opts) {
 
 /** One message per run (split only if Telegram's length cap forces it). */
 /** "conviction 40+ · cushion 1.5σ+" — the entry gate in words, for headers. */
-export function gateText({ threshold, minRom = 0, minCushion = 0, minDte = 0 }, source = null) {
+export function gateText({ threshold, minRom = 0, minCushion = 0, minDte = 0, skipResults = false }, source = null) {
   return [`conviction ${threshold}+`, minCushion ? `cushion ${minCushion}σ+` : null,
     minRom ? `ROM ${minRom}%+` : null, minDte ? `${minDte}+ days` : null,
+    skipResults ? "no results before expiry" : null,
     RULES[source]?.bestPerCard ? "best strike" : null].filter(Boolean).join(" · ");
 }
 // Settled index trades in the EOD archive (outcomes.jsonl, to 2 Oct 2026).
 const INDEX_BASIS = "<i>Archive, index trades sold at 1.5σ+: 136 at conviction 40+, none finished in the money — only 7 so far at 60+</i>";
 
-export function formatMessages(events, { source, threshold, minRom = 0, minCushion = 0, minDte = 0, when, today = istDate(), armed = false }) {
+export function formatMessages(events, { source, threshold, minRom = 0, minCushion = 0, minDte = 0, skipResults = false, when, today = istDate(), armed = false }) {
   if (!events.length && !armed) return [];
-  const icon = source === "stocks" ? "📈" : "🏛";
-  const header = [`${icon} <b>Xerxes · ${source === "stocks" ? "Stocks" : "Indices"}</b> · ${when} IST`];
-  header.push(`<i>Alert level: ${gateText({ threshold, minRom, minCushion, minDte }, source)}</i>`);
+  const feed = FEEDS[source] ?? FEEDS.stocks;
+  const header = [`${feed.icon} <b>Xerxes · ${feed.title}</b> · ${when} IST`];
+  header.push(`<i>Alert level: ${gateText({ threshold, minRom, minCushion, minDte, skipResults }, source)}</i>`);
   if (armed)
     header.push(events.length
       ? `✅ Alerts armed — already above the bar, now tracked (${events.length})`
       : "✅ Alerts armed — nothing above the bar right now");
   if (source === "indices" && minCushion >= 1.5 && events.some((e) => e.kind === "NEW"))
     header.push(INDEX_BASIS);
-  const pct = Math.round(MARGIN_PCT[source] * 100);
+  const pct = Math.round(MARGIN_PCT[feed.data] * 100);
   const footer = [
     `<i>${source === "indices" ? "CUSH = distance to strike in forecast σ\n" : ""}PREM ₹ per share · credit/lot = PREM × lot\nROM % = credit ÷ capital (${pct}% of spot × lot)\nPOP % = model's chance it expires worthless\nDROPPED = fell below ${threshold - (RULES[source]?.exitBuffer ?? 0)} · REMOVED = off the list</i>`,
     `<a href="${SCREENER_URL}">Open screener</a>`,
@@ -609,6 +643,13 @@ export function mockEvents() {
 
 // --- I/O --------------------------------------------------------------------
 
+/** A tracked/collected row → the premium card's fields. Displayed rows carry the
+ *  full scored candidate (`cand`); anything else is rebuilt from the row. */
+function premiumRow(row) {
+  const c = row.cand ?? { ...row, pProfit: row.pop, cushionSigmaF: row.cushion, creditPerLot: row.credit };
+  return { candidate: c, spot: row.spot ?? null, lot: row.lot ?? null };
+}
+
 async function sendTelegram(text) {
   if (process.env.ALERTS_DRY_RUN === "1") {
     console.log(`--- message ---\n${text}\n`);
@@ -645,18 +686,32 @@ function thresholdsFromEnv() {
   return {
     stocks: pick("ALERT_MIN_CONV_STOCK", DEFAULT_THRESHOLDS.stocks),
     indices: pick("ALERT_MIN_CONV_INDEX", DEFAULT_THRESHOLDS.indices),
+    [SHARP]: pick("ALERT_MIN_CONV_SHARP", DEFAULT_THRESHOLDS[SHARP]),
     rom: {
       stocks: pick("ALERT_MIN_ROM_STOCK", DEFAULT_MIN_ROM.stocks),
       indices: pick("ALERT_MIN_ROM_INDEX", DEFAULT_MIN_ROM.indices),
+      [SHARP]: pick("ALERT_MIN_ROM_SHARP", DEFAULT_MIN_ROM[SHARP]),
     },
-    cushion: { stocks: DEFAULT_MIN_CUSHION.stocks, indices: pick("ALERT_MIN_CUSHION_INDEX", DEFAULT_MIN_CUSHION.indices) },
-    dte: { stocks: pick("ALERT_MIN_DTE_STOCK", DEFAULT_MIN_DTE.stocks), indices: DEFAULT_MIN_DTE.indices },
+    // pick() ignores 0 and below, so a floor can't be switched OFF through a
+    // variable; pass a value low enough to never bind (e.g. 0.01) instead.
+    cushion: {
+      stocks: pick("ALERT_MIN_CUSHION_STOCK", DEFAULT_MIN_CUSHION.stocks),
+      indices: pick("ALERT_MIN_CUSHION_INDEX", DEFAULT_MIN_CUSHION.indices),
+      [SHARP]: pick("ALERT_MIN_CUSHION_SHARP", DEFAULT_MIN_CUSHION[SHARP]),
+    },
+    dte: {
+      stocks: pick("ALERT_MIN_DTE_STOCK", DEFAULT_MIN_DTE.stocks),
+      indices: DEFAULT_MIN_DTE.indices,
+      [SHARP]: pick("ALERT_MIN_DTE_SHARP", DEFAULT_MIN_DTE[SHARP]),
+    },
+    results: DEFAULT_SKIP_RESULTS,
   };
 }
 
 /** The full entry gate for one source. */
 function gateFor(source, th = thresholdsFromEnv()) {
-  return { threshold: th[source], minRom: th.rom[source], minCushion: th.cushion[source], minDte: th.dte[source] };
+  return { threshold: th[source], minRom: th.rom[source], minCushion: th.cushion[source], minDte: th.dte[source],
+    skipResults: th.results?.[source] ?? false };
 }
 
 async function main() {
@@ -705,7 +760,7 @@ async function main() {
 
   const source = arg("source");
   const stateDir = arg("state-dir", "_alerts");
-  if (!["stocks", "indices"].includes(source)) throw new Error("--source must be stocks or indices");
+  if (!(source in FEEDS)) throw new Error(`--source must be one of ${Object.keys(FEEDS).join(", ")}`);
   const gate = gateFor(source);
   const { threshold, minRom } = gate;
 
@@ -728,7 +783,7 @@ async function main() {
 
   let collected;
   let asOfUpdate;
-  if (source === "stocks") {
+  if (FEEDS[source].data === "stocks") {
     const dir = arg("data", "public/data/stocks");
     const candidates = readJson(resolve(dir, "candidates.json"));
     const index = readJson(resolve(dir, "index.json"));
@@ -790,7 +845,18 @@ async function main() {
     console.log(`First run for ${source}: armed, tracking ${Object.keys(tracked).length} contracts at ≥ ${threshold}.`);
     state = bumpDay(state, [], today, now.toISOString());
   } else {
-    const msgs = formatMessages(events, { source, ...gate, when: istTime(now), today });
+    // Premium feed: each NEW goes out as its own image card (premium.mjs); the
+    // follow-ups (MOVED / DROPPED / LEFT) stay one text message, as elsewhere.
+    const cardEvents = source === SHARP ? events.filter((e) => e.kind === "NEW") : [];
+    if (cardEvents.length) {
+      const { sendPremium, premiumFromCandidate } = await import("./premium.mjs");
+      for (const e of cardEvents) {
+        const r = premiumRow(e.row);
+        await sendPremium(premiumFromCandidate(r.candidate, { spot: r.spot, lot: r.lot }),
+          { when: `${istTime(now)} IST`, gate: gateText(gate, source) });
+      }
+    }
+    const msgs = formatMessages(events.filter((e) => !cardEvents.includes(e)), { source, ...gate, when: istTime(now), today });
     for (const m of msgs) await sendTelegram(m);
     const tally = events.reduce((a, e) => ((a[e.kind] = (a[e.kind] ?? 0) + 1), a), {});
     console.log(`${source}: ${events.length} events ${JSON.stringify(tally)}, ${Object.keys(tracked).length} tracked, ${msgs.length} message(s) sent.`);

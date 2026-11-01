@@ -537,6 +537,22 @@ export const PRICE_EVENT_KINDS = new Set([
  * only, today or later, earliest first, at most `max`. Display only — nothing
  * in the scorer reads it.
  */
+/**
+ * The first Results date from `today` through `expiry` (both inclusive), or
+ * null. Stamped onto every candidates.json row as `nextResults`, which the
+ * premium alert feed gates on: a short option with results inside its life is a
+ * different trade. Today counts — results on the entry day usually land after
+ * the close, so the risk is still ahead of a seller who enters that morning.
+ * Only what is already known (in `events`) on the day is used.
+ */
+export function nextResults(events, today, expiry) {
+  const hit = (Array.isArray(events) ? events : [])
+    .filter((e) => e?.kind === "Results" && e.date && e.date >= today && e.date <= expiry)
+    .map((e) => e.date)
+    .sort();
+  return hit[0] ?? null;
+}
+
 export function priceEvents(events, today, max = 4) {
   return (Array.isArray(events) ? events : [])
     .filter((e) => e?.date && e.date >= today && PRICE_EVENT_KINDS.has(e.kind))

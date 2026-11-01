@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords, pruneEvents, pruneNews,
-  nseTime, parseCorporateActions, parseAnnouncements, classifyFiling, pruneFilings, priceEvents,
+  nseTime, parseCorporateActions, parseAnnouncements, classifyFiling, pruneFilings, priceEvents, nextResults,
 } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
@@ -296,5 +296,22 @@ describe("priceEvents (screener event marker)", () => {
     const many = ["2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24"].map((d) => ev("AGM", d));
     expect(priceEvents(many, "2026-10-19")).toHaveLength(4);
     expect(priceEvents(undefined, "2026-10-19")).toEqual([]);
+  });
+});
+
+describe("nextResults (premium feed gate)", () => {
+  const ev = [
+    { kind: "Board meeting", date: "2026-10-22" },
+    { kind: "Results", date: "2026-11-05" },
+    { kind: "Results", date: "2026-10-28" },
+    { kind: "Results", date: "2026-10-10" },
+  ];
+  it("returns the first Results date from today through expiry, both inclusive", () => {
+    expect(nextResults(ev, "2026-10-19", "2026-10-28")).toBe("2026-10-28");
+    expect(nextResults(ev, "2026-10-10", "2026-11-24")).toBe("2026-10-10");
+  });
+  it("ignores other kinds, past dates and dates after expiry", () => {
+    expect(nextResults(ev, "2026-10-19", "2026-10-27")).toBeNull();
+    expect(nextResults(undefined, "2026-10-19", "2026-10-27")).toBeNull();
   });
 });

@@ -45,6 +45,11 @@ jobs:
           ALERT_MIN_CONV_INDEX: ${{ vars.ALERT_MIN_CONV_INDEX }}
           ALERT_MIN_ROM_INDEX: ${{ vars.ALERT_MIN_ROM_INDEX }}
           ALERT_MIN_CUSHION_INDEX: ${{ vars.ALERT_MIN_CUSHION_INDEX }}
+          ALERT_MIN_CUSHION_STOCK: ${{ vars.ALERT_MIN_CUSHION_STOCK }}
+          ALERT_MIN_CONV_SHARP: ${{ vars.ALERT_MIN_CONV_SHARP }}
+          ALERT_MIN_ROM_SHARP: ${{ vars.ALERT_MIN_ROM_SHARP }}
+          ALERT_MIN_CUSHION_SHARP: ${{ vars.ALERT_MIN_CUSHION_SHARP }}
+          ALERT_MIN_DTE_SHARP: ${{ vars.ALERT_MIN_DTE_SHARP }}
         run: |
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
             echo "::error::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID secret is missing or misnamed."
@@ -62,6 +67,6 @@ jobs:
           if [ "${{ inputs.mock }}" = "true" ]; then node scripts/alerts.mjs --mock; fi
           # Premium cards are rendered SVG → PNG with resvg (no browser needed).
           if [ "${{ inputs.premium }}" = "true" ]; then
-            npm i --no-save --no-package-lock --silent @resvg/resvg-js@2
-            node scripts/premium.mjs --test
+            npm i --silent --no-audit --no-fund --prefix "$RUNNER_TEMP/resvg" @resvg/resvg-js@2
+            RESVG_DIR="$RUNNER_TEMP/resvg" node scripts/premium.mjs --test
           fi

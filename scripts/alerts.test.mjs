@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   isMonthly, DEFAULT_THRESHOLDS, DEFAULT_GATES, RULES, qualifies, cushionOf, mockEvents, loadAnnounced, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
-  earningsDates, earningsBefore,
+  earningsDates, earningsBefore, SHARP, FEEDS, resultsInLife, gateText,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -566,5 +566,80 @@ describe("results warning on stock cards", () => {
     const [m] = formatMessages([{ kind: "NEW", row: row({ source: "indices", symbol: "NIFTY", cushion: 1.8, earnings: [{ kind: "Results", date: "2026-09-20" }] }) }],
       { source: "indices", threshold: 60, minCushion: 1.5, when: "10:40", today: TODAY });
     expect(m).not.toContain("⚠️ <b>Results");
+  });
+});
+
+describe("premium feed (stocks-sharp, 2026-11-01)", () => {
+  // WIPRO lot 3,000 at spot 167: 4,500 credit = 6% ROM; 1.30σ cushion; 41 days.
+  const ok = (over = {}) => row({ spot: 167, credit: 4500, cushion: 1.3, nextResults: null, ...over });
+  const SHARP_GATE = { threshold: DEFAULT_GATES[SHARP], minRom: DEFAULT_GATES.rom[SHARP],
+    minCushion: DEFAULT_GATES.cushion[SHARP], minDte: DEFAULT_GATES.dte[SHARP], skipResults: DEFAULT_GATES.results[SHARP] };
+  const STOCK_GATE = { threshold: 70, minRom: 5, minDte: 5 };
+  const go = (r, gate) => diff({}, cur(r), { today: TODAY, isFresh: always, ...gate }).events.map((e) => e.kind);
+
+  it("defaults to conviction 70 · ROM 5% · cushion 1.25σ · 5 days · no results before expiry", () => {
+    expect(SHARP_GATE).toEqual({ threshold: 70, minRom: 5, minCushion: 1.25, minDte: 5, skipResults: true });
+    expect(gateText(SHARP_GATE, SHARP)).toBe("conviction 70+ · cushion 1.25σ+ · ROM 5%+ · 5+ days · no results before expiry");
+  });
+
+  it("leaves the existing stock and index gates untouched", () => {
+    expect(DEFAULT_GATES).toMatchObject({ stocks: 70, indices: 60, rom: { stocks: 5, indices: 0 },
+      cushion: { stocks: 0, indices: 1.5 }, dte: { stocks: 5, indices: 0 }, results: { stocks: false, indices: false } });
+    expect(RULES[SHARP]).toEqual(RULES.stocks);
+    expect(FEEDS[SHARP].data).toBe("stocks");
+  });
+
+  it("cushion 1.25 enters, 1.24 does not; the forecast cushion is the one gated", () => {
+    expect(go(ok({ cushion: 1.25 }), SHARP_GATE)).toEqual(["NEW"]);
+    expect(go(ok({ cushion: 1.24 }), SHARP_GATE)).toEqual([]);
+    expect(go(ok({ cushion: null }), SHARP_GATE)).toEqual([]); // can't verify → no
+  });
+
+  it("each of conviction, ROM and days still binds", () => {
+    expect(go(ok({ conviction: 69 }), SHARP_GATE)).toEqual([]);
+    expect(go(ok({ credit: 3680 }), SHARP_GATE)).toEqual([]); // ROM 4.9%
+    expect(go(ok({ dte: 4 }), SHARP_GATE)).toEqual([]);
+  });
+
+  it("skips a contract with a Results date inside its life, today included", () => {
+    expect(go(ok({ nextResults: "2026-10-20" }), SHARP_GATE)).toEqual([]);
+    expect(go(ok({ nextResults: TODAY }), SHARP_GATE)).toEqual([]);
+    // The same contract still alerts on the existing stock feed.
+    expect(go(ok({ nextResults: "2026-10-20" }), STOCK_GATE)).toEqual(["NEW"]);
+  });
+
+  it("falls back to the stock file's Results events when the stamp is missing", () => {
+    const r = ok({ nextResults: undefined, earnings: [{ kind: "Board meeting", date: "2026-10-01" }, { kind: "Results", date: "2026-10-20" }] });
+    expect(resultsInLife(r, TODAY)).toBe("2026-10-20");
+    expect(go(r, SHARP_GATE)).toEqual([]);
+    // Results after expiry, or only a board meeting inside it: not a block.
+    expect(resultsInLife(ok({ nextResults: undefined, earnings: [{ kind: "Results", date: "2026-11-05" }] }), TODAY)).toBeNull();
+    expect(go(ok({ nextResults: undefined, earnings: [{ kind: "Board meeting", date: "2026-10-01" }] }), SHARP_GATE)).toEqual(["NEW"]);
+  });
+
+  it("is an entry gate only: a tracked contract is kept when cushion, ROM or results change", () => {
+    const tracked = { [k(ok())]: { ...ok(), reported: 72 } };
+    const later = ok({ conviction: 73, cushion: 0.8, credit: 1500, nextResults: "2026-10-20" });
+    const d = diff(tracked, cur(later), { today: TODAY, isFresh: always, ...SHARP_GATE });
+    expect(d.events.map((e) => e.kind)).toEqual(["MOVED"]);
+    expect(Object.keys(d.tracked)).toEqual([k(ok())]);
+  });
+
+  it("collectStocks carries the results stamp and the full candidate for the card", () => {
+    const c = { symbol: "WIPRO", name: "Wipro", expiry: "2026-10-27", dte: 41, strike: 190, type: "CE",
+      conviction: 72, ltp: 1.5, creditPerLot: 4500, nextResults: "2026-10-20", cushionSigmaF: 1.3 };
+    const { rows } = collectStocks({ expiries: [{ slot: "current", candidates: [c] }] }, {});
+    const r = rows.get("WIPRO|2026-10-27|190|CE");
+    expect(r.nextResults).toBe("2026-10-20");
+    expect(r.cand).toBe(c);
+    expect(r.source).toBe("stocks"); // the margin proxy key, not the feed key
+  });
+
+  it("follow-up messages carry the premium header and gate", () => {
+    const [m] = formatMessages([{ kind: "MOVED", from: 72, row: ok({ conviction: 75 }) }],
+      { source: SHARP, ...SHARP_GATE, when: "10:40", today: TODAY });
+    expect(m.startsWith("💎 <b>Xerxes · Premium</b> · 10:40 IST")).toBe(true);
+    expect(m).toContain("no results before expiry");
+    expect(m).toContain("ROM % = credit ÷ capital (15% of spot × lot)");
   });
 });

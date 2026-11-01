@@ -69,6 +69,11 @@ jobs:
           ALERT_MIN_CONV_INDEX: ${{ vars.ALERT_MIN_CONV_INDEX }}
           ALERT_MIN_ROM_INDEX: ${{ vars.ALERT_MIN_ROM_INDEX }}
           ALERT_MIN_CUSHION_INDEX: ${{ vars.ALERT_MIN_CUSHION_INDEX }}
+          ALERT_MIN_CUSHION_STOCK: ${{ vars.ALERT_MIN_CUSHION_STOCK }}
+          ALERT_MIN_CONV_SHARP: ${{ vars.ALERT_MIN_CONV_SHARP }}
+          ALERT_MIN_ROM_SHARP: ${{ vars.ALERT_MIN_ROM_SHARP }}
+          ALERT_MIN_CUSHION_SHARP: ${{ vars.ALERT_MIN_CUSHION_SHARP }}
+          ALERT_MIN_DTE_SHARP: ${{ vars.ALERT_MIN_DTE_SHARP }}
         run: |
           scripts/alerts-state.sh pull
           node scripts/alerts.mjs --source indices --state-dir _alerts --data public/data
