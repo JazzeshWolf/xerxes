@@ -751,6 +751,63 @@ Things that will bite:
   NIFTY 22 Sep (weekly) and a holiday-shifted monthly (Mon 23 Nov) sit the same
   distance from month end.
 
+### Premium feed — `stocks-sharp` (2026-11-01, owner's spec)
+
+A **second stock feed, in addition to the one above** — the existing feed's
+thresholds, state and messages are untouched. Same machinery, run twice:
+`stocks.yml` has a separate **Premium alerts** step after **Conviction alerts**
+running `alerts.mjs --source stocks-sharp` with its own state file
+`stocks-sharp.json` on `alerts-state` (never force-pushed — three state files now
+share that branch). NEW / MOVED / DROPPED / LEFT, once-per-contract-ever, the
+09:15–15:50 window and the publish-guard freshness check all come from the shared
+code. `FEEDS` maps the feed key to its data (`stocks`), title and icon; rows keep
+`source: "stocks"`, which is what picks the 15% margin proxy.
+
+| entry gate (displayed `candidates.json` list only) | default | override |
+|---|---|---|
+| conviction | ≥ 70 | `ALERT_MIN_CONV_SHARP` |
+| ROM (credit ÷ 15% × spot × lot) | ≥ 5% | `ALERT_MIN_ROM_SHARP` |
+| cushion, `cushionOf()` = `cushionSigmaF` (IV-based only if F missing) | ≥ 1.25σ | `ALERT_MIN_CUSHION_SHARP` |
+| days to expiry | ≥ 5 | `ALERT_MIN_DTE_SHARP` |
+| no Results date known on the entry day, from that day through expiry | on | — |
+
+- **Entry only**, like every gate: exits stay conviction-based (DROPPED below 70),
+  because ROM and cushion shrink as a short goes the seller's way.
+- **1.25σ is the owner's floor, not an archive measurement** — the cushion cut has
+  still only been run on the index book.
+- **Results**: `build-stocks.mjs` stamps `nextResults` (first `kind: "Results"`
+  date from today through that row's expiry, via `nextResults()` in
+  `stock-news.mjs`) on every candidates.json row. **Today counts** — results on the
+  entry day usually land after the close. `resultsInLife()` falls back to the stock
+  file's `earnings` (Results kind only) for a candidates.json built before the
+  stamp. Board meetings and earnings calls don't block; NSE results meetings are
+  already classified `Results` (`nse.mjs`: purpose matches /result/).
+- **Output**: each NEW is a premium card (`premium.mjs`: rendered image via
+  `sendPhoto`, 🔥 message effect, *Open in Xerxes* / *NSE option chain* buttons,
+  pinned). Follow-ups go as one text message headed `💎 Xerxes · Premium`. The
+  first run with no state file **arms** with one text summary, not a burst of cards.
+  If the image can't be rendered (resvg missing), the same caption and buttons go
+  out as text — a premium alert is never lost to rendering.
+- resvg is installed per run into `$RUNNER_TEMP/resvg` and found through
+  `RESVG_DIR`; the repo's own dependencies are never installed on the data runner.
+  Fonts are bundled in `scripts/fonts` (Inter, OFL).
+- **End-of-day report and `--snapshot` lead with it** (owner's call, 2026-11-01):
+  a `💎 Premium` block above Stocks and Indices, a Premium row in the run counts,
+  `premium HH:MM` on the "Last run" line, and a ⚠️ if the premium step ran zero
+  times while stocks ran. `formatEod`/`formatHeartbeat` take the premium state as
+  `sharpState`; left undefined they render the old two-feed report. The report is
+  sent from the stock step, which runs **before** the premium step, so the premium
+  list is as of the premium feed's previous run (~20 min earlier) — its time is on
+  the "Last run" line. Premium contracts usually show under Stocks too; the feeds
+  track independently.
+- `ALERT_MIN_CUSHION_STOCK` now also exists — it sets a cushion floor on the
+  **existing** stock feed (default 0 = off, unchanged). `pick()` ignores values
+  ≤ 0 and falls back to the default, so a variable set to 0 does NOT switch a
+  floor off — set a value too small to bind (e.g. 0.01) instead.
+- Volume check, 30 Oct close: 0 displayed stocks at conviction 70+ (max 65), so
+  neither feed fired. Of 14 at 60+, cushion ≥ 1.25σ left 4 and the results rule 2
+  — expect premium cards to be rare.
+
 ## Retired: the cross-sectional ranker (removed 2026-09-25)
 
 There used to be a fourth moving part — a Python decile ranker (`nse-ranker/`,

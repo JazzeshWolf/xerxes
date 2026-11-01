@@ -24,7 +24,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as upstox from "./upstox.mjs";
 import * as A from "./analytics.mjs";
-import { fetchCompanyBundle, mergeEvents, impliedEvent, pruneEvents, pruneNews, pruneFilings, priceEvents } from "./stock-news.mjs";
+import { fetchCompanyBundle, mergeEvents, impliedEvent, pruneEvents, pruneNews, pruneFilings, priceEvents, nextResults } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1004,6 +1004,9 @@ async function main() {
           liquidity: bucket,
           vrp: exp.metrics.vrp ?? null,
           ivRank: exp.metrics.ivRank ?? null,
+          // First Results date inside this trade's life (today → expiry), as
+          // known now. The premium alert feed refuses entry when it's set.
+          nextResults: nextResults(b.snap.events, todayIso(), exp.date),
         });
       }
     }
