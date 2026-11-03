@@ -191,7 +191,7 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
           strike: c.strike, type: c.type, conviction: c.conviction, ltp: c.ltp,
           lot: f.lotSize, credit: Math.round(c.ltp * f.lotSize), kind: "Monthly", displayed: false,
           spot: spotOf[sym], pop: c.pProfit ?? null, cushion: cushionOf(c),
-          earnings: earnOf[sym],
+          earnings: earnOf[sym], quotedAt: f.quotedAt ?? f.asOf ?? null,
         });
       }
     }
@@ -211,6 +211,7 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
         // Stamped by build-stocks.mjs; undefined on a candidates.json older than
         // the stamp, which resultsInLife() then covers from `earnings`.
         nextResults: c.nextResults,
+        quotedAt: c.quotedAt ?? rows.get(k)?.quotedAt ?? null,
         // The full scored candidate, for the premium card. Not kept in state.
         cand: c,
         displayed: true, slot: block.slot,
@@ -663,7 +664,7 @@ export function mockEvents() {
  *  full scored candidate (`cand`); anything else is rebuilt from the row. */
 function premiumRow(row) {
   const c = row.cand ?? { ...row, pProfit: row.pop, cushionSigmaF: row.cushion, creditPerLot: row.credit };
-  return { candidate: c, spot: row.spot ?? null, lot: row.lot ?? null };
+  return { candidate: c, spot: row.spot ?? null, lot: row.lot ?? null, quotedAt: row.quotedAt ?? null };
 }
 
 async function sendTelegram(text) {
@@ -871,7 +872,7 @@ async function main() {
       const { sendPremium, premiumFromCandidate } = await import("./premium.mjs");
       for (const e of cardEvents) {
         const r = premiumRow(e.row);
-        await sendPremium(premiumFromCandidate(r.candidate, { spot: r.spot, lot: r.lot }),
+        await sendPremium(premiumFromCandidate(r.candidate, { spot: r.spot, lot: r.lot, quotedAt: r.quotedAt }),
           { when: `${istTime(now)} IST`, gate: gateText(gate, source) });
       }
     }

@@ -788,6 +788,15 @@ code. `FEEDS` maps the feed key to its data (`stocks`), title and icon; rows kee
   first run with no state file **arms** with one text summary, not a burst of cards.
   If the image can't be rendered (resvg missing), the same caption and buttons go
   out as text — a premium alert is never lost to rendering.
+- **The card states the price it was decided on** (owner's ask, 2026-11-03): a
+  band under the trade with **LTP** (large), bid / ask, spot, and **"priced
+  HH:MM IST"** — when that stock's chain was fetched (`quotedAt`, stamped in
+  `fetchStock` and carried snap → candidates.json → alert row), not when the
+  message went out (that's the footer's "sent"). The snapshot's `asOf` is stamped
+  at scoring, after the fetch pass over ~200 names, so it can trail the quote by
+  minutes; it is only the fallback for files built before `quotedAt` existed.
+  The caption repeats it: `LTP ₹x × lot = credit` plus an italic priced/bid/ask/spot
+  line. Missing bid/ask or time are left out, never guessed.
 - resvg is installed per run into `$RUNNER_TEMP/resvg` and found through
   `RESVG_DIR`; the repo's own dependencies are never installed on the data runner.
   Fonts are bundled in `scripts/fonts` (Inter, OFL).
