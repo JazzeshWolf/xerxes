@@ -344,6 +344,10 @@ async function fetchStock(token, symbol, instruments, equityKey) {
     quoteKeys.length ? upstox.quotes(token, quoteKeys) : Promise.resolve({}),
     underlyingKey ? upstox.dailyCandles(token, underlyingKey, from, today) : Promise.resolve({ history: [] }),
   ]);
+  // When this name's chain and quotes actually arrived. The snapshot's asOf is
+  // stamped later, at scoring, after the fetch pass over the whole universe,
+  // so it can trail the quotes by minutes. Alerts show this as "priced at".
+  const quotedAt = new Date().toISOString();
 
   const chainsByExpiry = {};
   let chainSpot = null;
@@ -362,6 +366,7 @@ async function fetchStock(token, symbol, instruments, equityKey) {
 
   return {
     symbol,
+    quotedAt,
     spot,
     closes: (closesC.history ?? []).map((p) => p.v),
     // Full bars (same API call) — needed for gap-aware realized vol.
@@ -515,6 +520,7 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null, bench
 
   const snap = {
     asOf: new Date().toISOString(),
+    quotedAt: raw.quotedAt ?? null,
     stale: false,
     source: "upstox",
     index: raw.symbol,
@@ -1007,6 +1013,8 @@ async function main() {
           // First Results date inside this trade's life (today → expiry), as
           // known now. The premium alert feed refuses entry when it's set.
           nextResults: nextResults(b.snap.events, todayIso(), exp.date),
+          // When the quote behind ltp/bid/ask was fetched (premium card's "priced at").
+          quotedAt: b.snap.quotedAt ?? null,
         });
       }
     }

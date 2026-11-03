@@ -633,6 +633,9 @@ describe("premium feed (stocks-sharp, 2026-11-01)", () => {
     expect(r.nextResults).toBe("2026-10-20");
     expect(r.cand).toBe(c);
     expect(r.source).toBe("stocks"); // the margin proxy key, not the feed key
+    expect(r.quotedAt).toBeNull(); // nothing stamped: no time is invented
+    const stamped = collectStocks({ expiries: [{ slot: "current", candidates: [{ ...c, quotedAt: "2026-10-07T07:12:40Z" }] }] }, {});
+    expect(stamped.rows.get("WIPRO|2026-10-27|190|CE").quotedAt).toBe("2026-10-07T07:12:40Z");
   });
 
   it("follow-up messages carry the premium header and gate", () => {

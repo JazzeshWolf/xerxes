@@ -5,9 +5,30 @@ const c = {
   symbol: "RVNL", name: "Rail Vikas Nigam", strike: 212.5, type: "CE", expiry: "2026-10-27", dte: 20, ltp: 2.04,
   creditPerLot: 3927, conviction: 76, pProfit: 0.89, probTouchF: 0.25, cushionSigmaF: 1.2, distancePct: 8.18,
   iv: 0.391, vrp: 1.33, cvar: -11.4, oiLots: 107, spreadPct: 0.03,
+  bid: 1.88, ask: 1.94, quotedAt: "2026-10-07T07:12:40Z",
 };
 
 describe("premium notification", () => {
+  it("shows the LTP it was decided on, the book, spot and when it was priced", () => {
+    const q = premiumFromCandidate(c, { spot: 196.23 });
+    const svg = premiumCardSvg(q, { when: "12:45 IST" });
+    expect(svg).toContain("₹2.04");
+    expect(svg).toContain("bid 1.88 · ask 1.94");
+    expect(svg).toContain("spot ₹196.23");
+    expect(svg).toContain("12:42 IST"); // the quote time, not the send time
+    expect(svg).toContain("sent 12:45 IST");
+    const cap = premiumCaption(q);
+    expect(cap).toContain("LTP <b>₹2.04</b> × 1,925 = <b>₹3,927</b> credit per lot");
+    expect(cap).toContain("<i>priced 12:42 IST · bid 1.88 / ask 1.94 · spot ₹196.23</i>");
+  });
+
+  it("leaves out what it doesn't have rather than guessing", () => {
+    const q = premiumFromCandidate({ ...c, bid: undefined, ask: undefined, quotedAt: undefined });
+    expect(premiumCardSvg(q)).not.toContain("priced");
+    expect(premiumCaption(q)).not.toMatch(/bid \d/);
+    expect(premiumFromCandidate(c, { quotedAt: "2026-10-07T08:00:00Z" }).quotedAt).toBe("2026-10-07T08:00:00Z");
+  });
+
   const p = premiumFromCandidate(c);
 
   it("recovers lot, spot and ROM on the stock margin proxy", () => {
