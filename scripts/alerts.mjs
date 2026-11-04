@@ -164,6 +164,70 @@ export function earningsBefore(earnings, expiry, today) {
   return (earnings ?? []).find((e) => e.date >= today && e.date <= expiry) ?? null;
 }
 
+// --- results announced after a premium card (owner's ask, 2026-11-04) -------
+// The premium gate skips results that are KNOWN on the entry day. It can't skip
+// a date nobody has published yet: RVNL 202.5 CE got its card on 2 Nov, NSE
+// listed results for 13 Nov only on 4 Nov, and nothing said so — by then the
+// contract had dropped below 70 and wasn't even tracked. So this follows every
+// contract a premium card went out for (`announced`, until expiry), tracked or
+// not, and warns once per (contract, results date) when a Results date appears
+// inside its life. A rescheduled date warns again.
+
+/** Contracts to warn about now. Pure. `announced` is {key: expiry}, `earningsOf`
+ *  {symbol: [{kind, date}]}, `warned` {key: date already warned}. */
+export function resultsWarnings(announced, earningsOf, warned, today) {
+  const out = [];
+  for (const [k, expiry] of Object.entries(announced ?? {})) {
+    if (!(expiry >= today)) continue;
+    const [symbol, , strike, type] = k.split("|");
+    const date = (earningsOf?.[symbol] ?? []).find((e) => e.kind === "Results" && e.date >= today && e.date <= expiry)?.date;
+    if (!date || warned?.[k] === date) continue;
+    out.push({ key: k, symbol, expiry, strike: Number(strike), type, date });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.key.localeCompare(b.key));
+}
+
+/** The contract's current quote from a stock file's chain, or null. Pure. */
+export function chainQuote(file, expiry, strike, type) {
+  const e = Object.values(file?.expiries ?? {}).find((x) => x.date === expiry);
+  const r = (e?.chain ?? []).find((x) => x.strike === strike && x.type === type);
+  return r ? { ltp: r.ltp ?? null, bid: r.bid ?? null, ask: r.ask ?? null, spot: file?.spot?.price ?? null } : null;
+}
+
+/** One message for every warning this run. `quotes` and `cards` are keyed like
+ *  `announced`; either may be missing a contract, and then that line is left out. */
+export function formatResultsWarnings(list, { when, today, quotes = {}, cards = {} }) {
+  if (!list.length) return null;
+  const wd = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
+  const p2 = (n) => Number(n).toFixed(2);
+  const blocks = list.map((w) => {
+    const q = quotes[w.key];
+    const c = cards[w.key];
+    const inDays = daysLeft(w.date, today);
+    const before = daysLeft(w.expiry, w.date);
+    const lines = [
+      `<b>${esc(w.symbol)} ${w.strike} ${w.type} · ${dm(w.expiry)}</b>`,
+      `Results <b>${wd(w.date)} ${dm(w.date)}</b> (${inDays === 0 ? "today" : inDays === 1 ? "tomorrow" : `in ${inDays} days`})` +
+        `${before > 0 ? `, ${before} day${before === 1 ? "" : "s"} before expiry` : ", on expiry day"}`,
+    ];
+    const price = [c?.ltp != null ? `card at ₹${p2(c.ltp)}${c.date ? ` (${dm(c.date)})` : ""}` : null,
+      q?.ltp != null ? `now ₹${p2(q.ltp)}${q.bid != null && q.ask != null ? ` (bid ${p2(q.bid)} / ask ${p2(q.ask)})` : ""}` : null]
+      .filter(Boolean).join(" · ");
+    if (price) lines.push(price.charAt(0).toUpperCase() + price.slice(1));
+    if (q?.spot) lines.push(`Spot ₹${p2(q.spot)} · strike ${((Math.abs(w.strike - q.spot) / q.spot) * 100).toFixed(1)}% away`);
+    return lines.join("\n");
+  });
+  return [
+    `💎 <b>Xerxes · Premium</b> · ${when} IST`,
+    `⚠️ <b>Results announced before your expiry</b>`,
+    "",
+    blocks.join("\n\n"),
+    "",
+    `<i>${list.length > 1 ? "These premium cards" : "This premium card"} went out before the results date was published. New premium alerts skip known results; this follows up on cards already sent.</i>`,
+    `<a href="${SCREENER_URL}">Open screener</a>`,
+  ].join("\n");
+}
+
 // --- collecting the current snapshot --------------------------------------
 
 /**
@@ -219,7 +283,7 @@ export function collectStocks(candidates, stockFiles, sinceAsOf = null) {
       fresh.add(c.symbol);
     }
   }
-  return { rows, isFresh: (t) => fresh.has(t.symbol) };
+  return { rows, isFresh: (t) => fresh.has(t.symbol), earningsOf: earnOf };
 }
 
 /**
@@ -745,6 +809,12 @@ async function main() {
       const [m] = formatMessages(events, { source, ...gateFor(source), threshold, when });
       await sendTelegram("🧪 <b>MOCK ALERT (test only, not real)</b>\n\n" + m);
     }
+    const sample = [{ key: "RVNL|2026-11-23|202.5|CE", symbol: "RVNL", expiry: "2026-11-23", strike: 202.5, type: "CE", date: "2026-11-13" }];
+    await sendTelegram("🧪 <b>MOCK ALERT (test only, not real)</b>\n\n" + formatResultsWarnings(sample, {
+      when, today: "2026-11-04",
+      quotes: { [sample[0].key]: { ltp: 2.93, bid: 2.96, ask: 3, spot: 190.31 } },
+      cards: { [sample[0].key]: { ltp: 2.25, date: "2026-11-02" } },
+    }));
     console.log("Mock alerts sent.");
     return;
   }
@@ -803,6 +873,7 @@ async function main() {
 
   let collected;
   let asOfUpdate;
+  let stockFiles = {};
   if (FEEDS[source].data === "stocks") {
     const dir = arg("data", "public/data/stocks");
     const candidates = readJson(resolve(dir, "candidates.json"));
@@ -814,6 +885,7 @@ async function main() {
       if (slug) files[slug] = readJson(resolve(dir, `${slug}.json`));
     }
     collected = collectStocks(candidates, files, prev?.lastAsOf ?? null);
+    stockFiles = files;
     asOfUpdate = index.asOf;
     if (prev?.lastAsOf && index.asOf <= prev.lastAsOf) {
       console.log(`Stocks asOf ${index.asOf} not newer than last alert run — nothing to do.`);
@@ -874,6 +946,8 @@ async function main() {
         const r = premiumRow(e.row);
         await sendPremium(premiumFromCandidate(r.candidate, { spot: r.spot, lot: r.lot, quotedAt: r.quotedAt }),
           { when: `${istTime(now)} IST`, gate: gateText(gate, source) });
+        // Kept so a later results warning can say what the card was sent at.
+        state.cards = { ...(state.cards ?? {}), [key(e.row.symbol, e.row.expiry, e.row.strike, e.row.type)]: { ltp: e.row.ltp, date: today } };
       }
     }
     const msgs = formatMessages(events.filter((e) => !cardEvents.includes(e)), { source, ...gate, when: istTime(now), today });
@@ -881,6 +955,25 @@ async function main() {
     const tally = events.reduce((a, e) => ((a[e.kind] = (a[e.kind] ?? 0) + 1), a), {});
     console.log(`${source}: ${events.length} events ${JSON.stringify(tally)}, ${Object.keys(tracked).length} tracked, ${msgs.length} message(s) sent.`);
     state = bumpDay(state, events, today, now.toISOString());
+  }
+
+  if (source === SHARP) {
+    const keep = (m) => Object.fromEntries(Object.entries(m ?? {}).filter(([k]) => k in announcedMap));
+    const warned = keep(state.resultsWarned);
+    const list = resultsWarnings(announcedMap, collected.earningsOf, warned, today);
+    if (list.length) {
+      const quotes = {};
+      for (const w of list) {
+        const f = Object.values(stockFiles).find((x) => (x?.index ?? null) === w.symbol);
+        quotes[w.key] = chainQuote(f, w.expiry, w.strike, w.type);
+      }
+      await sendTelegram(formatResultsWarnings(list, { when: istTime(now), today, quotes, cards: state.cards ?? {} }));
+      for (const w of list) warned[w.key] = w.date;
+      console.log(`Results warnings sent: ${list.map((w) => `${w.key} → ${w.date}`).join(", ")}`);
+    }
+    // Both maps live only as long as the contract's announcement does (pruned at expiry).
+    state.resultsWarned = warned;
+    state.cards = keep(state.cards);
   }
 
   // End-of-day heartbeat, piggybacking on the stock job so it runs on the real

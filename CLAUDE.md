@@ -797,6 +797,19 @@ code. `FEEDS` maps the feed key to its data (`stocks`), title and icon; rows kee
   minutes; it is only the fallback for files built before `quotedAt` existed.
   The caption repeats it: `LTP ₹x × lot = credit` plus an italic priced/bid/ask/spot
   line. Missing bid/ask or time are left out, never guessed.
+- **Results announced after a card** (owner's ask, 2026-11-04). The gate can only
+  skip results already *known*: RVNL 202.5 CE got its card on 2 Nov, and NSE
+  listed results for 13 Nov only on 4 Nov (archive: no dated Results at the 2 or
+  3 Nov close; a dateless news mention on 3 Nov, which by the owner's choice is
+  never counted). By then the contract had dropped under 70 and wasn't tracked,
+  so nothing said so. Now every premium run checks **every contract a card went
+  out for** (`announced`, until expiry — tracked or not) via `resultsWarnings`,
+  and sends one `⚠️ Results announced before your expiry` text: results date,
+  days before expiry, card price vs now (bid/ask) and spot. Once per (contract,
+  results date) in `resultsWarned`; a rescheduled date warns again. `cards`
+  records each card's LTP and date from now on (pre-2026-11-04 cards have none,
+  so that part is left out). Results kind only, like the gate. `--mock` sends a
+  sample.
 - resvg is installed per run into `$RUNNER_TEMP/resvg` and found through
   `RESVG_DIR`; the repo's own dependencies are never installed on the data runner.
   Fonts are bundled in `scripts/fonts` (Inter, OFL).
