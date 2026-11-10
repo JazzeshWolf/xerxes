@@ -24,7 +24,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as upstox from "./upstox.mjs";
 import * as A from "./analytics.mjs";
-import { fetchCompanyBundle, mergeEvents, impliedEvent, pruneEvents, pruneNews, pruneFilings, priceEvents, nextResults } from "./stock-news.mjs";
+import { fetchCompanyBundle, mergeEvents, impliedEvent, pruneEvents, pruneNews, pruneFilings, priceEvents, nextResults, carryNseEvents } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -549,9 +549,10 @@ function buildStock(name, raw, vix, prevIvHistory = [], newsBundle = null, bench
       newsBundle?.events ?? pruneEvents(raw.prevEvents?.filter((e) => e.source !== "options") ?? []),
       pruneEvents(newsBundle?.nseEvents ?? []),
       // NSE is bot-walled and fails more often than not. When this pass got
-      // nothing back from it, keep the NSE dates we already had — a failed
-      // fetch is not evidence that the results date went away.
-      newsBundle && !newsBundle.nseOk ? pruneEvents(raw.prevEvents?.filter((e) => e.source === "nse") ?? []) : [],
+      // nothing back from it — or only the calendar failed — keep the NSE
+      // dates we already had: a failed fetch is not evidence that the results
+      // date went away.
+      pruneEvents(carryNseEvents(newsBundle, raw.prevEvents)),
       [impliedEvent(term?.slopePts ?? null, defaultExpiry)].filter(Boolean),
     ).slice(0, 10),
     // Cached news is re-filtered every build, so tightening the relevance guard
@@ -737,7 +738,7 @@ export function pickNewsPriority(
  * failing never costs the others.
  */
 async function fetchNewsBundle(symbol, name) {
-  return fetchCompanyBundle(symbol, name).catch(() => ({ news: [], events: [], nseEvents: [], filings: [], nseOk: false }));
+  return fetchCompanyBundle(symbol, name).catch(() => ({ news: [], events: [], nseEvents: [], filings: [], nseOk: false, calendarOk: false }));
 }
 
 /**

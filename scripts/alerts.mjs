@@ -187,6 +187,34 @@ export function resultsWarnings(announced, earningsOf, warned, today) {
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.key.localeCompare(b.key));
 }
 
+/** Every Results date the premium feed has seen, per stock, kept until it has
+ *  passed. The stock data can lose a known date for a run when one NSE call
+ *  fails — on 9 Nov KALYANKJIL's 10 Nov results vanished for the 15:01-15:45 runs
+ *  and three premium cards went out in that gap. The fix upstream keeps the date
+ *  in the data; this is the second layer: once seen, a date gates and warns until
+ *  it passes, whatever a later run's data says. A date that is moved later stays
+ *  remembered until the old day goes by — the safe error for a seller. Pure. */
+export function rememberResults(known, earningsOf, today) {
+  const out = {};
+  const add = (sym, d) => { if (d && d >= today) (out[sym] ??= new Set()).add(d); };
+  for (const [sym, dates] of Object.entries(known ?? {})) for (const d of dates ?? []) add(sym, d);
+  for (const [sym, evs] of Object.entries(earningsOf ?? {}))
+    for (const e of evs ?? []) if (e?.kind === "Results") add(sym, e.date);
+  return Object.fromEntries(Object.entries(out).map(([sym, set]) => [sym, [...set].sort()]));
+}
+
+/** Stamp each row with the earliest remembered Results date inside its life when
+ *  its own data has none, or only a later one. Mutates `rows`, which are built
+ *  fresh each run and never saved as they are. */
+export function applyKnownResults(rows, known, today) {
+  for (const r of rows.values()) {
+    const d = (known?.[r.symbol] ?? []).find((x) => x >= today && x <= r.expiry);
+    if (!d) continue;
+    const cur = resultsInLife(r, today);
+    if (!cur || d < cur) r.nextResults = d;
+  }
+}
+
 /** The contract's current quote from a stock file's chain, or null. Pure. */
 export function chainQuote(file, expiry, strike, type) {
   const e = Object.values(file?.expiries ?? {}).find((x) => x.date === expiry);
@@ -223,7 +251,7 @@ export function formatResultsWarnings(list, { when, today, quotes = {}, cards = 
     "",
     blocks.join("\n\n"),
     "",
-    `<i>${list.length > 1 ? "These premium cards" : "This premium card"} went out before the results date was published. New premium alerts skip known results; this follows up on cards already sent.</i>`,
+    `<i>${list.length > 1 ? "These premium cards" : "This premium card"} went out with no results date on file. New premium alerts skip known results; this follows up on cards already sent.</i>`,
     `<a href="${SCREENER_URL}">Open screener</a>`,
   ].join("\n");
 }
@@ -913,6 +941,11 @@ async function main() {
     prevTracked = {};
   }
 
+  // Premium: gate and warn on every Results date ever seen for the stock, not
+  // just the ones this run's data still carries (see rememberResults).
+  const knownResults = source === SHARP ? rememberResults(prev?.knownResults, collected.earningsOf, today) : null;
+  if (knownResults) applyKnownResults(collected.rows, knownResults, today);
+
   const rules = RULES[source];
   // A re-arm also forgets today's announcements, or a contract NEW'd earlier
   // under the old rules would be tracked silently and missing from the armed list.
@@ -960,7 +993,9 @@ async function main() {
   if (source === SHARP) {
     const keep = (m) => Object.fromEntries(Object.entries(m ?? {}).filter(([k]) => k in announcedMap));
     const warned = keep(state.resultsWarned);
-    const list = resultsWarnings(announcedMap, collected.earningsOf, warned, today);
+    const remembered = Object.fromEntries(Object.entries(knownResults ?? {})
+      .map(([sym, dates]) => [sym, dates.map((date) => ({ kind: "Results", date }))]));
+    const list = resultsWarnings(announcedMap, remembered, warned, today);
     if (list.length) {
       const quotes = {};
       for (const w of list) {
@@ -974,6 +1009,7 @@ async function main() {
     // Both maps live only as long as the contract's announcement does (pruned at expiry).
     state.resultsWarned = warned;
     state.cards = keep(state.cards);
+    state.knownResults = knownResults;
   }
 
   // End-of-day heartbeat, piggybacking on the stock job so it runs on the real

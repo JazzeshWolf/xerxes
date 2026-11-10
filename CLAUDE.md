@@ -810,6 +810,22 @@ code. `FEEDS` maps the feed key to its data (`stocks`), title and icon; rows kee
   records each card's LTP and date from now on (pre-2026-11-04 cards have none,
   so that part is left out). Results kind only, like the gate. `--mock` sends a
   sample.
+- **A known results date must never drop out for a run (bug, 9 Nov).** KALYANKJIL
+  reported 10 Nov and the date was in its file from 4 Nov, yet three premium
+  cards went out at 15:01-15:15 on 9 Nov. The run log has `nse event calendar
+  KALYANKJIL: 403`: the calendar call failed while corporate actions and
+  announcements answered, so `nseOk` was true, the carry-forward (which only ran
+  on `!nseOk`) didn't, and the build replaced the events with a set that had no
+  results date; the evening rebuild got it back. Two fixes, both pinned by tests:
+  1. **Data** — `fetchEventCalendar` returns `null` on failure (403, network, a
+     bot-wall page that isn't an array) and `[]` only for a real empty answer;
+     the bundle reports `calendarOk`; `carryNseEvents` keeps the previous NSE
+     events whenever the calendar itself failed, not only when all of NSE did.
+  2. **Premium memory** — `knownResults` in `stocks-sharp.json`: every Results
+     date the feed has seen, per stock, until it passes (`rememberResults`).
+     `applyKnownResults` stamps it onto rows before the gate, and the results
+     warnings read it too. A date moved later stays remembered until the old day
+     passes — the safe error for a seller.
 - resvg is installed per run into `$RUNNER_TEMP/resvg` and found through
   `RESVG_DIR`; the repo's own dependencies are never installed on the data runner.
   Fonts are bundled in `scripts/fonts` (Inter, OFL).

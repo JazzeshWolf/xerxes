@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isMonthly, DEFAULT_THRESHOLDS, DEFAULT_GATES, RULES, qualifies, cushionOf, mockEvents, loadAnnounced, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
   earningsDates, earningsBefore, SHARP, FEEDS, resultsInLife, gateText,
-  resultsWarnings, chainQuote, formatResultsWarnings,
+  resultsWarnings, chainQuote, formatResultsWarnings, rememberResults, applyKnownResults,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -745,5 +745,38 @@ describe("results announced after a premium card (2026-11-04)", () => {
   it("collectStocks exposes each stock's results dates", () => {
     const { earningsOf: e } = collectStocks({ expiries: [] }, { RVNL: { index: "RVNL", events: [{ kind: "Results", date: "2026-11-13", source: "nse" }] } });
     expect(e.RVNL).toEqual([{ kind: "Results", date: "2026-11-13" }]);
+  });
+});
+
+describe("premium remembers results dates (KALYANKJIL, 9 Nov)", () => {
+  const D = "2026-11-09";
+  const GATE = { threshold: 70, minRom: 5, minCushion: 1.25, minDte: 5, skipResults: true };
+  // KALYANKJIL 680 CE as scored at 15:01: the run's data had lost the 10 Nov date.
+  const kal = (over = {}) => row({ symbol: "KALYANKJIL", expiry: "2026-11-23", dte: 14, strike: 680, type: "CE",
+    conviction: 72, ltp: 9, lot: 125, credit: 6000, spot: 611, cushion: 1.4, nextResults: null, earnings: [], ...over });
+
+  it("adds what each run sees and keeps it until the day passes", () => {
+    const k1 = rememberResults({}, { KALYANKJIL: [{ kind: "Results", date: "2026-11-10" }, { kind: "Board meeting", date: "2026-11-10" }] }, D);
+    expect(k1).toEqual({ KALYANKJIL: ["2026-11-10"] });
+    expect(rememberResults(k1, { KALYANKJIL: [] }, D)).toEqual({ KALYANKJIL: ["2026-11-10"] }); // lost from the data: still known
+    expect(rememberResults(k1, {}, "2026-11-11")).toEqual({}); // passed: forgotten
+    expect(rememberResults({ RVNL: ["2026-11-13"] }, { RVNL: [{ kind: "Results", date: "2026-11-12" }] }, D))
+      .toEqual({ RVNL: ["2026-11-12", "2026-11-13"] });
+  });
+
+  it("a remembered date closes the gate when the run's own data has lost it", () => {
+    const rows = cur(kal());
+    expect(diff({}, rows, { today: D, isFresh: always, ...GATE }).events.map((e) => e.kind)).toEqual(["NEW"]); // the bug
+    applyKnownResults(rows, { KALYANKJIL: ["2026-11-10"] }, D);
+    expect([...rows.values()][0].nextResults).toBe("2026-11-10");
+    expect(diff({}, rows, { today: D, isFresh: always, ...GATE }).events).toEqual([]); // fixed
+  });
+
+  it("only stamps dates inside the row's life, and only earlier than what it already has", () => {
+    const rows = cur(kal({ nextResults: "2026-11-20" }), kal({ strike: 700, expiry: "2026-11-08", dte: 0 }));
+    applyKnownResults(rows, { KALYANKJIL: ["2026-11-10"] }, D);
+    const [a, b] = [...rows.values()];
+    expect(a.nextResults).toBe("2026-11-10");
+    expect(b.nextResults).toBeNull(); // expired before the date
   });
 });
