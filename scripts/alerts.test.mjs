@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isMonthly, DEFAULT_THRESHOLDS, DEFAULT_GATES, RULES, qualifies, cushionOf, mockEvents, loadAnnounced, table, inAlertWindow, formatEod, romPct, collectStocks, collectIndices, diff, formatMessages, formatHeartbeat, bumpDay,
   earningsDates, earningsBefore, SHARP, FEEDS, resultsInLife, gateText,
+  resultsWarnings, chainQuote, formatResultsWarnings,
 } from "./alerts.mjs";
 
 const TODAY = "2026-09-16";
@@ -689,5 +690,60 @@ describe("premium feed in the end-of-day report", () => {
     expect(snap).toContain("Premium · conviction 70+ · cushion 1.25σ+ · ROM 5%+ · 5+ days · no results before expiry · now (0)");
     const [eod] = formatEod(st, ix, D, DEFAULT_GATES, { sharpState: late });
     expect(eod).toMatch(/195CE +74/); // the close lists everything still tracked at 70+
+  });
+});
+
+describe("results announced after a premium card (2026-11-04)", () => {
+  // The RVNL case: cards on 2 and 3 Nov, NSE listed results for 13 Nov on 4 Nov.
+  const NOW = "2026-11-04";
+  const announced = { "RVNL|2026-11-23|202.5|CE": "2026-11-23", "RVNL|2026-11-23|205|CE": "2026-11-23", "IRFC|2026-12-29|88|CE": "2026-12-29" };
+  const earningsOf = { RVNL: [{ kind: "Results", date: "2026-11-13" }], IRFC: [] };
+
+  it("warns for every carded contract whose life now holds a Results date, tracked or not", () => {
+    const w = resultsWarnings(announced, earningsOf, {}, NOW);
+    expect(w.map((x) => x.key)).toEqual(["RVNL|2026-11-23|202.5|CE", "RVNL|2026-11-23|205|CE"]);
+    expect(w[0]).toMatchObject({ symbol: "RVNL", strike: 202.5, type: "CE", expiry: "2026-11-23", date: "2026-11-13" });
+  });
+
+  it("warns once per contract and date, and again if the date moves", () => {
+    const warned = { "RVNL|2026-11-23|202.5|CE": "2026-11-13", "RVNL|2026-11-23|205|CE": "2026-11-13" };
+    expect(resultsWarnings(announced, earningsOf, warned, NOW)).toEqual([]);
+    const moved = resultsWarnings(announced, { RVNL: [{ kind: "Results", date: "2026-11-14" }] }, warned, NOW);
+    expect(moved.map((x) => x.date)).toEqual(["2026-11-14", "2026-11-14"]);
+  });
+
+  it("ignores results outside the trade's life, other event kinds and expired contracts", () => {
+    expect(resultsWarnings(announced, { RVNL: [{ kind: "Results", date: "2026-11-24" }] }, {}, NOW)).toEqual([]); // after expiry
+    expect(resultsWarnings(announced, { RVNL: [{ kind: "Results", date: "2026-11-03" }] }, {}, NOW)).toEqual([]); // already past
+    expect(resultsWarnings(announced, { RVNL: [{ kind: "Board meeting", date: "2026-11-13" }] }, {}, NOW)).toEqual([]);
+    expect(resultsWarnings(announced, earningsOf, {}, "2026-11-24")).toEqual([]); // expired
+    expect(resultsWarnings(announced, { RVNL: [{ kind: "Results", date: "2026-11-23" }] }, {}, NOW)).toHaveLength(2); // expiry day counts
+  });
+
+  it("reads the contract's current quote from the stock file's chain", () => {
+    const f = { index: "RVNL", spot: { price: 190.31 }, expiries: { a: { date: "2026-11-23", chain: [
+      { strike: 202.5, type: "PE", ltp: 14.1 }, { strike: 202.5, type: "CE", ltp: 2.93, bid: 2.96, ask: 3 }] } } };
+    expect(chainQuote(f, "2026-11-23", 202.5, "CE")).toEqual({ ltp: 2.93, bid: 2.96, ask: 3, spot: 190.31 });
+    expect(chainQuote(f, "2026-12-29", 202.5, "CE")).toBeNull();
+    expect(chainQuote(undefined, "2026-11-23", 202.5, "CE")).toBeNull();
+  });
+
+  it("says when results land, how far before expiry, and the card price against now", () => {
+    const w = resultsWarnings(announced, earningsOf, {}, NOW);
+    const m = formatResultsWarnings(w, { when: "09:35", today: NOW,
+      quotes: { [w[0].key]: { ltp: 2.93, bid: 2.96, ask: 3, spot: 190.31 } },
+      cards: { [w[0].key]: { ltp: 2.25, date: "2026-11-02" } } });
+    expect(m.startsWith("💎 <b>Xerxes · Premium</b> · 09:35 IST\n⚠️ <b>Results announced before your expiry</b>")).toBe(true);
+    expect(m).toContain("<b>RVNL 202.5 CE · 23 Nov</b>\nResults <b>Fri 13 Nov</b> (in 9 days), 10 days before expiry");
+    expect(m).toContain("Card at ₹2.25 (2 Nov) · now ₹2.93 (bid 2.96 / ask 3.00)");
+    expect(m).toContain("Spot ₹190.31 · strike 6.4% away");
+    // The 205 CE has no quote or card price on hand: those lines are left out, not guessed.
+    expect(m).toMatch(/<b>RVNL 205 CE · 23 Nov<\/b>\nResults <b>Fri 13 Nov<\/b> \(in 9 days\), 10 days before expiry\n\n<i>/);
+    expect(formatResultsWarnings([], { when: "09:35", today: NOW })).toBeNull();
+  });
+
+  it("collectStocks exposes each stock's results dates", () => {
+    const { earningsOf: e } = collectStocks({ expiries: [] }, { RVNL: { index: "RVNL", events: [{ kind: "Results", date: "2026-11-13", source: "nse" }] } });
+    expect(e.RVNL).toEqual([{ kind: "Results", date: "2026-11-13" }]);
   });
 });
