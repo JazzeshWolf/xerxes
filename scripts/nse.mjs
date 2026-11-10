@@ -180,13 +180,21 @@ export async function yahooHistory(symbol, range = "1y") {
  * Upcoming corporate events for one symbol from NSE's event calendar —
  * board meetings, results, dividends, with EXACT dates, which none of the other
  * sources can give. Behind the same Akamai protection as the chain endpoints and
- * about as reliable from a runner, so it fails soft to [] and is treated as one
- * of several event sources rather than the truth.
+ * about as reliable from a runner, so it fails soft and is treated as one of
+ * several event sources rather than the truth.
+ *
+ * Returns `null` when the request FAILED (403, network, a bot-wall page that
+ * isn't a JSON array) and `[]` only when NSE answered with nothing upcoming.
+ * The difference is load-bearing: on 9 Nov the calendar 403'd for KALYANKJIL
+ * while the other NSE calls worked, the failure read as "no events", the build
+ * dropped the known results date for 10 Nov, and three premium cards went out
+ * on a stock reporting the next day. The caller carries the previous dates
+ * forward on `null`.
  */
 export async function fetchEventCalendar(symbol) {
   try {
     const rows = await nseJson(`event-calendar?symbol=${encodeURIComponent(symbol)}`);
-    if (!Array.isArray(rows)) return [];
+    if (!Array.isArray(rows)) throw new Error("not an event list");
     // NSE returns the company's ENTIRE event history — SBIN's list runs back to
     // 2005, ~90 entries. Only what's ahead of us (plus the last week, since a
     // result that just landed still explains today's move) is worth keeping;
@@ -213,7 +221,7 @@ export async function fetchEventCalendar(symbol) {
     return out.slice(0, 6);
   } catch (e) {
     console.warn(`nse event calendar ${symbol}: ${e.message}`);
-    return [];
+    return null;
   }
 }
 

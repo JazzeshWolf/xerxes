@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseEventDate, classifyEvent, mentionsCompany, mergeEvents, impliedEvent, ambiguousFirstWords, pruneEvents, pruneNews,
-  nseTime, parseCorporateActions, parseAnnouncements, classifyFiling, pruneFilings, priceEvents, nextResults,
+  nseTime, parseCorporateActions, parseAnnouncements, classifyFiling, pruneFilings, priceEvents, nextResults, carryNseEvents,
 } from "./stock-news.mjs";
 import { STOCKS } from "./stocks-universe.mjs";
 
@@ -313,5 +313,26 @@ describe("nextResults (premium feed gate)", () => {
   it("ignores other kinds, past dates and dates after expiry", () => {
     expect(nextResults(ev, "2026-10-19", "2026-10-27")).toBeNull();
     expect(nextResults(undefined, "2026-10-19", "2026-10-27")).toBeNull();
+  });
+});
+
+describe("carryNseEvents (KALYANKJIL, 9 Nov)", () => {
+  const prev = [
+    { kind: "Results", date: "2026-11-10", source: "nse" },
+    { kind: "Results", date: "2026-11-12", source: "news" },
+    { kind: "Event priced in", date: "2026-11-23", source: "options" },
+  ];
+  it("keeps the known NSE dates when only the calendar failed", () => {
+    // The 15:01 run: calendar 403, corporate actions + announcements answered.
+    expect(carryNseEvents({ nseOk: true, calendarOk: false }, prev)).toEqual([prev[0]]);
+  });
+  it("keeps them when NSE didn't answer at all, or the bundle predates calendarOk", () => {
+    expect(carryNseEvents({ nseOk: false, calendarOk: false }, prev)).toEqual([prev[0]]);
+    expect(carryNseEvents({ nseOk: true }, prev)).toEqual([prev[0]]);
+  });
+  it("trusts a calendar that answered, and carries nothing on a run with no fetch", () => {
+    expect(carryNseEvents({ nseOk: true, calendarOk: true }, prev)).toEqual([]);
+    expect(carryNseEvents(null, prev)).toEqual([]);
+    expect(carryNseEvents({ nseOk: true, calendarOk: false }, undefined)).toEqual([]);
   });
 });

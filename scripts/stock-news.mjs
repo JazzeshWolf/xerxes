@@ -502,18 +502,37 @@ export function pruneFilings(filings, now = Date.now(), maxAgeDays = 21) {
 export async function fetchCompanyBundle(symbol, name, { now = Date.now() } = {}) {
   const [feed, calendar, actions, announcements] = await Promise.all([
     fetchStockNews(symbol, name, { now }).catch(() => ({ news: [], events: [] })),
-    nse.fetchEventCalendar(symbol).catch(() => []),
+    nse.fetchEventCalendar(symbol).catch(() => null),
     nse.fetchCorporateActions(symbol).catch(() => []),
     nse.fetchAnnouncements(symbol, 21, now).catch(() => []),
   ]);
   const filed = parseAnnouncements(announcements, now);
+  const cal = calendar ?? [];
   return {
     news: feed.news,
     events: feed.events,
-    nseEvents: [...calendar, ...parseCorporateActions(actions, now), ...filed.events],
+    nseEvents: [...cal, ...parseCorporateActions(actions, now), ...filed.events],
     filings: filed.filings,
-    nseOk: calendar.length > 0 || actions.length > 0 || announcements.length > 0,
+    nseOk: cal.length > 0 || actions.length > 0 || announcements.length > 0,
+    // The calendar is the only source of exact results dates, so its own
+    // success is tracked: see carryNseEvents.
+    calendarOk: calendar !== null,
   };
+}
+
+/**
+ * The previously known NSE events to keep alongside this pass's. All of them
+ * when NSE didn't answer at all, AND when only the calendar failed — the other
+ * two NSE calls answering says nothing about the results date, which only the
+ * calendar gives. Without the second case a single 403 on the calendar erased a
+ * known results date for that run (KALYANKJIL, 9 Nov). A bundle from before
+ * `calendarOk` existed is treated as a failed calendar: keeping a date is the
+ * safe error for a seller, losing one is not. mergeEvents dedupes the overlap.
+ */
+export function carryNseEvents(bundle, prevEvents) {
+  if (!bundle) return [];
+  if (bundle.nseOk && bundle.calendarOk === true) return [];
+  return (Array.isArray(prevEvents) ? prevEvents : []).filter((e) => e?.source === "nse");
 }
 
 // --- Screener event marker ------------------------------------------------------
