@@ -1,0 +1,69 @@
+name: Flip test (buy opposite ATM on sell alerts)
+
+# Backtest of the owner's "flip" idea (scripts/flip-test.mjs): on every NEW
+# stock alert, buy the opposite-side ATM option of the same expiry at the next
+# 5-min candle and try for +5% on the premium intraday, at 5/10/20%/no stop,
+# against an every-candle baseline. Signals are rebuilt from alerts-state's
+# git history; 5-min candles come from Upstox and are cached on the
+# `flip-test` branch, so a contract fetched while it is live stays testable
+# after it expires (Upstox only serves expired contracts on its Plus plan).
+#
+# Results: the run's summary page, and REPORT.md / results.json on `flip-test`.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/lucid-volta-3pyoqf]
+    paths: [scripts/flip-test.mjs, .github/workflows/flip-test.yml]
+  schedule:
+    # 16:20 IST Mon–Fri, after the close: caches the day's candles before
+    # contracts expire. Best-effort, like every GitHub schedule here.
+    - cron: "50 10 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flip-test
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Full history: the commit in which a contract first appears in
+      # `announced` is the alert, and its commit time is when it was sent.
+      - name: Fetch alerts-state history
+        run: git clone --quiet --branch alerts-state "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" _alerts
+
+      - name: Seed candle cache from flip-test
+        run: |
+          mkdir -p _flip/candles
+          if git clone --quiet --depth 1 --branch flip-test "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" _seed 2>/dev/null; then
+            cp -r _seed/candles/. _flip/candles/ 2>/dev/null || true
+            rm -rf _seed
+          fi
+          echo "cached candle files: $(ls _flip/candles | wc -l)"
+
+      - name: Run backtest
+        env:
+          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
+          ALERTS_DIR: _alerts
+          FLIP_DIR: _flip
+        run: node scripts/flip-test.mjs
+
+      # Derived and reproducible (the cache is re-seeded above), so an orphan
+      # force-push is fine here — unlike alerts-state or the EOD archive.
+      - name: Publish to flip-test branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_flip
+          publish_branch: flip-test
+          force_orphan: true
+          commit_message: "flip test results (force-pushed, derived)"
